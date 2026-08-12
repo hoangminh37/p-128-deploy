@@ -125,14 +125,22 @@ graph TB
 
 ## Components
 
-### 1. Frontend (React/Next.js)
+### 1. Frontend (Vite + React + TypeScript)
 
 - **Purpose:** Giao diện người dùng tương tác với Medical AI Agent — hiển thị tiến trình xử lý từng bước của Agent, câu trả lời được xác thực và lịch sử hội thoại.
+- **Tech Stack thực tế:**
+  - `Vite 8 + React 19 + TypeScript 6` — framework chính
+  - `react-router-dom v7` — định tuyến giữa các trang
+  - `@tanstack/react-query v5` — fetch data, cache state server-side
+  - `react-hook-form + Zod` — form validation (tạo hồ sơ bệnh nhân)
+  - `Tailwind CSS v4` — styling
+  - `msw` — mock API khi backend chưa sẵn, giúp FE phát triển độc lập
 - **Key Features:**
-  - Chat Interface với Agent Observation Stream — hiển thị step events (trạng thái xử lý) và token events (text kết quả) theo thời gian thực
+  - Chat Interface với Agent Observation Stream — hiển thị `step` events (trạng thái xử lý) và `token` events (text kết quả) theo thời gian thực
   - Dashboard: lịch sử hội thoại, số lượng token, thời gian phản hồi từng bước
   - Hỗ trợ đa nền tảng: Web Browser và Mobile App
-- **State Management:** React Context / Zustand cho chat state cục bộ
+- **Dev server:** Port `5180`, proxy `/api` → `http://localhost:8000`
+- **Lý do chọn Vite thay vì Next.js:** Ứng dụng y tế yêu cầu đăng nhập — SEO không cần thiết. Vite nhẹ hơn, khởi động nhanh hơn và phù hợp hơn cho SPA cần SSE streaming.
 
 ### 2. Backend (FastAPI)
 
@@ -501,3 +509,7 @@ graph TB
 | Vector DB     | Qdrant                            | Hỗ trợ metadata filtering tốt (lọc theo `disease_type`)           |
 | LLM           | Groq / OpenAI (hoán đổi)          | Groq cho tốc độ, OpenAI cho chất lượng — linh hoạt thay thế       |
 | Streaming     | Agent Observation Stream (SSE)    | Phát `step` events realtime qua mọi node + `token` events chỉ sau verify + `done` event với citations — người dùng thấy Agent đang làm gì thay vì màn hình trắng |
+| Frontend      | Vite + React 19 + TypeScript      | SPA phù hợp cho app cần đăng nhập (SEO không cần thiết). Nhẹ hơn Next.js, proxy `/api` → FastAPI port 8000 |
+| Form / Validation | react-hook-form + Zod         | Type-safe validation tại FE cho form hồ sơ bệnh nhân                |
+| Server State  | @tanstack/react-query v5          | Fetch, cache và sync dữ liệu với backend; hỗ trợ SSE khi bật stream |
+| API Mock      | msw (Mock Service Worker)         | FE phát triển độc lập với backend, test UI không cần backend chạy   |
