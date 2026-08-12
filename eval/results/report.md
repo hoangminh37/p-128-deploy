@@ -1,46 +1,12 @@
-# Evaluation Report
+# Evaluation Evidence — Team XXX
 
-> Báo cáo đánh giá chất lượng sản phẩm theo tiêu chí BTC.
+## 1. RAG Quality Metrics (RAGAS)
 
----
+| Metric | Score | Benchmark |
+|--------|-------|-----------|
+| faithfulness | 1.00 | > 0.7 (✅ PASS) |
+| answer_relevancy | 0.28 | > 0.7 (❌ FAIL) |
+| context_precision | 1.00 | > 0.7 (✅ PASS) |
+| context_recall | 1.00 | > 0.7 (✅ PASS) |
 
-## 1. Metrics
-
-| Metric | Target | Actual | Status |
-|--------|--------|--------|--------|
-| Response accuracy | >80% | — | ⏳ |
-| Response latency | <3s | — | ⏳ |
-| User satisfaction | >4/5 | — | ⏳ |
-| Test coverage | >60% | — | ⏳ |
-
-## 2. Test Results
-
-### Unit Tests
-```
-pytest tests/ -v
-# Paste output here
-```
-
-### Integration Tests
-```
-# Mô tả test scenarios và kết quả
-```
-
-## 3. User Feedback
-
-| User | Feedback | Rating |
-|------|----------|--------|
-| [User 1] | [feedback] | [1-5] |
-| [User 2] | [feedback] | [1-5] |
-
-## 4. Demo Results
-
-- Ngày demo: [YYYY-MM-DD]
-- Người tham gia: [số người]
-- Feedback chung: [tóm tắt]
-- Issues phát hiện: [danh sách]
-
-## 5. Action Items
-
-- [ ] [Cần cải thiện 1]
-- [ ] [Cần cải thiện 2]
+*(Báo cáo được tạo tự động bởi scripts/run_ragas_eval.py)*
