@@ -68,7 +68,7 @@ graph TB
         GW["API Gateway"]
         AUTH["Auth Module\nJWT · Rate Limit"]
         CACHE["Semantic Cache\nRedis"]
-        CHAT["Chat Handler\nSSE Streaming"]
+        CHAT["Chat Handler\nAgent Observation Stream"]
 
         GW --> AUTH
         GW --> CACHE
@@ -114,12 +114,12 @@ graph TB
     CACHE <-->|"R/W"| RD
     ORC <-->|"Inference"| LLM
     SAFETY -->|"Fallback"| PUBMED
-    MEM -->|"Stream Response"| CHAT
+    MEM -->|"Observation Events\n(step · token · done)"| CHAT
 ```
 
 | Tầng                      | Trách nhiệm                           | Thành phần                                         |
 | :------------------------ | :------------------------------------ | :------------------------------------------------- |
-| **Tier 1** · Client       | Giao diện người dùng, nhận SSE stream | Web Browser · Mobile App                           |
+| **Tier 1** · Client       | Giao diện người dùng, nhận Observation Stream | Web Browser · Mobile App                           |
 | **Tier 2** · Backend      | Auth, caching, điều phối request      | API Gateway · Auth · Semantic Cache · Chat Handler |
 | **Tier 3** · Intelligence | Xử lý AI + lưu trữ toàn bộ dữ liệu    | LangGraph Agent · Qdrant · PostgreSQL · Redis      |
 
@@ -127,23 +127,23 @@ graph TB
 
 ### 1. Frontend (React/Next.js)
 
-- **Purpose:** Giao diện người dùng tương tác với Medical AI Agent — hiển thị câu trả lời dạng streaming, lịch sử hội thoại và dashboard theo dõi.
+- **Purpose:** Giao diện người dùng tương tác với Medical AI Agent — hiển thị tiến trình xử lý từng bước của Agent, câu trả lời được xác thực và lịch sử hội thoại.
 - **Key Features:**
-  - Chat Interface với SSE Streaming (real-time token display)
-  - Dashboard: lịch sử hội thoại, số lượng token, thời gian phản hồi
+  - Chat Interface với Agent Observation Stream — hiển thị step events (trạng thái xử lý) và token events (text kết quả) theo thời gian thực
+  - Dashboard: lịch sử hội thoại, số lượng token, thời gian phản hồi từng bước
   - Hỗ trợ đa nền tảng: Web Browser và Mobile App
 - **State Management:** React Context / Zustand cho chat state cục bộ
 
 ### 2. Backend (FastAPI)
 
-- **Purpose:** Tầng trung gian điều phối toàn bộ request từ Client đến AI Agent — xử lý bảo mật, cache và streaming response.
-- **API Design:** RESTful + SSE (Server-Sent Events) cho streaming
+- **Purpose:** Tầng trung gian điều phối toàn bộ request từ Client đến AI Agent — xử lý bảo mật, cache có ngữ cảnh và Agent Observation Stream.
+- **API Design:** RESTful + SSE (Server-Sent Events) với Agent Observation Stream
 - **Authentication:** JWT Token · Rate Limiting per user
 - **Key Modules:**
   - `API Gateway`: Tiếp nhận và validate request đầu vào
   - `Auth Module`: Xác thực JWT, phân quyền, rate limit
-  - `Semantic Cache`: Kiểm tra cache trước khi gọi Agent (cosine similarity trên Redis)
-  - `Chat Handler`: Điều phối request tới LangGraph Agent, stream response về FE
+  - `Semantic Cache`: Kiểm tra cache với **composite key = `Vector(query)` + `hash(patient_profile)`**. Chỉ cache query dạng `general_education` (không phụ thuộc hồ sơ cá nhân). Query dạng `personalized` (liên quan liều thuốc, bệnh nền cụ thể) **bắt buộc bypass cache** và đi qua RAG Agent để tránh trả về kết quả sai cho bệnh nhân khác nhau.
+  - `Chat Handler`: Điều phối request tới LangGraph Agent, phát **Agent Observation Stream** (3 loại event: `step`, `token`, `done`) về FE theo thời gian thực
 
 ### 3. AI Agent (LangGraph)
 
@@ -375,15 +375,48 @@ flowchart TD
 **Tóm tắt luồng dữ liệu theo bước:**
 
 1. Patient gửi `{query, patient_id}` → API Gateway validate JWT
-2. Semantic Cache kiểm tra Redis — nếu HIT trả về ngay (`< 100ms`)
+2. Semantic Cache kiểm tra Redis với key = `Vector(query) + hash(patient_profile)`. Chỉ HIT nếu query là `general_education` và profile khớp — trả về ngay (`< 100ms`). Query `personalized` luôn bypass.
 3. Agent load `chat_history` từ PostgreSQL + session từ Redis vào `AgentState`
-4. Intent Router phân loại intent bằng LLM → định tuyến vào đúng pipeline
-5. Preprocessing: Coref Resolution → Query Rewrite ghép hồ sơ bệnh nhân
-6. Hybrid Retrieval: BM25 + Dense trên Qdrant → Reranker → CRAG Evaluate
+4. Intent Router phân loại intent bằng LLM → định tuyến vào đúng pipeline *(FE nhận `step` event: "Đang phân tích câu hỏi...")*
+5. Preprocessing: Coref Resolution → Query Rewrite ghép hồ sơ bệnh nhân *(FE nhận `step` event: "Đang chuẩn bị ngữ cảnh...")*
+6. Hybrid Retrieval: BM25 + Dense trên Qdrant → Reranker → CRAG Evaluate *(FE nhận `step` event: "Đang tìm kiếm tài liệu liên quan...")*
 7. Nếu `strips = 0` → Doctor Referral response, kết thúc
-8. LLM Generate CoT + JSON `{answer, claims[cited_doc_id]}`
-9. Self-RAG Verifier kiểm tra từng câu — retry tối đa 2 lần nếu `partially`
-10. Memory Checkpoint lưu vào PostgreSQL + Redis, stream response về FE
+8. LLM Generate CoT + JSON `{answer, claims[cited_doc_id]}` *(FE nhận `step` event: "Đang tổng hợp câu trả lời...")*
+9. Self-RAG Verifier kiểm tra toàn bộ response — retry tối đa 2 lần nếu `partially` *(FE nhận `step` event: "Đang kiểm tra độ tin cậy...")*
+10. Memory Checkpoint lưu vào PostgreSQL + Redis. Chat Handler phát **`token` events** (text đã verified từng từ) + **`done` event** (citations, disclaimer) về FE
+
+### Agent Observation Stream — Đặc tả SSE Event
+
+Chat Handler phát 3 loại event trong cùng một SSE connection:
+
+| Event type | Thời điểm phát | Payload | Hiển thị trên FE |
+| :--------- | :------------- | :------ | :---------------- |
+| `step` | Sau mỗi LangGraph node hoàn thành | `{node, message, metadata}` | Dòng trạng thái xử lý (spinner + text) |
+| `token` | Sau khi `selfrag_verifier` pass — text đã verified | `{text}` | Từng từ hiện dần trong chat bubble |
+| `done` | Kết thúc pipeline | `{citations, support_level, disclaimer}` | Citations + disclaimer y tế |
+
+**Ví dụ luồng event thực tế:**
+```
+event: step
+data: {"node": "intent_router", "message": "Đang phân tích câu hỏi...", "icon": "🔍"}
+
+event: step
+data: {"node": "hybrid_retrieval", "message": "Tìm thấy 8 tài liệu liên quan", "count": 8, "icon": "📚"}
+
+event: step
+data: {"node": "selfrag_verifier", "message": "Kiểm tra độ tin cậy: fully supported", "icon": "✅"}
+
+event: token
+data: {"text": "Bệnh "}
+
+event: token
+data: {"text": "tiểu đường "}
+
+event: done
+data: {"citations": [{"title": "Hướng dẫn ĐTĐ - Bộ Y tế 2020", "url": "..."}], "disclaimer": "Thông tin mang tính giáo dục..."}
+```
+
+> **Lưu ý thiết kế:** `token` events chỉ được phát sau khi `selfrag_verifier` hoàn thành và response đã được xác thực toàn bộ. Không có token nào của câu trả lời chưa kiểm chứng xuất hiện trên FE. `step` events phát realtime trong suốt pipeline để người dùng thấy Agent đang hoạt động thay vì màn hình trắng.
 
 ## Deployment Architecture
 
@@ -463,8 +496,8 @@ graph TB
 | Reranker      | Cross-encoder                     | Độ chính xác cao hơn bi-encoder trong domain y tế                 |
 | RAG nâng cao  | CRAG + Self-RAG                   | Kiểm soát hallucination — bắt buộc trong lĩnh vực y tế            |
 | Fallback      | Doctor Referral                   | An toàn hơn Web Search — không tự tổng hợp nguồn ngoài            |
-| Cache         | Semantic Cache (Redis)            | Giảm latency, tiết kiệm LLM cost cho câu hỏi tương tự             |
+| Cache         | Semantic Cache · Composite Key    | Cache key = `Vector(query) + hash(patient_profile)`. Chỉ cache query `general_education`. Query `personalized` luôn bypass để tránh trả sai kết quả cho bệnh nhân khác nhau |
 | Memory        | Redis (short) + PostgreSQL (long) | Redis cho session nhanh, Postgres cho lịch sử bền vững            |
 | Vector DB     | Qdrant                            | Hỗ trợ metadata filtering tốt (lọc theo `disease_type`)           |
 | LLM           | Groq / OpenAI (hoán đổi)          | Groq cho tốc độ, OpenAI cho chất lượng — linh hoạt thay thế       |
-| Frontend      | React / Next.js                   | SSE streaming support, component-based, SEO-ready                 |
+| Streaming     | Agent Observation Stream (SSE)    | Phát `step` events realtime qua mọi node + `token` events chỉ sau verify + `done` event với citations — người dùng thấy Agent đang làm gì thay vì màn hình trắng |
