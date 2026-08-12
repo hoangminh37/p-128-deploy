@@ -13,6 +13,7 @@ import type { PatientProfileResponse } from '../lib/schemas'
 import {
   PATIENT_ID_STORAGE_KEY,
   PatientContext,
+  patientProfileQueryKey,
   type PatientContextValue,
   type ProfileState,
 } from './context'
@@ -76,7 +77,7 @@ export function PatientProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const profileQuery = useQuery<PatientProfileResponse | null, ApiError>({
-    queryKey: ['patient-profile', patientId],
+    queryKey: patientProfileQueryKey(patientId),
     enabled: patientId !== null,
     queryFn: async () => {
       // `enabled` đã chặn, nhánh này chỉ để thuyết phục TypeScript.

@@ -157,6 +157,7 @@ export function ChatScreen() {
             {pendingQuestion !== null && <QuestionLine question={pendingQuestion} />}
             <ErrorNotice
               error={mutation.error}
+              retryLabel="Gửi lại câu hỏi"
               onRetry={() => {
                 if (pendingQuestion !== null) mutation.mutate(pendingQuestion)
               }}

@@ -13,6 +13,17 @@ import type { PatientProfileResponse } from '../lib/schemas'
 export const PATIENT_ID_STORAGE_KEY = 'tro-ly-suc-khoe:patient_id'
 
 /**
+ * Khóa cache TanStack Query cho hồ sơ.
+ *
+ * Để ở đây chứ không viết thẳng trong provider, vì màn khai hồ sơ cần nạp lại
+ * kết quả vừa lưu vào đúng khóa này. Hai nơi gõ tay hai mảng giống nhau thì
+ * sớm muộn cũng lệch, và lúc lệch thì header vẫn hiện hồ sơ cũ mà không ai hiểu vì sao.
+ */
+export function patientProfileQueryKey(patientId: string | null) {
+  return ['patient-profile', patientId] as const
+}
+
+/**
  * Trạng thái đọc hồ sơ.
  *
  * `absent` tách riêng khỏi `error` vì 404 không phải sự cố: bệnh nhân mới chỉ

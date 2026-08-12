@@ -21,13 +21,13 @@ const ADVICE: Record<ApiErrorKind, Advice> = {
   network: {
     heading: 'Không kết nối được tới máy chủ',
     action:
-      'Bạn hãy kiểm tra xem điện thoại còn wifi hoặc còn mạng 4G không, rồi bấm "Gửi lại câu hỏi".',
+      'Bạn hãy kiểm tra xem điện thoại còn wifi hoặc còn mạng 4G không, rồi bấm nút thử lại bên dưới.',
     retryable: true,
   },
   timeout: {
     heading: 'Máy chủ trả lời quá lâu',
     action:
-      'Câu hỏi đã gửi đi nhưng chưa có trả lời sau 30 giây. Bạn hãy bấm "Gửi lại câu hỏi". Nếu vẫn vậy, bạn thử lại sau ít phút.',
+      'Đã gửi đi nhưng chưa có trả lời sau 30 giây. Bạn hãy bấm nút thử lại bên dưới. Nếu vẫn vậy, bạn thử lại sau ít phút.',
     retryable: true,
   },
   http: {
@@ -42,9 +42,9 @@ const ADVICE: Record<ApiErrorKind, Advice> = {
     retryable: false,
   },
   request: {
-    heading: 'Câu hỏi chưa gửi đi được',
+    heading: 'Thông tin chưa gửi đi được',
     action:
-      'Câu hỏi cần dài ít nhất 1 ký tự và không quá 5000 ký tự. Bạn hãy sửa lại rồi gửi.',
+      'Dữ liệu gửi đi chưa đúng định dạng máy chủ yêu cầu. Bạn hãy kiểm tra lại những ô vừa nhập rồi gửi lại.',
     retryable: false,
   },
 }
@@ -79,9 +79,12 @@ function adviceFor(error: ApiError): Advice {
 export function ErrorNotice({
   error,
   onRetry,
+  retryLabel = 'Thử lại',
 }: {
   error: unknown
   onRetry: () => void
+  /** Nhãn nút thử lại — mỗi màn gọi hành động của mình bằng đúng tên của nó. */
+  retryLabel?: string
 }) {
   // Lỗi lạ không phải ApiError thì vẫn phải nói được gì đó tử tế, không để trắng màn.
   const advice: Advice =
@@ -106,7 +109,7 @@ export function ErrorNotice({
           onClick={onRetry}
           className="font-display mt-cozy min-h-touch rounded-lg border-2 border-border px-cozy text-input font-semibold text-ink"
         >
-          Gửi lại câu hỏi
+          {retryLabel}
         </button>
       )}
     </div>
