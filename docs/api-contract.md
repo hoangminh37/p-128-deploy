@@ -80,12 +80,13 @@ Request:
 | `patient_id` | string | có | Client sinh nếu chưa có. Không chứa thông tin định danh thật |
 | `age` | int | có | 18 đến 120 |
 | `primary_condition` | enum | có | `type2_diabetes` hoặc `hypertension` |
-| `comorbidities` | string[] | không | Cùng tập giá trị với `primary_condition`, mặc định rỗng |
+| `comorbidities` | enum[] | không | Cùng tập giá trị với `primary_condition`, mặc định rỗng |
 | `diagnosed_at` | string | không | Định dạng `YYYY-MM` |
+| `updated_at` | string | chỉ có trong response | Định dạng ISO 8601 có offset múi giờ |
 
 Không nhận tên, số điện thoại, số căn cước. Ràng buộc PII trong brief mục 7.4.
 
-Response 200: trả về đúng object vừa lưu, thêm `updated_at` dạng ISO 8601.
+Response 200: trả về đúng object vừa lưu, thêm `updated_at` dạng ISO 8601 có offset múi giờ.
 
 ### GET /api/v1/patients/{patient_id}/profile
 
@@ -322,11 +323,17 @@ from pydantic import BaseModel, Field
 
 
 class PatientProfile(BaseModel):
+    """Dùng cho request POST /patients/profile."""
     patient_id: str
     age: int = Field(..., ge=18, le=120)
     primary_condition: Literal["type2_diabetes", "hypertension"]
-    comorbidities: list[str] = Field(default_factory=list)
+    comorbidities: list[Literal["type2_diabetes", "hypertension"]] = Field(default_factory=list)
     diagnosed_at: Optional[str] = None
+
+
+class PatientProfileResponse(PatientProfile):
+    """Dùng cho response 200 của POST /patients/profile và GET /patients/{patient_id}/profile."""
+    updated_at: str
 
 
 class Citation(BaseModel):
@@ -344,6 +351,11 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
 
 
+class ResponseMetadata(BaseModel):
+    latency_ms: int
+    cached: bool
+
+
 class ChatResponse(BaseModel):
     conversation_id: str
     message_id: str
@@ -352,7 +364,7 @@ class ChatResponse(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     support_level: Optional[Literal["fully", "partially", "no_support"]] = None
     disclaimer: str
-    metadata: dict = Field(default_factory=dict)
+    metadata: ResponseMetadata
 ```
 
 Lưu ý: `ChatRequest` hiện tại trong repo chỉ có `message`. Cần đổi tên trường thành `query`
