@@ -1,1 +1,82 @@
 @import "tailwindcss";
+
+@theme {
+  /* ------------------------------------------------------------------
+   * Màu — mọi tỷ lệ tương phản dưới đây đo trên nền paper #F4F6F5
+   * theo công thức WCAG 2.x. Đừng đổi giá trị mà không tính lại.
+   *
+   * Chữ cần đạt 4.5:1 (WCAG 1.4.3).
+   * Viền và ranh giới thành phần tương tác cần đạt 3:1 (WCAG 1.4.11).
+   * ------------------------------------------------------------------ */
+  --color-ink: #13322B;      /* 12.74:1 — chữ chính */
+  --color-paper: #F4F6F5;    /*    nền trang */
+  --color-medical: #0B6E4F;  /*  5.76:1 — nhấn mạnh y khoa */
+  --color-moss: #4E5F58;     /*  6.24:1 — chữ phụ */
+  --color-alert: #B3261E;    /*  6.02:1 — cảnh báo */
+  --color-refuse: #7E631C;   /*  5.25:1 — từ chối trả lời */
+
+  /* CẢNH BÁO — rule chỉ đạt 1.51:1, KHÔNG đạt cả ngưỡng 3:1 phi văn bản.
+   * Chỉ dùng cho đường kẻ trang trí và đường phân cách thuần thẩm mỹ,
+   * tức những nét mà người dùng không cần nhìn thấy để thao tác được.
+   *
+   * TUYỆT ĐỐI KHÔNG dùng rule làm viền ô nhập liệu, nút bấm, ô chọn,
+   * hay bất kỳ thành phần tương tác nào — dùng --color-border.
+   * Bệnh nhân 45–70 tuổi đọc trên điện thoại sẽ không thấy viền này. */
+  --color-rule: #C3CCC8;     /*  1.51:1 — CHỈ trang trí, xem cảnh báo trên */
+
+  /* Viền mọi thành phần tương tác: ô nhập liệu, nút bấm, ô chọn, thẻ bấm được.
+   * Cùng hue 153° với rule, chỉ hạ độ sáng để vượt ngưỡng 3:1. */
+  --color-border: #788C83;   /*  3.29:1 — viền thành phần tương tác */
+
+  /* Chữ */
+  --font-display: "Be Vietnam Pro", sans-serif;
+  --font-body: "Lora Variable", serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  /* Vùng chạm tối thiểu — px cố định, không co theo cỡ chữ gốc */
+  --spacing-touch: 44px;
+}
+
+@layer base {
+  html {
+    /* Cỡ chữ gốc 18px cho người đọc 45–70 tuổi trên điện thoại */
+    font-size: 18px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    line-height: 1.7;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    line-height: 1.3;
+  }
+
+  /* Mọi thứ chạm được đều đạt tối thiểu 44px theo cả hai chiều */
+  button,
+  [role="button"],
+  a[role="button"],
+  select,
+  summary,
+  input:not([type="hidden"]),
+  textarea {
+    min-height: var(--spacing-touch);
+  }
+
+  button,
+  [role="button"],
+  a[role="button"],
+  select,
+  summary {
+    min-width: var(--spacing-touch);
+  }
+}
