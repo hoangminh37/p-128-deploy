@@ -161,6 +161,10 @@ Response 200:
 | `url` | string hoặc null | có | Link tài liệu gốc |
 | `snippet` | string | có | Đoạn trích được dùng, tối đa 300 ký tự |
 
+`snippet` là đoạn trích từ tài liệu y khoa đã duyệt trong thư viện, không phải trích từ hồ sơ
+hay dữ liệu của bệnh nhân, và backend không được đưa bất kỳ nội dung nào từ hồ sơ bệnh nhân
+vào trường này.
+
 Quy tắc: mọi `id` xuất hiện trong `answer` phải có phần tử tương ứng trong `citations`,
 và ngược lại. Frontend validate bằng Zod, lệch thì báo lỗi hiển thị thay vì render sai.
 
@@ -271,7 +275,8 @@ Giống `answered`, khác ở hai trường:
 }
 ```
 
-Message của assistant dùng lại đúng các trường của `/api/v1/chat`, đổi `answer` thành `content`.
+Message của assistant dùng lại đúng các trường của `/api/v1/chat`, riêng `answer` được đổi tên
+thành `content` để thống nhất với message của user.
 
 ---
 
