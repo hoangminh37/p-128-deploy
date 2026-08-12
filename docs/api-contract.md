@@ -15,7 +15,7 @@ Các trường dưới đây ánh xạ trực tiếp sang `AgentState` trong `AR
 ## 1. Quy ước chung
 
 - Base URL dev: `http://localhost:8000`
-- Prefix: `/api`
+- Prefix: `/api/v1`
 - Content-Type: `application/json`
 - Encoding: UTF-8, giữ nguyên dấu tiếng Việt, không escape unicode
 
@@ -50,18 +50,18 @@ Dùng định dạng lỗi mặc định của FastAPI:
 
 | Method | Path | Mục đích |
 | :-- | :-- | :-- |
-| POST | `/api/patients/profile` | Tạo hoặc cập nhật hồ sơ bệnh nhân |
-| GET | `/api/patients/{patient_id}/profile` | Đọc hồ sơ |
-| POST | `/api/chat` | Gửi câu hỏi, nhận câu trả lời |
-| GET | `/api/conversations/{patient_id}` | Danh sách phiên hội thoại |
-| GET | `/api/conversations/{patient_id}/{conversation_id}` | Chi tiết một phiên |
-| GET | `/api/status` | Kiểm tra trạng thái agent, đã có sẵn |
+| POST | `/api/v1/patients/profile` | Tạo hoặc cập nhật hồ sơ bệnh nhân |
+| GET | `/api/v1/patients/{patient_id}/profile` | Đọc hồ sơ |
+| POST | `/api/v1/chat` | Gửi câu hỏi, nhận câu trả lời |
+| GET | `/api/v1/conversations/{patient_id}` | Danh sách phiên hội thoại |
+| GET | `/api/v1/conversations/{patient_id}/{conversation_id}` | Chi tiết một phiên |
+| GET | `/api/v1/status` | Kiểm tra trạng thái agent, đã có sẵn |
 
 ---
 
 ## 3. Hồ sơ bệnh nhân
 
-### POST /api/patients/profile
+### POST /api/v1/patients/profile
 
 Request:
 
@@ -87,7 +87,7 @@ Không nhận tên, số điện thoại, số căn cước. Ràng buộc PII tr
 
 Response 200: trả về đúng object vừa lưu, thêm `updated_at` dạng ISO 8601.
 
-### GET /api/patients/{patient_id}/profile
+### GET /api/v1/patients/{patient_id}/profile
 
 Response 200: cùng cấu trúc trên. Response 404 nếu chưa có hồ sơ.
 
@@ -95,7 +95,7 @@ Response 200: cùng cấu trúc trên. Response 404 nếu chưa có hồ sơ.
 
 ## 4. Hỏi đáp
 
-### POST /api/chat
+### POST /api/v1/chat
 
 Request:
 
@@ -242,7 +242,7 @@ Giống `answered`, khác ở hai trường:
 
 ## 6. Lịch sử hội thoại
 
-### GET /api/conversations/{patient_id}
+### GET /api/v1/conversations/{patient_id}
 
 ```json
 {
@@ -259,7 +259,7 @@ Giống `answered`, khác ở hai trường:
 
 `title` do backend sinh từ câu hỏi đầu tiên, cắt tối đa 60 ký tự.
 
-### GET /api/conversations/{patient_id}/{conversation_id}
+### GET /api/v1/conversations/{patient_id}/{conversation_id}
 
 ```json
 {
@@ -271,7 +271,7 @@ Giống `answered`, khác ở hai trường:
 }
 ```
 
-Message của assistant dùng lại đúng các trường của `/api/chat`, đổi `answer` thành `content`.
+Message của assistant dùng lại đúng các trường của `/api/v1/chat`, đổi `answer` thành `content`.
 
 ---
 
@@ -289,7 +289,7 @@ Các mục sau có trong `ARCHITECTURE.md` nhưng không thuộc hợp đồng v
 
 ## 8. Hướng mở rộng SSE
 
-Khi backend làm SSE, giữ nguyên endpoint `/api/chat` và thêm query param `stream=true`.
+Khi backend làm SSE, giữ nguyên endpoint `/api/v1/chat` và thêm query param `stream=true`.
 Frontend đã tách riêng lớp api client nên chỉ cần đổi ở một chỗ.
 
 Event dự kiến:
