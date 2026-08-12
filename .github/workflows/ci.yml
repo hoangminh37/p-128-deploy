@@ -8,7 +8,7 @@ on:
 
 jobs:
   lint-and-test:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux, X64, cohort3]
 
     steps:
       - uses: actions/checkout@v4
