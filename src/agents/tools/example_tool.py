@@ -61,11 +61,11 @@ def _eval_node(node: ast.AST) -> float:
         op_func = _SAFE_OPERATORS.get(type(node.op))
         if op_func is None:
             raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
-        return op_func(_eval_node(node.operand))
+        return op_func(_eval_node(node.operand))  # type: ignore
     elif isinstance(node, ast.BinOp):
         op_func = _SAFE_OPERATORS.get(type(node.op))
         if op_func is None:
             raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
-        return op_func(_eval_node(node.left), _eval_node(node.right))
+        return op_func(_eval_node(node.left), _eval_node(node.right))  # type: ignore
     else:
         raise ValueError(f"Unsupported expression: {type(node).__name__}")
