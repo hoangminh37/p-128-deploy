@@ -5,12 +5,18 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from src.agent.graph import agent
 from src.core.logging import get_logger
 from src.schemas.chat import ChatRequest, ChatResponse
+from src.core.database import get_db
+from src.models.domain import Patient, Conversation, Message
+from src.api.v1.auth import get_current_user
+from src.schemas.patient import UserInfo
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -37,14 +43,12 @@ NODE_MESSAGES: dict[str, dict] = {
 # ── POST /chat — synchronous (dùng để test, không streaming) ─────────────────
 
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 from fastapi import APIRouter, HTTPException, Depends
 from src.core.database import get_db
 from src.models.domain import Patient
 
 @router.post("/chat", response_model=ChatResponse, summary="Chat (sync)")
-async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> ChatResponse:
+async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db), current_user: UserInfo = Depends(get_current_user)) -> ChatResponse:
     """Gọi Medical AI Agent và trả về kết quả đầy đủ (không streaming).
 
     Dùng cho test hoặc client không hỗ trợ SSE.
@@ -209,8 +213,8 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> Chat
 
 
 @router.post("/chat/stream", summary="Chat (SSE stream)")
-async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> StreamingResponse:
-    """Gọi Medical AI Agent với Server-Sent Events streaming.
+async def chat_stream(req: Request, request: ChatRequest, db: AsyncSession = Depends(get_db), current_user: UserInfo = Depends(get_current_user)) -> StreamingResponse:
+    """API streaming: Trả về SSE (Server-Sent Events) realtime. Gọi Medical AI Agent với Server-Sent Events streaming.
 
     Phát 3 loại event:
     - ``step``: trạng thái từng node (realtime)
