@@ -6,7 +6,7 @@
  */
 import { useState } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 
 import { createQueryClient } from './app/queryClient'
 import { RedirectIfPatientExists, RequirePatient } from './app/guards'
@@ -15,6 +15,22 @@ import { RootLayout } from './ui/RootLayout'
 import { ChatScreen } from './screens/ChatScreen'
 import { ProfileScreen } from './screens/ProfileScreen'
 import { RoleScreen } from './screens/RoleScreen'
+
+/**
+ * Hai đường dẫn cùng dẫn tới màn hỏi đáp:
+ *
+ *   /chat                  — mở một phiên mới.
+ *   /chat/:conversationId  — mở lại một phiên đã lưu, chọn từ thanh bên.
+ *
+ * `key` đổi theo phiên nên chuyển hội thoại là dựng lại màn từ đầu. Không có nó
+ * thì câu hỏi đang gõ dở và các lượt của phiên cũ sẽ dính sang phiên mới.
+ */
+function ChatRoute() {
+  const { conversationId } = useParams()
+  const opened = conversationId ?? null
+
+  return <ChatScreen key={opened ?? 'new'} openedConversationId={opened} />
+}
 
 function App() {
   // Tạo trong state để StrictMode gọi render hai lần vẫn dùng chung một client,
@@ -40,7 +56,15 @@ function App() {
                 path="chat"
                 element={
                   <RequirePatient>
-                    <ChatScreen />
+                    <ChatRoute />
+                  </RequirePatient>
+                }
+              />
+              <Route
+                path="chat/:conversationId"
+                element={
+                  <RequirePatient>
+                    <ChatRoute />
                   </RequirePatient>
                 }
               />

@@ -12,12 +12,26 @@
  *   3. Ô nhập        — cỡ `input` 17px, viền border, nút Gửi có nền đặc. Hiện
  *                      diện vừa đủ để tìm thấy ngay, không tranh chỗ khi đang đọc.
  *   4. Dòng miễn trừ — cỡ `note` 15px, màu moss, sau một nét kẻ mảnh. Mờ nhất.
+ *
+ * Màn này phục vụ hai lối vào: mở phiên mới từ `/chat`, và mở lại một phiên đã
+ * lưu từ `/chat/:conversationId` khi người dùng bấm trên thanh bên. Lượt đọc từ
+ * lịch sử và lượt vừa hỏi hiện y hệt nhau — với người bệnh thì một câu trả lời
+ * là một câu trả lời, đọc lại hôm sau cũng thế.
  */
-import { useEffect, useRef, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { sendChatMessage } from '../lib/api'
-import type { ChatResponse } from '../lib/schemas'
+import {
+  conversationDetailQueryKey,
+  conversationsQueryKey,
+} from '../app/conversations'
+import { getConversationDetail, sendChatMessage, type ApiError } from '../lib/api'
+import type {
+  ChatStatus,
+  Citation,
+  ConversationDetail,
+  ConversationMessage,
+} from '../lib/schemas'
 import { usePatient } from '../patient/context'
 import { AnswerDocument } from '../ui/AnswerDocument'
 import { ChatComposer } from '../ui/ChatComposer'
@@ -31,10 +45,57 @@ import {
   RefusedBlock,
 } from '../ui/ResponseStates'
 
-/** Một lượt hỏi đáp đã hoàn tất. Câu hỏi giữ lại để hiện kèm câu trả lời. */
+/**
+ * Một lượt hỏi đáp đã hoàn tất.
+ *
+ * Cố ý KHÔNG giữ nguyên `ChatResponse`: lượt đọc từ lịch sử (mục 6) không có
+ * `metadata` lẫn `conversation_id` ở mức từng message, nên dựng một `ChatResponse`
+ * giả cho chúng sẽ là bịa dữ liệu ra chỉ để thỏa kiểu.
+ */
 type Turn = {
+  /** Khóa render. Dùng `message_id`, ổn định qua mọi lần vẽ lại. */
+  key: string
   question: string
-  response: ChatResponse
+  status: ChatStatus
+  answer: string
+  citations: Citation[]
+  /**
+   * Mục 6 không trả `disclaimer` cho từng message, chỉ mục 4 mới có. Lượt đọc
+   * từ lịch sử vì thế để `null` và không hiện dòng nào — thà thiếu còn hơn tự
+   * viết ra một câu miễn trừ trách nhiệm mà máy chủ chưa từng gửi.
+   */
+  disclaimer: string | null
+}
+
+/**
+ * Ghép lịch sử của mục 6 thành các lượt.
+ *
+ * Message của user đứng trước message của assistant trong cùng một lượt. Câu hỏi
+ * nào không có câu trả lời đi kèm (phiên bị cắt giữa chừng) thì bị bỏ qua, vì
+ * một câu hỏi treo lơ lửng không nói được gì cho người đọc lại.
+ */
+function historyToTurns(messages: ConversationMessage[]): Turn[] {
+  const turns: Turn[] = []
+  let question = ''
+
+  for (const message of messages) {
+    if (message.role === 'user') {
+      question = message.content
+      continue
+    }
+
+    turns.push({
+      key: message.message_id,
+      question,
+      status: message.status,
+      answer: message.content,
+      citations: message.citations,
+      disclaimer: null,
+    })
+    question = ''
+  }
+
+  return turns
 }
 
 /** Câu hỏi của người dùng: lệch phải, cỡ nhỏ, màu moss — rõ là ghi chú, không phải nội dung chính. */
@@ -52,12 +113,10 @@ function QuestionLine({ question }: { question: string }) {
  * `red_flag` là banner đặt TRÊN, còn `refused` và `referral` bọc quanh, vì hai
  * cái sau nói về chính bản chất câu trả lời chứ không phải cảnh báo kèm thêm.
  */
-function ResponseBody({ response }: { response: ChatResponse }) {
-  const document = (
-    <AnswerDocument answer={response.answer} citations={response.citations} />
-  )
+function ResponseBody({ turn }: { turn: Turn }) {
+  const document = <AnswerDocument answer={turn.answer} citations={turn.citations} />
 
-  switch (response.status) {
+  switch (turn.status) {
     case 'red_flag':
       return (
         <>
@@ -81,16 +140,55 @@ function ResponseBody({ response }: { response: ChatResponse }) {
   }
 }
 
-export function ChatScreen() {
+/** Một lượt hoàn chỉnh: câu hỏi, câu trả lời, và dòng miễn trừ nếu có. */
+function TurnArticle({ turn }: { turn: Turn }) {
+  return (
+    <article className="mb-turn animate-answer-in">
+      <QuestionLine question={turn.question} />
+      <ResponseBody turn={turn} />
+      {turn.disclaimer !== null && <Disclaimer text={turn.disclaimer} />}
+    </article>
+  )
+}
+
+export function ChatScreen({
+  openedConversationId,
+}: {
+  /** Phiên đã lưu cần mở lại, `null` khi bắt đầu một phiên mới. */
+  openedConversationId: string | null
+}) {
   const { patientId, profile } = usePatient()
+  const queryClient = useQueryClient()
 
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState('')
-  const [conversationId, setConversationId] = useState<string | null>(null)
+  // Mở lại phiên cũ thì câu hỏi tiếp theo phải nối vào chính phiên đó, chứ
+  // không mở thêm một phiên mới bên cạnh.
+  const [conversationId, setConversationId] = useState<string | null>(
+    openedConversationId,
+  )
   /** Giữ lại câu vừa gửi để nút "Gửi lại câu hỏi" ở khối lỗi có cái mà gửi lại. */
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null)
 
   const endRef = useRef<HTMLDivElement>(null)
+
+  const historyQuery = useQuery<ConversationDetail | null, ApiError>({
+    queryKey: conversationDetailQueryKey(patientId, openedConversationId),
+    enabled: patientId !== null && openedConversationId !== null,
+    queryFn: async () => {
+      // `enabled` đã chặn, nhánh này chỉ để thỏa kiểu.
+      if (patientId === null || openedConversationId === null) return null
+      return getConversationDetail(patientId, openedConversationId)
+    },
+  })
+
+  const historyTurns = useMemo(
+    () =>
+      historyQuery.data === null || historyQuery.data === undefined
+        ? []
+        : historyToTurns(historyQuery.data.messages),
+    [historyQuery.data],
+  )
 
   const mutation = useMutation({
     mutationFn: (question: string) =>
@@ -101,12 +199,28 @@ export function ChatScreen() {
         conversation_id: conversationId,
       }),
     onSuccess: (response, question) => {
-      setTurns((previous) => [...previous, { question, response }])
+      setTurns((previous) => [
+        ...previous,
+        {
+          key: response.message_id,
+          question,
+          status: response.status,
+          answer: response.answer,
+          citations: response.citations,
+          disclaimer: response.disclaimer,
+        },
+      ])
       // Lượt sau nối tiếp cùng một phiên, theo mục 4 hợp đồng.
       setConversationId(response.conversation_id)
       setPendingQuestion(null)
+      // Phiên vừa được tạo hoặc vừa có thêm lượt, danh sách trên thanh bên đã cũ.
+      void queryClient.invalidateQueries({
+        queryKey: conversationsQueryKey(patientId),
+      })
     },
   })
+
+  const isLoadingHistory = openedConversationId !== null && historyQuery.isPending
 
   // Cuộn xuống phần mới nhất sau mỗi lượt. Không phải hiệu ứng trang trí —
   // không cuộn thì câu trả lời mới nằm ngoài khung nhìn.
@@ -123,7 +237,11 @@ export function ChatScreen() {
     mutation.mutate(trimmed)
   }
 
-  const isEmpty = turns.length === 0 && !mutation.isPending && !mutation.isError
+  const isEmpty =
+    openedConversationId === null &&
+    turns.length === 0 &&
+    !mutation.isPending &&
+    !mutation.isError
 
   return (
     <div className="flex flex-1 flex-col">
@@ -133,12 +251,28 @@ export function ChatScreen() {
       <div className="flex-1 pb-turn">
         {isEmpty && <SuggestedQuestions profile={profile} onPick={ask} />}
 
+        {isLoadingHistory && (
+          <p role="status" className="font-display max-w-answer text-question text-moss">
+            Đang mở lại hội thoại đã lưu…
+          </p>
+        )}
+
+        {historyQuery.isError && (
+          <div className="mb-turn">
+            <ErrorNotice
+              error={historyQuery.error}
+              retryLabel="Mở lại hội thoại"
+              onRetry={() => void historyQuery.refetch()}
+            />
+          </div>
+        )}
+
+        {historyTurns.map((turn) => (
+          <TurnArticle key={turn.key} turn={turn} />
+        ))}
+
         {turns.map((turn) => (
-          <article key={turn.response.message_id} className="mb-turn animate-answer-in">
-            <QuestionLine question={turn.question} />
-            <ResponseBody response={turn.response} />
-            <Disclaimer text={turn.response.disclaimer} />
-          </article>
+          <TurnArticle key={turn.key} turn={turn} />
         ))}
 
         {mutation.isPending && pendingQuestion !== null && (
