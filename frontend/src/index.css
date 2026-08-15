@@ -54,6 +54,12 @@
   --spacing-turn: 56px;   /* giữa hai lượt hỏi đáp — nhịp nghỉ lớn nhất của trang */
 
   --spacing-touch: 44px;  /* vùng chạm tối thiểu, không co theo cỡ chữ gốc */
+
+  /* Chiều cao nút gọi cấp cứu 115. Cao hơn hẳn bậc `touch` 44px vì đây là nút
+   * duy nhất trong ứng dụng có thể được bấm bởi một người đang đau ngực, tay
+   * run, mắt mờ — ngưỡng chạm "đủ dùng" không đủ cho tình huống đó. */
+  --spacing-call: 56px;
+
   --spacing-rail: 252px;  /* bề ngang dải nguồn ở lề phải */
 
   /* ------------------------------------------------------------------
@@ -67,7 +73,8 @@
    * tuổi cầm điện thoại. Chỗ nào không vừa thì đổi bố cục, không hạ cỡ chữ.
    *
    * Thứ tự hiện diện, từ nổi nhất xuống mờ nhất:
-   *   ask > heading > answer > app > input = source > question > note = marker
+   *   ask > heading > notice > answer > app > input = source > question
+   *   > note = marker
    * ------------------------------------------------------------------ */
 
   /* Câu hỏi của người dùng, đóng vai TIÊU ĐỀ của trang câu trả lời.
@@ -83,6 +90,17 @@
   /* Tiêu đề khối trạng thái: red_flag, refused, referral. */
   --text-heading: 22px;
   --text-heading--line-height: 1.35;
+
+  /* Nội dung của bốn khối trạng thái: red_flag, refused, referral và khối lỗi
+   * kỹ thuật. Cùng chữ trên nút gọi cấp cứu 115.
+   *
+   * LỚN HƠN câu trả lời thường đúng một bậc, và đó là chủ ý: bốn khối này là
+   * những phản hồi mà đọc sót một câu là hỏng chuyện — bỏ qua dấu hiệu cấp cứu,
+   * tự chỉnh liều thuốc, hoặc tưởng máy chủ đã trả lời trong khi nó vừa hỏng.
+   * Câu trả lời bình thường thì dài, người đọc có thể lướt rồi quay lại; bốn
+   * khối này ngắn và phải đọc hết ngay lần đầu. */
+  --text-notice: 19px;
+  --text-notice--line-height: 1.75;
 
   /* Nội dung câu trả lời. 18px là mức tối thiểu cho mắt 45–70 tuổi, giãn dòng
    * 1.8 để dò từ cuối dòng này sang đầu dòng sau không bị lạc. Cỡ nhỏ hơn tiêu

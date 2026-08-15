@@ -162,6 +162,21 @@ export function ChatScreen({
   const hasQuestionHeading =
     historyTurns.length > 0 || turns.length > 0 || pendingQuestion !== null
 
+  /**
+   * Lượt cuối cùng là dấu hiệu cấp cứu thì CẤT thanh tra cứu đi.
+   *
+   * Người vừa được bảo là hãy gọi 115 mà bên dưới vẫn có một ô mời "Hỏi tiếp về
+   * bệnh của bạn" thì lời khuyên kia mất hết trọng lượng — giao diện đang nói
+   * ngược lại chính nó. Đây là chỗ duy nhất trong ứng dụng mà ô nhập biến mất.
+   *
+   * Không phải ngõ cụt: nút "Câu hỏi mới" trên thanh bên (và nút thêm ở thanh
+   * tiêu đề bản hẹp) vẫn luôn ở đó, nên ai thực sự cần hỏi tiếp vẫn hỏi được —
+   * chỉ là phải chủ động bước ra khỏi cảnh báo, chứ không bị mời.
+   */
+  const lastTurn = turns.at(-1) ?? historyTurns.at(-1)
+  const isAfterRedFlag =
+    lastTurn?.status === 'red_flag' && !mutation.isPending && !mutation.isError
+
   return (
     <div className="flex flex-1 flex-col">
       {/* `pb-turn` giữ cho dòng cuối không bao giờ trôi sát vào ô nhập bên dưới. */}
@@ -231,12 +246,19 @@ export function ChatScreen({
         <div ref={endRef} />
       </div>
 
-      <ChatComposer
-        value={draft}
-        onChange={setDraft}
-        onSubmit={() => ask(draft)}
-        disabled={mutation.isPending}
-      />
+      {isAfterRedFlag ? (
+        <p className="font-display max-w-answer border-t border-rule pt-snug text-question text-moss">
+          Việc cần làm bây giờ là đi khám. Khi nào bạn đã ổn và muốn hỏi tiếp,
+          bạn hãy bấm “Câu hỏi mới”.
+        </p>
+      ) : (
+        <ChatComposer
+          value={draft}
+          onChange={setDraft}
+          onSubmit={() => ask(draft)}
+          disabled={mutation.isPending}
+        />
+      )}
     </div>
   )
 }

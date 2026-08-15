@@ -25,7 +25,7 @@ import { AnswerDocument } from './AnswerDocument'
 import { CopyIcon, SaveIcon } from './icons'
 import {
   Disclaimer,
-  RedFlagBanner,
+  RedFlagBlock,
   ReferralBlock,
   RefusedBlock,
 } from './ResponseStates'
@@ -110,32 +110,28 @@ function SourceBadge({ count, status }: { count: number; status: ChatStatus }) {
 }
 
 /**
- * Bọc câu trả lời bằng đúng khối trạng thái của nó.
+ * Thân của một lượt: hoặc là trang tài liệu có trích dẫn, hoặc là một khối
+ * trạng thái tự chứa cả nội dung `answer`.
  *
- * `red_flag` là banner đặt TRÊN, còn `refused` và `referral` bọc quanh, vì hai
- * cái sau nói về chính bản chất câu trả lời chứ không phải cảnh báo kèm thêm.
+ * Ba trạng thái `red_flag`, `refused`, `referral` không đi qua `AnswerDocument`:
+ * theo mục 4 và mục 5 hợp đồng, `citations` của chúng LUÔN rỗng, nên cả bộ máy
+ * marker và thẻ nguồn là chỗ chết. Chúng tự dựng đoạn văn của mình ở cỡ `notice`
+ * 19px — xem `ResponseStates.tsx`.
  *
- * `partial` không còn khối riêng: nhãn số tài liệu ở trên đã nói đúng điều đó,
+ * `partial` không có khối riêng: nhãn số tài liệu ở trên đã nói đúng điều đó,
  * bằng một dòng, ngay chỗ mắt nhìn tới đầu tiên.
  */
 function ResponseBody({ turn }: { turn: Turn }) {
-  const document = <AnswerDocument answer={turn.answer} citations={turn.citations} />
-
   switch (turn.status) {
     case 'red_flag':
-      return (
-        <>
-          <RedFlagBanner />
-          {document}
-        </>
-      )
+      return <RedFlagBlock answer={turn.answer} />
     case 'refused':
-      return <RefusedBlock>{document}</RefusedBlock>
+      return <RefusedBlock answer={turn.answer} />
     case 'referral':
-      return <ReferralBlock>{document}</ReferralBlock>
+      return <ReferralBlock answer={turn.answer} />
     case 'partial':
     case 'answered':
-      return document
+      return <AnswerDocument answer={turn.answer} citations={turn.citations} />
   }
 }
 
@@ -229,16 +225,35 @@ function TurnActions({ turn }: { turn: Turn }) {
 }
 
 export function AnswerTurn({ turn }: { turn: Turn }) {
+  const isRedFlag = turn.status === 'red_flag'
+
+  /**
+   * Nhãn số tài liệu chỉ có nghĩa ở hai trạng thái có tra cứu thật.
+   *
+   * Ba trạng thái còn lại luôn có `citations` rỗng, nên nhãn sẽ luôn đọc là
+   * "không trích tài liệu nào" — đúng nhưng vô ích, và ở `red_flag` thì nó còn
+   * chen vào đúng chỗ mà cảnh báo cấp cứu phải chiếm. Mỗi khối trong ba khối đó
+   * đã tự nói ra tình trạng nguồn của mình bằng lời rồi.
+   */
+  const showSourceBadge = turn.status === 'answered' || turn.status === 'partial'
+
   return (
     <article className="mb-turn animate-answer-in">
       <QuestionHeading question={turn.question} />
-      <SourceBadge count={turn.citations.length} status={turn.status} />
 
-      <div className="mt-block">
+      {showSourceBadge && (
+        <SourceBadge count={turn.citations.length} status={turn.status} />
+      )}
+
+      {/* `red_flag` bám sát tiêu đề hơn các trạng thái khác: một bậc `cozy` thay
+          vì `block`. Khoảng nghỉ để thở là thứ xa xỉ khi người đọc đang đau ngực. */}
+      <div className={isRedFlag ? 'mt-cozy' : 'mt-block'}>
         <ResponseBody turn={turn} />
       </div>
 
-      <TurnActions turn={turn} />
+      {/* Không mời sao chép hay lưu ở `red_flag`. Việc cần làm bây giờ là gọi
+          115, không phải sắp xếp giấy tờ. */}
+      {!isRedFlag && <TurnActions turn={turn} />}
 
       {turn.disclaimer !== null && <Disclaimer text={turn.disclaimer} />}
     </article>
