@@ -150,6 +150,23 @@ export const chatRequestSchema = z.object({
 })
 
 /**
+ * Độ dài tối thiểu của câu hỏi — LUẬT CỦA RIÊNG FRONTEND, KHÔNG PHẢI HỢP ĐỒNG.
+ *
+ * Hợp đồng mục 5 đang để `min_length: 1`, nghĩa là gõ đúng một ký tự rồi bấm
+ * gửi cũng hợp lệ. Một ký tự thì agent không có gì để tra, và mỗi lượt như vậy
+ * vẫn tốn một vòng gọi LLM. Nên frontend tự đặt sàn cao hơn và chặn ngay tại
+ * máy khách, trước khi tốn request.
+ *
+ * `chatRequestSchema` ở trên CỐ Ý giữ nguyên `min(1)` để nó vẫn là bản sao trung
+ * thực của hợp đồng — lệch chỗ đó là mất luôn tác dụng đối chiếu.
+ *
+ * CẦN BÀN LẠI VỚI BACKEND: nếu hai bên đồng ý nâng sàn thì sửa `min_length`
+ * trong `docs/api-contract.md` mục 5 và mục 11, rồi hằng số này biến mất, luật
+ * quay về nằm một chỗ duy nhất trong schema.
+ */
+export const MIN_QUERY_LENGTH = 10
+
+/**
  * Mục 5 — phần cấu trúc của response POST /chat, chưa gắn ràng buộc trích dẫn.
  * Tách riêng để hai `.refine()` bên dưới dùng lại được kiểu đã suy ra.
  */

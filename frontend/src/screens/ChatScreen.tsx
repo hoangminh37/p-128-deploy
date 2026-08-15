@@ -24,7 +24,11 @@ import {
   conversationsQueryKey,
 } from '../app/conversations'
 import { getConversationDetail, sendChatMessage, type ApiError } from '../lib/api'
-import type { ConversationDetail, ConversationMessage } from '../lib/schemas'
+import {
+  MIN_QUERY_LENGTH,
+  type ConversationDetail,
+  type ConversationMessage,
+} from '../lib/schemas'
 import { usePatient } from '../patient/context'
 import { AnswerTurn, QuestionHeading, type Turn } from '../ui/AnswerTurn'
 import { ChatComposer } from '../ui/ChatComposer'
@@ -169,7 +173,9 @@ export function ChatScreen({
 
   function ask(question: string) {
     const trimmed = question.trim()
-    if (trimmed === '' || mutation.isPending) return
+    // Chốt chặn cuối. `ChatComposer` đã chặn ở nút và ở phím Enter, nhưng `ask`
+    // còn được gọi từ `SuggestedQuestions`, và sau này có thể từ chỗ khác nữa.
+    if (trimmed.length < MIN_QUERY_LENGTH || mutation.isPending) return
     setPendingQuestion(trimmed)
     setDraft('')
     mutation.mutate(trimmed)

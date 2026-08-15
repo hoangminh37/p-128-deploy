@@ -100,9 +100,15 @@ function SourceBadge({ count, status }: { count: number; status: ChatStatus }) {
       ? 'bg-moss/10 text-moss'
       : 'bg-medical/10 text-medical'
 
+  // `w-fit` chứ KHÔNG phải `inline-block`. Tên bậc khoảng cách `--spacing-block`
+  // của dự án làm Tailwind đọc được `inline-block` theo hai nghĩa: vừa là
+  // `display: inline-block`, vừa là tiện ích `inline-<bậc>` đặt `inline-size`.
+  // Rule thứ hai sinh ra sau nên nó thắng, và viên thuốc bị ép còn 32px — chữ
+  // rơi xuống dòng từng chữ một. Xem cảnh báo ở `--spacing-block` trong
+  // `index.css`. `w-fit` cho đúng bề ngang vừa nội dung mà không đụng tên nào.
   return (
     <p
-      className={`font-display mt-snug inline-block max-w-answer rounded-full px-snug py-hair text-question ${tone}`}
+      className={`font-display mt-snug w-fit max-w-answer rounded-full px-snug py-hair text-question ${tone}`}
     >
       {label()}
     </p>
