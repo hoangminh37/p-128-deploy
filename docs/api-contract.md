@@ -326,6 +326,7 @@ from pydantic import BaseModel, Field
 
 class PatientProfile(BaseModel):
     """Dùng cho request POST /patients/profile."""
+
     patient_id: str
     age: int = Field(..., ge=18, le=120)
     primary_condition: Literal["type2_diabetes", "hypertension"]
@@ -336,6 +337,7 @@ class PatientProfile(BaseModel):
 
 class PatientProfileResponse(PatientProfile):
     """Dùng cho response 200 của POST /patients/profile và GET /patients/{patient_id}/profile."""
+
     updated_at: str
 
 
