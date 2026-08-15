@@ -1,16 +1,27 @@
 /**
- * Màn khai hồ sơ.
+ * Màn khai hồ sơ — cũng là màn đầu tiên người dùng mới nhìn thấy.
  *
- * Bốn trường của mục 3 hợp đồng API, hỏi bằng lời thường. Người dùng 45–70 tuổi
- * ít quen thuật ngữ y khoa, nên mỗi trường vừa hỏi vừa nói luôn vì sao cần biết —
- * người đang lo lắng mà bị hỏi dồn không giải thích thì sẽ bỏ giữa chừng.
+ * Không còn màn chọn vai trò đứng trước. Vai trò phải đến từ tài khoản, không
+ * phải từ việc người dùng tự khai, nên bước đó đã bỏ hẳn (xem `app/guards.tsx`).
  *
- * Chọn bệnh dùng nút lớn chứ không dùng danh sách thả xuống: thả xuống trên
+ * BỐ CỤC:
+ *
+ *   1. Ba điều cần nói  — giới hạn của công cụ, đọc trước khi khai bất cứ gì.
+ *   2. Form ba bước      — mỗi bước một câu hỏi, có thanh tiến trình và nút lui.
+ *
+ * VÌ SAO CHIA BA BƯỚC: bốn trường hỏi dồn một lúc là một trang dài đặc chữ, và
+ * người 45–70 tuổi đang lo lắng nhìn thấy nó thì bỏ giữa chừng. Chia ra thì mỗi
+ * màn chỉ còn một câu hỏi, trả lời xong mới thấy câu sau.
+ *
+ * Dữ liệu KHÔNG mất khi đi lui đi tới: React Hook Form mặc định `shouldUnregister`
+ * là false nên giá trị của bước đã rời khỏi màn hình vẫn nằm trong form state.
+ *
+ * Chọn bệnh dùng thẻ lớn chứ không dùng danh sách thả xuống: thả xuống trên
  * điện thoại là một hộp cuộn nhỏ, ngón tay run bấm rất dễ trượt, và người dùng
  * không nhìn thấy hết lựa chọn cùng lúc.
  */
-import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useEffect, useState, type ReactNode } from 'react'
+import { useForm, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -18,13 +29,17 @@ import { z } from 'zod'
 
 import { upsertPatientProfile } from '../lib/api'
 import {
+  askingAsSchema,
   patientProfileSchema,
   primaryConditionSchema,
+  type AskingAs,
   type PatientProfileResponse,
   type PrimaryCondition,
 } from '../lib/schemas'
 import { patientProfileQueryKey, usePatient } from '../patient/context'
 import { ErrorNotice } from '../ui/ErrorNotice'
+import { ProfileIntro } from '../ui/ProfileIntro'
+import { StepProgress } from '../ui/StepProgress'
 
 // ---------------------------------------------------------------------------
 // Nhãn tiếng Việt
@@ -44,6 +59,105 @@ const CONDITION_LABEL: Record<PrimaryCondition, string> = {
 /** Lấy thẳng từ schema hợp đồng, không gõ lại danh sách giá trị. */
 const CONDITIONS = primaryConditionSchema.options
 
+type StepLabels = {
+  comorbidities: string
+  comorbiditiesHint: string
+  age: string
+  ageHint: string
+  diagnosed: string
+  diagnosedHint: string
+}
+
+/**
+ * Cùng một câu hỏi, hai cách xưng hô.
+ *
+ * Người chăm sóc mà bị hỏi "bạn bao nhiêu tuổi" sẽ điền tuổi của chính họ, và
+ * cả hồ sơ thành sai. Viết hẳn hai bản thay vì ghép chuỗi từ một biến chủ ngữ:
+ * tiếng Việt đổi chủ ngữ thì trật tự và từ nối cũng đổi theo.
+ */
+const LABELS: Record<AskingAs, StepLabels> = {
+  self: {
+    comorbidities: 'Bạn có mắc thêm bệnh nào dưới đây không?',
+    comorbiditiesHint:
+      'Nếu có, trợ lý sẽ lưu ý những điều cần tránh khi mắc cùng lúc hai bệnh. ' +
+      'Nếu không có thì bạn cứ bỏ trống mục này.',
+    age: 'Bạn bao nhiêu tuổi?',
+    ageHint: 'Tuổi giúp trợ lý đưa lời khuyên hợp với lứa tuổi của bạn.',
+    diagnosed: 'Bạn được chẩn đoán từ khi nào?',
+    diagnosedHint:
+      'Không bắt buộc. Biết bạn mắc bệnh bao lâu rồi giúp lời khuyên sát hơn. ' +
+      'Không nhớ chính xác thì bạn cứ bỏ trống.',
+  },
+  caregiver: {
+    comorbidities: 'Người bạn chăm sóc có mắc thêm bệnh nào dưới đây không?',
+    comorbiditiesHint:
+      'Nếu có, trợ lý sẽ lưu ý những điều cần tránh khi mắc cùng lúc hai bệnh. ' +
+      'Nếu không có thì bạn cứ bỏ trống mục này.',
+    age: 'Người bạn chăm sóc bao nhiêu tuổi?',
+    ageHint: 'Tuổi giúp trợ lý đưa lời khuyên hợp với lứa tuổi của người đó.',
+    diagnosed: 'Người đó được chẩn đoán từ khi nào?',
+    diagnosedHint:
+      'Không bắt buộc. Biết người đó mắc bệnh bao lâu rồi giúp lời khuyên sát hơn. ' +
+      'Không nhớ chính xác thì bạn cứ bỏ trống.',
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Ba lựa chọn mở đầu
+// ---------------------------------------------------------------------------
+
+/**
+ * Một thẻ ở bước 1.
+ *
+ * Hai thẻ đầu gộp luôn "ai hỏi" với "bệnh gì" — người bệnh tự hỏi cho mình là
+ * đường đi phổ biến nhất, và hỏi họ hai câu để lấy một thông tin là thừa. Thẻ
+ * thứ ba tách ra vì lúc đó bệnh là của người khác, phải hỏi riêng.
+ */
+type WhoChoice = {
+  id: string
+  label: string
+  description: string
+  askingAs: AskingAs
+  /** `null` nghĩa là còn phải hỏi thêm bệnh ở bước phụ ngay bên dưới. */
+  condition: PrimaryCondition | null
+}
+
+const WHO_CHOICES: readonly WhoChoice[] = [
+  {
+    id: 'self-diabetes',
+    label: 'Tôi bị tiểu đường',
+    description: 'Bác sĩ chẩn đoán tôi mắc đái tháo đường típ 2.',
+    askingAs: 'self',
+    condition: 'type2_diabetes',
+  },
+  {
+    id: 'self-hypertension',
+    label: 'Tôi bị cao huyết áp',
+    description: 'Bác sĩ chẩn đoán tôi mắc tăng huyết áp.',
+    askingAs: 'self',
+    condition: 'hypertension',
+  },
+  {
+    id: 'caregiver',
+    label: 'Tôi hỏi giúp người nhà',
+    description: 'Tôi đang chăm sóc cho người bệnh trong nhà.',
+    askingAs: 'caregiver',
+    condition: null,
+  },
+]
+
+/** Thẻ nào đang được chọn, suy ra từ giá trị form chứ không giữ thêm state riêng. */
+function selectedWhoId(
+  askingAs: AskingAs | undefined,
+  condition: PrimaryCondition | undefined,
+): string | null {
+  if (askingAs === 'caregiver') return 'caregiver'
+  if (askingAs === 'self' && condition !== undefined) {
+    return condition === 'type2_diabetes' ? 'self-diabetes' : 'self-hypertension'
+  }
+  return null
+}
+
 // ---------------------------------------------------------------------------
 // Schema của form
 // ---------------------------------------------------------------------------
@@ -55,6 +169,10 @@ const MAX_AGE = 120
  * Schema form dựng từ schema hợp đồng, bỏ `patient_id` (do ứng dụng tự sinh)
  * và thay thông báo lỗi bằng tiếng Việt nói rõ phải sửa gì.
  *
+ * Mọi trường đều được `.extend()` đè lại bằng bản KHÔNG có `.default()`, nên
+ * kiểu vào và kiểu ra của schema trùng nhau — React Hook Form cần điều đó để
+ * `useForm<ProfileFormValues>` khớp với resolver.
+ *
  * Có một ràng buộc thêm mà hợp đồng không có: bệnh nền không được trùng bệnh
  * chính. Backend chấp nhận, nhưng với người bệnh thì "bệnh chính: tăng huyết áp,
  * bệnh kèm: tăng huyết áp" là vô nghĩa.
@@ -62,8 +180,11 @@ const MAX_AGE = 120
 const profileFormSchema = patientProfileSchema
   .omit({ patient_id: true })
   .extend({
+    asking_as: z.enum(askingAsSchema.options, {
+      error: 'Bạn hãy chọn một trong ba ô ở trên.',
+    }),
     age: z
-      .number({ error: 'Bạn hãy điền tuổi của mình bằng số, ví dụ 58.' })
+      .number({ error: 'Bạn hãy điền tuổi bằng số, ví dụ 58.' })
       .int({ error: 'Tuổi phải là số nguyên, ví dụ 58 chứ không phải 58,5.' })
       .min(MIN_AGE, {
         error: `Ứng dụng này dành cho người từ ${MIN_AGE} tuổi trở lên. Bạn hãy kiểm tra lại tuổi vừa điền.`,
@@ -72,7 +193,7 @@ const profileFormSchema = patientProfileSchema
         error: `Tuổi phải nằm trong khoảng ${MIN_AGE} đến ${MAX_AGE}. Bạn hãy kiểm tra lại số vừa điền.`,
       }),
     primary_condition: z.enum(CONDITIONS, {
-      error: 'Bạn hãy chọn một trong hai bệnh mà bác sĩ đã chẩn đoán cho bạn.',
+      error: 'Bạn hãy chọn bệnh mà bác sĩ đã chẩn đoán.',
     }),
     comorbidities: z.array(primaryConditionSchema),
     diagnosed_at: z
@@ -129,7 +250,26 @@ function assertMatchesContract(): void {
 assertMatchesContract()
 
 // ---------------------------------------------------------------------------
-// Ô chọn dạng nút lớn
+// Ba bước
+// ---------------------------------------------------------------------------
+
+const STEP_TITLES = [
+  'Bạn hỏi cho ai',
+  'Bệnh kèm theo',
+  'Tuổi và thời điểm chẩn đoán',
+] as const
+
+/** Trường nào thuộc bước nào, để chỉ validate đúng phần người dùng vừa điền. */
+const STEP_FIELDS: FieldPath<ProfileFormValues>[][] = [
+  ['asking_as', 'primary_condition'],
+  ['comorbidities'],
+  ['age', 'diagnosed_at'],
+]
+
+const LAST_STEP = STEP_TITLES.length - 1
+
+// ---------------------------------------------------------------------------
+// Ô chọn
 // ---------------------------------------------------------------------------
 
 /**
@@ -148,17 +288,18 @@ function ChoiceOption({
   name,
   value,
   label,
+  description,
   checked,
   onChange,
-  onBlur,
 }: {
   type: 'radio' | 'checkbox'
   name: string
   value: string
   label: string
+  /** Chỉ thẻ lớn ở bước 1 mới có dòng giải thích bên dưới nhãn. */
+  description?: string
   checked: boolean
   onChange: (checked: boolean) => void
-  onBlur?: () => void
 }) {
   return (
     <label className="block cursor-pointer">
@@ -168,26 +309,32 @@ function ChoiceOption({
         value={value}
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        onBlur={onBlur}
         className="peer sr-only"
       />
+      {/* Mọi biến thể `peer-*` phải nằm trên chính thẻ ANH EM của input — biến
+          thể sinh ra selector `.peer:checked ~ &`, nên đặt xuống thẻ con bên
+          trong là không bao giờ khớp. Vì vậy cả nền, viền, màu chữ lẫn độ đậm
+          đều gom hết lên thẻ này rồi để thẻ con thừa kế. */}
       <span
         className="
-          font-display flex min-h-touch items-center rounded-lg border-2 border-border p-snug text-question text-ink
+          font-display block min-h-touch rounded-lg border-2 border-border p-cozy text-ink
           peer-checked:border-medical peer-checked:bg-medical peer-checked:font-semibold peer-checked:text-paper
           peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-medical
         "
       >
-        {label}
+        <span className="block text-notice">{label}</span>
+        {description !== undefined && (
+          <span className="mt-hair block text-question">{description}</span>
+        )}
       </span>
     </label>
   )
 }
 
 /** Dòng giải thích ngắn dưới nhãn: vì sao ứng dụng cần thông tin này. */
-function FieldHint({ id, children }: { id: string; children: React.ReactNode }) {
+function FieldHint({ id, children }: { id: string; children: ReactNode }) {
   return (
-    <p id={id} className="font-display mt-hair text-note text-moss">
+    <p id={id} className="font-display mt-hair text-question text-moss">
       {children}
     </p>
   )
@@ -197,20 +344,26 @@ function FieldHint({ id, children }: { id: string; children: React.ReactNode }) 
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (message === undefined) return null
   return (
-    <p id={id} role="alert" className="font-display mt-tight text-note text-alert">
+    <p id={id} role="alert" className="font-display mt-tight text-question text-alert">
       {message}
     </p>
   )
 }
+
+/** Nhãn của một trường. Tối thiểu 17px theo sàn cỡ chữ. */
+const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-ink'
 
 // ---------------------------------------------------------------------------
 // Màn hình
 // ---------------------------------------------------------------------------
 
 export function ProfileScreen() {
-  const { profile, profileState, ensurePatientId } = usePatient()
+  const { profile, profileState, profileError, reloadProfile, ensurePatientId } =
+    usePatient()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+
+  const [step, setStep] = useState(0)
 
   const isEditing = profile !== null
 
@@ -219,11 +372,14 @@ export function ProfileScreen() {
     handleSubmit,
     watch,
     setValue,
+    resetField,
     reset,
+    trigger,
     formState: { errors },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
+      asking_as: undefined,
       age: undefined,
       primary_condition: undefined,
       comorbidities: [],
@@ -231,13 +387,17 @@ export function ProfileScreen() {
     },
   })
 
+  const askingAs = watch('asking_as')
   const primaryCondition = watch('primary_condition')
   const comorbidities = watch('comorbidities') ?? []
+
+  const labels = LABELS[askingAs ?? 'self']
 
   // Hồ sơ tới sau lần render đầu (đang gọi API), nên phải nạp lại vào form khi có.
   useEffect(() => {
     if (profile === null) return
     reset({
+      asking_as: profile.asking_as,
       age: profile.age,
       primary_condition: profile.primary_condition,
       comorbidities: profile.comorbidities ?? [],
@@ -270,11 +430,12 @@ export function ProfileScreen() {
         primary_condition: values.primary_condition,
         comorbidities: values.comorbidities,
         diagnosed_at: values.diagnosed_at,
+        asking_as: values.asking_as,
       })
     },
     onSuccess: (saved) => {
       // Nạp thẳng kết quả vừa lưu vào cache, khỏi chờ một vòng GET nữa — thanh
-      // trên cùng và màn chat thấy hồ sơ mới ngay khi chuyển màn.
+      // bên và màn chat thấy hồ sơ mới ngay khi chuyển màn.
       queryClient.setQueryData(patientProfileQueryKey(saved.patient_id), saved)
       void navigate('/chat', { replace: true })
     },
@@ -282,10 +443,50 @@ export function ProfileScreen() {
 
   const onSubmit = handleSubmit((values) => mutation.mutate(values))
 
+  /** Chọn một thẻ ở bước 1. */
+  function pickWho(choice: WhoChoice): void {
+    setValue('asking_as', choice.askingAs, { shouldValidate: true })
+
+    if (choice.condition !== null) {
+      setValue('primary_condition', choice.condition, { shouldValidate: true })
+      return
+    }
+
+    // Vừa chuyển sang "hỏi giúp người nhà": bệnh vừa chọn là bệnh của NGƯỜI
+    // DÙNG, không phải của người được chăm sóc, nên phải hỏi lại từ đầu. Chỉ xóa
+    // khi thực sự đổi trạng thái — bấm lại đúng thẻ đang chọn thì để yên.
+    if (askingAs !== 'caregiver') {
+      resetField('primary_condition')
+    }
+  }
+
+  async function goNext(): Promise<void> {
+    const isStepValid = await trigger(STEP_FIELDS[step])
+    if (!isStepValid) return
+    setStep((current) => Math.min(current + 1, LAST_STEP))
+  }
+
+  function goBack(): void {
+    setStep((current) => Math.max(current - 1, 0))
+  }
+
+  /**
+   * Đường thoát cho người chưa muốn khai.
+   *
+   * Bắt khai đủ bốn trường trước khi cho hỏi câu nào là cách chắc chắn nhất để
+   * mất người dùng ở màn đầu tiên. Sinh `patient_id` tạm rồi cho vào thẳng màn
+   * hỏi đáp; ở đó có dải nhắc rằng câu trả lời chưa được đặt vào bệnh và tuổi
+   * của họ, kèm đường quay lại đây.
+   */
+  function skipProfile(): void {
+    ensurePatientId()
+    void navigate('/chat', { replace: true })
+  }
+
   // Đang đọc hồ sơ cũ thì chưa dựng form, tránh cảnh ô trống rồi nhảy số.
   if (profileState === 'loading') {
     return (
-      <p role="status" className="font-display max-w-answer text-question text-moss">
+      <p role="status" className="font-display max-w-answer text-notice text-moss">
         Đang mở hồ sơ của bạn…
       </p>
     )
@@ -294,182 +495,281 @@ export function ProfileScreen() {
   const otherConditions = CONDITIONS.filter(
     (condition) => condition !== primaryCondition,
   )
+  const selectedWho = selectedWhoId(askingAs, primaryCondition)
 
   return (
     <div className="max-w-answer">
-      <h1 className="font-display text-heading font-bold">
-        {isEditing ? 'Sửa hồ sơ sức khỏe' : 'Khai hồ sơ sức khỏe'}
+      <h1 className="font-display text-ask font-bold">
+        {isEditing ? 'Sửa hồ sơ sức khỏe' : 'Trước khi bắt đầu'}
       </h1>
 
-      {/* Ràng buộc PII của brief, nói ngay đầu form chứ không giấu ở chân trang:
-          người sắp phải điền thông tin sức khỏe cần được trấn an TRƯỚC khi điền. */}
-      <div className="mt-cozy border-l-4 border-medical pl-cozy">
-        <p className="font-display text-question font-semibold">
+      <div className="mt-block">
+        <ProfileIntro />
+      </div>
+
+      {/* Ràng buộc PII của brief, nói ngay trước form chứ không giấu ở chân
+          trang: người sắp phải điền thông tin sức khỏe cần được trấn an TRƯỚC
+          khi điền. */}
+      <div className="mt-block border-l-4 border-medical pl-cozy">
+        <p className="font-display text-input font-semibold">
           Bạn không cần khai tên hay giấy tờ
         </p>
-        <p className="font-display mt-hair text-note text-moss">
+        <p className="font-display mt-hair text-question text-moss">
           Ứng dụng không hỏi và không lưu tên, số điện thoại, số căn cước hay số
-          thẻ bảo hiểm của bạn. Chỉ bốn thông tin dưới đây được lưu, và chỉ để
-          trợ lý tra đúng tài liệu cho bệnh của bạn.
+          thẻ bảo hiểm. Chỉ những thông tin dưới đây được lưu, và chỉ để trợ lý
+          tra đúng tài liệu cho bệnh của bạn.
         </p>
       </div>
 
+      {profileState === 'error' && (
+        <div className="mt-block">
+          <ErrorNotice
+            error={profileError}
+            retryLabel="Đọc lại hồ sơ"
+            onRetry={reloadProfile}
+          />
+        </div>
+      )}
+
+      <div className="mt-block">
+        <StepProgress
+          current={step + 1}
+          total={STEP_TITLES.length}
+          title={STEP_TITLES[step]}
+        />
+      </div>
+
       <form onSubmit={onSubmit} noValidate className="mt-block">
-        {/* ---- Tuổi ---- */}
-        <div className="mb-block">
-          <label htmlFor="age" className="font-display block text-question font-semibold">
-            Bạn bao nhiêu tuổi?
-          </label>
-          <FieldHint id="age-hint">
-            Tuổi giúp trợ lý đưa lời khuyên hợp với lứa tuổi của bạn.
-          </FieldHint>
-          <input
-            id="age"
-            type="number"
-            inputMode="numeric"
-            min={MIN_AGE}
-            max={MAX_AGE}
-            step={1}
-            aria-describedby={errors.age ? 'age-hint age-error' : 'age-hint'}
-            aria-invalid={errors.age !== undefined}
-            {...register('age', { valueAsNumber: true })}
-            className="font-body mt-tight min-h-touch w-full rounded-lg border-2 border-border bg-paper p-snug text-input text-ink"
-          />
-          <FieldError id="age-error" message={errors.age?.message} />
-        </div>
+        {/* ---- Bước 1: người hỏi là ai, và bệnh chính ---- */}
+        {step === 0 && (
+          <>
+            <fieldset>
+              <legend className={FIELD_LABEL_CLASS}>
+                Bạn hỏi cho ai, và về bệnh gì?
+              </legend>
+              <FieldHint id="who-hint">
+                Bạn chọn một ô. Nếu bạn hỏi giúp người nhà, những câu sau sẽ hỏi
+                về người đó chứ không phải về bạn.
+              </FieldHint>
 
-        {/* ---- Bệnh chính ---- */}
-        <fieldset className="mb-block">
-          <legend className="font-display text-question font-semibold">
-            Bác sĩ chẩn đoán bạn mắc bệnh gì?
-          </legend>
-          <FieldHint id="primary-hint">
-            Trợ lý chỉ tra cứu trong tài liệu của Bộ Y tế về đúng bệnh này.
-          </FieldHint>
-          <div
-            className="mt-tight space-y-snug"
-            aria-describedby={
-              errors.primary_condition ? 'primary-hint primary-error' : 'primary-hint'
-            }
-          >
-            {CONDITIONS.map((condition) => (
-              <ChoiceOption
-                key={condition}
-                type="radio"
-                name="primary_condition"
-                value={condition}
-                label={CONDITION_LABEL[condition]}
-                checked={primaryCondition === condition}
-                onChange={() =>
-                  setValue('primary_condition', condition, { shouldValidate: true })
-                }
-              />
-            ))}
-          </div>
-          <FieldError id="primary-error" message={errors.primary_condition?.message} />
-        </fieldset>
+              <div
+                className="mt-snug space-y-snug"
+                aria-describedby={errors.asking_as ? 'who-hint who-error' : 'who-hint'}
+              >
+                {WHO_CHOICES.map((choice) => (
+                  <ChoiceOption
+                    key={choice.id}
+                    type="radio"
+                    name="who"
+                    value={choice.id}
+                    label={choice.label}
+                    description={choice.description}
+                    checked={selectedWho === choice.id}
+                    onChange={() => pickWho(choice)}
+                  />
+                ))}
+              </div>
+              <FieldError id="who-error" message={errors.asking_as?.message} />
+            </fieldset>
 
-        {/* ---- Bệnh nền đi kèm ---- */}
-        <fieldset className="mb-block">
-          <legend className="font-display text-question font-semibold">
-            Bạn có mắc thêm bệnh nào dưới đây không?
-          </legend>
-          <FieldHint id="comorbid-hint">
-            Nếu có, trợ lý sẽ lưu ý những điều cần tránh khi mắc cùng lúc hai
-            bệnh. Nếu không có thì bạn cứ bỏ trống mục này.
-          </FieldHint>
+            {/* Bệnh của người được chăm sóc — chỉ hỏi khi thực sự cần. */}
+            {askingAs === 'caregiver' && (
+              <fieldset className="mt-block">
+                <legend className={FIELD_LABEL_CLASS}>
+                  Người bạn chăm sóc được chẩn đoán mắc bệnh gì?
+                </legend>
+                <FieldHint id="cared-hint">
+                  Trợ lý chỉ tra cứu trong tài liệu của Bộ Y tế về đúng bệnh này.
+                </FieldHint>
 
-          {otherConditions.length === 0 ? (
-            <p className="font-display mt-tight text-note text-moss">
-              Bạn hãy chọn bệnh chính ở trên trước.
-            </p>
-          ) : (
-            <div
-              className="mt-tight space-y-snug"
-              aria-describedby={
-                errors.comorbidities ? 'comorbid-hint comorbid-error' : 'comorbid-hint'
-              }
-            >
-              {otherConditions.map((condition) => (
-                <ChoiceOption
-                  key={condition}
-                  type="checkbox"
-                  name="comorbidities"
-                  value={condition}
-                  label={CONDITION_LABEL[condition]}
-                  checked={comorbidities.includes(condition)}
-                  onChange={(isChecked) =>
-                    setValue(
-                      'comorbidities',
-                      isChecked
-                        ? [...comorbidities, condition]
-                        : comorbidities.filter((item) => item !== condition),
-                      { shouldValidate: true },
-                    )
+                <div
+                  className="mt-snug space-y-snug"
+                  aria-describedby={
+                    errors.primary_condition ? 'cared-hint cared-error' : 'cared-hint'
                   }
+                >
+                  {CONDITIONS.map((condition) => (
+                    <ChoiceOption
+                      key={condition}
+                      type="radio"
+                      name="primary_condition"
+                      value={condition}
+                      label={CONDITION_LABEL[condition]}
+                      checked={primaryCondition === condition}
+                      onChange={() =>
+                        setValue('primary_condition', condition, {
+                          shouldValidate: true,
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+                <FieldError
+                  id="cared-error"
+                  message={errors.primary_condition?.message}
                 />
-              ))}
-            </div>
-          )}
-          <FieldError id="comorbid-error" message={errors.comorbidities?.message} />
-        </fieldset>
-
-        {/* ---- Thời điểm chẩn đoán ---- */}
-        <div className="mb-block">
-          <label
-            htmlFor="diagnosed_at"
-            className="font-display block text-question font-semibold"
-          >
-            Bạn được chẩn đoán từ khi nào?
-          </label>
-          <FieldHint id="diagnosed-hint">
-            Không bắt buộc. Biết bạn mắc bệnh bao lâu rồi giúp lời khuyên sát
-            hơn. Không nhớ chính xác thì bạn cứ bỏ trống.
-          </FieldHint>
-          <input
-            id="diagnosed_at"
-            type="month"
-            aria-describedby={
-              errors.diagnosed_at ? 'diagnosed-hint diagnosed-error' : 'diagnosed-hint'
-            }
-            aria-invalid={errors.diagnosed_at !== undefined}
-            // Ô trống trả về chuỗi rỗng, mà hợp đồng chờ `null` — đổi ngay ở đây.
-            {...register('diagnosed_at', {
-              setValueAs: (raw: string) => (raw === '' ? null : raw),
-            })}
-            className="font-body mt-tight min-h-touch w-full rounded-lg border-2 border-border bg-paper p-snug text-input text-ink"
-          />
-          <FieldError id="diagnosed-error" message={errors.diagnosed_at?.message} />
-        </div>
-
-        {/* ---- Lỗi khi lưu ---- */}
-        {mutation.isError && (
-          <div className="mb-block">
-            <ErrorNotice
-              error={mutation.error}
-              retryLabel="Lưu lại"
-              onRetry={() => void onSubmit()}
-            />
-          </div>
+              </fieldset>
+            )}
+          </>
         )}
 
-        {/* ---- Gửi ---- */}
-        <button
-          type="submit"
-          disabled={mutation.isPending}
-          className="font-display min-h-touch w-full rounded-lg border-2 border-medical bg-medical px-cozy text-input font-bold text-paper disabled:border-rule disabled:bg-transparent disabled:font-normal disabled:text-moss"
-        >
-          {mutation.isPending
-            ? 'Đang lưu…'
-            : isEditing
-              ? 'Lưu thay đổi'
-              : 'Lưu và bắt đầu hỏi'}
-        </button>
+        {/* ---- Bước 2: bệnh nền đi kèm ---- */}
+        {step === 1 && (
+          <fieldset>
+            <legend className={FIELD_LABEL_CLASS}>{labels.comorbidities}</legend>
+            <FieldHint id="comorbid-hint">{labels.comorbiditiesHint}</FieldHint>
+
+            {otherConditions.length === 0 ? (
+              <p className="font-display mt-snug text-question text-moss">
+                Không còn bệnh nào khác trong phạm vi của trợ lý. Bạn bấm tiếp tục.
+              </p>
+            ) : (
+              <div
+                className="mt-snug space-y-snug"
+                aria-describedby={
+                  errors.comorbidities ? 'comorbid-hint comorbid-error' : 'comorbid-hint'
+                }
+              >
+                {otherConditions.map((condition) => (
+                  <ChoiceOption
+                    key={condition}
+                    type="checkbox"
+                    name="comorbidities"
+                    value={condition}
+                    label={CONDITION_LABEL[condition]}
+                    checked={comorbidities.includes(condition)}
+                    onChange={(isChecked) =>
+                      setValue(
+                        'comorbidities',
+                        isChecked
+                          ? [...comorbidities, condition]
+                          : comorbidities.filter((item) => item !== condition),
+                        { shouldValidate: true },
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            )}
+            <FieldError id="comorbid-error" message={errors.comorbidities?.message} />
+          </fieldset>
+        )}
+
+        {/* ---- Bước 3: tuổi và thời điểm chẩn đoán ---- */}
+        {step === 2 && (
+          <>
+            <div>
+              <label htmlFor="age" className={FIELD_LABEL_CLASS}>
+                {labels.age}
+              </label>
+              <FieldHint id="age-hint">{labels.ageHint}</FieldHint>
+              <input
+                id="age"
+                type="number"
+                inputMode="numeric"
+                min={MIN_AGE}
+                max={MAX_AGE}
+                step={1}
+                aria-describedby={errors.age ? 'age-hint age-error' : 'age-hint'}
+                aria-invalid={errors.age !== undefined}
+                {...register('age', { valueAsNumber: true })}
+                className="font-body mt-snug min-h-touch w-full rounded-lg border-2 border-border bg-paper p-snug text-input text-ink"
+              />
+              <FieldError id="age-error" message={errors.age?.message} />
+            </div>
+
+            <div className="mt-block">
+              <label htmlFor="diagnosed_at" className={FIELD_LABEL_CLASS}>
+                {labels.diagnosed}
+              </label>
+              <FieldHint id="diagnosed-hint">{labels.diagnosedHint}</FieldHint>
+              <input
+                id="diagnosed_at"
+                type="month"
+                aria-describedby={
+                  errors.diagnosed_at ? 'diagnosed-hint diagnosed-error' : 'diagnosed-hint'
+                }
+                aria-invalid={errors.diagnosed_at !== undefined}
+                // Ô trống trả về chuỗi rỗng, mà hợp đồng chờ `null` — đổi ngay ở đây.
+                {...register('diagnosed_at', {
+                  setValueAs: (raw: string) => (raw === '' ? null : raw),
+                })}
+                className="font-body mt-snug min-h-touch w-full rounded-lg border-2 border-border bg-paper p-snug text-input text-ink"
+              />
+              <FieldError id="diagnosed-error" message={errors.diagnosed_at?.message} />
+            </div>
+
+            {mutation.isError && (
+              <div className="mt-block">
+                <ErrorNotice
+                  error={mutation.error}
+                  retryLabel="Lưu lại"
+                  onRetry={() => void onSubmit()}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ---- Đi lui, đi tới ----
+            "Quay lại" giữ bề ngang vừa đủ chữ, nút chính ăn hết chỗ còn lại —
+            trên điện thoại nó là mảng lớn nhất, khó bấm nhầm sang nút lui. Bước
+            1 không có nút lui vì không có chỗ nào để lui về. */}
+        <div className="mt-block flex gap-snug">
+          {step > 0 && (
+            <button
+              type="button"
+              onClick={goBack}
+              className="font-display min-h-touch rounded-lg border-2 border-border px-cozy text-input font-semibold text-ink"
+            >
+              Quay lại
+            </button>
+          )}
+
+          {step < LAST_STEP ? (
+            <button
+              type="button"
+              onClick={() => void goNext()}
+              className="font-display min-h-touch flex-1 rounded-lg border-2 border-medical bg-medical px-cozy text-input font-bold text-paper"
+            >
+              Tiếp tục
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="font-display min-h-touch flex-1 rounded-lg border-2 border-medical bg-medical px-cozy text-input font-bold text-paper disabled:border-rule disabled:bg-transparent disabled:font-normal disabled:text-moss"
+            >
+              {mutation.isPending
+                ? 'Đang lưu…'
+                : isEditing
+                  ? 'Lưu thay đổi'
+                  : 'Lưu và bắt đầu hỏi'}
+            </button>
+          )}
+        </div>
 
         {mutation.isPending && (
-          <p role="status" className="font-display mt-tight text-note text-moss">
-            Đang lưu hồ sơ của bạn…
+          <p role="status" className="font-display mt-tight text-question text-moss">
+            Đang lưu hồ sơ…
           </p>
+        )}
+
+        {/* ---- Đường thoát, chỉ ở bước 1 ---- */}
+        {step === 0 && !isEditing && (
+          <div className="mt-block border-t border-rule pt-snug">
+            <button
+              type="button"
+              onClick={skipProfile}
+              className="font-display flex min-h-touch items-center text-input font-semibold text-medical underline underline-offset-4"
+            >
+              Bỏ qua, tôi muốn thử hỏi một câu trước
+            </button>
+            <p className="font-display mt-hair text-question text-moss">
+              Bạn vẫn hỏi được ngay. Chỉ là câu trả lời chưa đặt được vào bệnh và
+              tuổi của bạn, nên sẽ chung chung hơn. Khai hồ sơ lúc nào cũng được.
+            </p>
+          </div>
         )}
       </form>
     </div>

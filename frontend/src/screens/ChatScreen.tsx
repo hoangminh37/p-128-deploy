@@ -17,6 +17,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 
 import {
   conversationDetailQueryKey,
@@ -61,13 +62,40 @@ function historyToTurns(messages: ConversationMessage[]): Turn[] {
   return turns
 }
 
+/**
+ * Dải nhắc cho người đã bấm "bỏ qua" ở màn hồ sơ.
+ *
+ * Người này có `patient_id` nhưng chưa có hồ sơ, nên trợ lý không biết họ mắc
+ * bệnh gì và bao nhiêu tuổi — câu trả lời sẽ chung chung hơn hẳn. Phải nói ra:
+ * để im thì họ tưởng đây đã là chất lượng cao nhất mà công cụ làm được.
+ *
+ * Trung tính, không màu cảnh báo. Họ chưa làm gì sai, và đây là đường đi mà
+ * chính ứng dụng đã mời họ đi.
+ */
+function MissingProfileBand() {
+  return (
+    <div className="mb-block max-w-answer rounded-lg border-l-4 border-border p-cozy">
+      <p className="font-display text-question text-ink">
+        Bạn chưa khai hồ sơ, nên câu trả lời chưa đặt được vào bệnh và tuổi của
+        bạn. Khai hồ sơ rồi thì trợ lý tra đúng tài liệu cho bệnh của bạn hơn.
+      </p>
+      <Link
+        to="/profile"
+        className="font-display mt-tight inline-flex min-h-touch items-center text-input font-semibold text-medical underline underline-offset-4"
+      >
+        Khai hồ sơ
+      </Link>
+    </div>
+  )
+}
+
 export function ChatScreen({
   openedConversationId,
 }: {
   /** Phiên đã lưu cần mở lại, `null` khi bắt đầu một phiên mới. */
   openedConversationId: string | null
 }) {
-  const { patientId, profile } = usePatient()
+  const { patientId, profile, profileState } = usePatient()
   const queryClient = useQueryClient()
 
   const [turns, setTurns] = useState<Turn[]>([])
@@ -182,6 +210,8 @@ export function ChatScreen({
       {/* `pb-turn` giữ cho dòng cuối không bao giờ trôi sát vào ô nhập bên dưới. */}
       <div className="flex-1 pb-turn">
         {!hasQuestionHeading && <h1 className="sr-only">Hỏi đáp sức khỏe</h1>}
+
+        {profileState === 'absent' && <MissingProfileBand />}
 
         {isEmpty && <SuggestedQuestions profile={profile} onPick={ask} />}
 

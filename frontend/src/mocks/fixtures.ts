@@ -210,6 +210,7 @@ export const patientProfileFixture: PatientProfileResponse = {
   primary_condition: 'hypertension',
   comorbidities: ['type2_diabetes'],
   diagnosed_at: '2026-03',
+  asking_as: 'self',
   updated_at: '2026-08-12T09:14:00+07:00',
 }
 
