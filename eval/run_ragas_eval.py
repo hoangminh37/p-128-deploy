@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
+import argparse
 import json
 import os
-from pathlib import Path
-import time
-import argparse
-
 import sys
 import types
+from pathlib import Path
 
 # Sửa lỗi thư viện ragas 0.4.x bị lỗi import với langchain_community v0.3+
-mock_vertexai = types.ModuleType('langchain_community.chat_models.vertexai')
+mock_vertexai = types.ModuleType("langchain_community.chat_models.vertexai")
 mock_vertexai.ChatVertexAI = None
-sys.modules['langchain_community.chat_models.vertexai'] = mock_vertexai
+sys.modules["langchain_community.chat_models.vertexai"] = mock_vertexai
 
 # Cố gắng load .env để lấy OPENAI_API_KEY (RAGAS cần dùng LLM để chấm điểm)
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     env_file = Path(".env")
@@ -23,11 +22,13 @@ except ImportError:
         with open(env_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith("#"): continue
+                if not line or line.startswith("#"):
+                    continue
                 if "=" in line:
                     k, v = line.split("=", 1)
                     if k not in os.environ:
                         os.environ[k] = v.strip().strip("'\"")
+
 
 def get_agent_response(question: str) -> str:
     """
@@ -37,16 +38,17 @@ def get_agent_response(question: str) -> str:
     # Trả về chuỗi rỗng tĩnh để mô phỏng. Khi bạn code xong Agent, hãy thay bằng logic thật.
     return "Câu trả lời từ AI Agent của bạn sẽ nằm ở đây."
 
+
 def run_evaluation(mock: bool = False):
     print("🚀 Khởi động RAGAS Evaluation...")
-    
+
     # 1. Load data
     data_path = Path("eval/results/eval_dataset.json")
     if not data_path.exists():
         print(f"❌ Không tìm thấy file {data_path}. Hãy chạy script tạo dataset trước.")
         return
 
-    with open(data_path, "r", encoding="utf-8") as f:
+    with open(data_path, encoding="utf-8") as f:
         dataset_dict = json.load(f)
 
     # Nếu chưa có 'answer' (ví dụ file vừa tạo xong), ta cần chạy qua Agent để lấy answer
@@ -60,7 +62,7 @@ def run_evaluation(mock: bool = False):
             else:
                 answer = get_agent_response(q)
             dataset_dict["answer"].append(answer)
-        
+
         # Lưu lại dataset đã có answer để lần sau không phải chạy lại Agent
         with open(data_path, "w", encoding="utf-8") as f:
             json.dump(dataset_dict, f, ensure_ascii=False, indent=2)
@@ -79,16 +81,16 @@ def run_evaluation(mock: bool = False):
 
     try:
         from datasets import Dataset
+        from langchain_openai import ChatOpenAI, OpenAIEmbeddings
         from ragas import evaluate
+        from ragas.embeddings import LangchainEmbeddingsWrapper
+        from ragas.llms import LangchainLLMWrapper
         from ragas.metrics import (
-            faithfulness,
             answer_relevancy,
             context_precision,
             context_recall,
+            faithfulness,
         )
-        from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-        from ragas.llms import LangchainLLMWrapper
-        from ragas.embeddings import LangchainEmbeddingsWrapper
     except ImportError:
         print("❌ Chưa cài đặt đủ thư viện 'ragas', 'datasets', 'langchain-openai'.")
         print("👉 Hãy chạy: .venv/bin/pip install ragas datasets langchain-openai")
@@ -115,33 +117,33 @@ def run_evaluation(mock: bool = False):
     ]
 
     # 4. Run Evaluate
-    results = evaluate(
-        hf_dataset, 
-        metrics=metrics, 
-        llm=evaluator_llm, 
-        embeddings=evaluator_embeddings
-    )
-    
+    results = evaluate(hf_dataset, metrics=metrics, llm=evaluator_llm, embeddings=evaluator_embeddings)
+
     # 5. Report Results
-    print("\n" + "="*40)
+    print("\n" + "=" * 40)
     print("📈 KẾT QUẢ ĐÁNH GIÁ (RAGAS METRICS)")
-    print("="*40)
-    
+    print("=" * 40)
+
     metrics_report = {}
-    if hasattr(results, 'to_pandas'):
+    if hasattr(results, "to_pandas"):
         df = results.to_pandas()
         for col in df.columns:
-            if df[col].dtype in ['float64', 'float32'] and col not in ['question', 'answer', 'contexts', 'ground_truth']:
+            if df[col].dtype in ["float64", "float32"] and col not in [
+                "question",
+                "answer",
+                "contexts",
+                "ground_truth",
+            ]:
                 val = df[col].mean()
                 print(f" - {col}: {val:.3f}")
                 metrics_report[col] = val
-    elif hasattr(results, 'items'):
+    elif hasattr(results, "items"):
         for metric, value in results.items():
             print(f" - {metric}: {value:.3f}")
             metrics_report[metric] = value
     else:
         print("Không thể parse kết quả từ RAGAS.")
-    
+
     # Generate Markdown Report (Deliverable 10)
     report_path = Path("eval/results/report.md")
     with open(report_path, "w", encoding="utf-8") as f:
@@ -156,9 +158,12 @@ def run_evaluation(mock: bool = False):
 
     print(f"\n✅ Đã xuất báo cáo tại: {report_path}")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mock", action="store_true", help="Chạy chế độ giả lập answer và chỉ đánh giá 3 câu đầu để tiết kiệm token.")
+    parser.add_argument(
+        "--mock", action="store_true", help="Chạy chế độ giả lập answer và chỉ đánh giá 3 câu đầu để tiết kiệm token."
+    )
     args = parser.parse_args()
-    
+
     run_evaluation(mock=args.mock)
