@@ -95,6 +95,25 @@ export function SaveIcon({ className }: IconProps) {
   )
 }
 
+/** Kính lúp ở đầu thanh nhập — dấu hiệu quen thuộc của một ô để tra cứu. */
+export function SearchIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <circle cx="11" cy="11" r="6" />
+      <path d="M15.5 15.5 20 20" />
+    </StrokeIcon>
+  )
+}
+
+/** Gửi câu hỏi: mũi tên đi lên. */
+export function SendIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M12 19V5M6 11l6-6 6 6" />
+    </StrokeIcon>
+  )
+}
+
 /** Hồ sơ: hình người, đầu và vai. */
 export function UserIcon({ className }: IconProps) {
   return (

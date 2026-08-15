@@ -1,10 +1,18 @@
 /**
- * Ba hook phục vụ thanh bên dạng ngăn kéo ở bản hẹp.
+ * Hook dùng chung của lớp giao diện: thanh bên dạng ngăn kéo ở bản hẹp, và dòng
+ * phản hồi thoáng qua sau khi bấm sao chép hoặc lưu.
  *
  * Tách khỏi file component để giữ Fast Refresh của Vite hoạt động đúng, cùng lối
  * mà `patient/context.ts` đang làm.
  */
-import { useCallback, useEffect, useSyncExternalStore, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react'
 
 /**
  * Những thứ nhận được focus bên trong ngăn kéo.
@@ -43,6 +51,36 @@ export function useMediaQuery(query: string): boolean {
   const getSnapshot = useCallback(() => window.matchMedia(query).matches, [query])
 
   return useSyncExternalStore(subscribe, getSnapshot)
+}
+
+/** Đủ lâu để đọc hết một câu, đủ ngắn để không đọng lại trên màn hình. */
+const NOTICE_MS = 4000
+
+/**
+ * Một dòng phản hồi tự tắt sau vài giây, ví dụ "Đã sao chép nội dung".
+ *
+ * Trả về chuỗi rỗng chứ không phải `null` để chỗ dùng luôn dựng được phần tử
+ * `role="status"`: vùng `aria-live` phải có mặt trong DOM TRƯỚC khi nội dung
+ * đổi, nếu dựng ra cùng lúc với nội dung thì trình đọc màn hình không báo gì.
+ */
+export function useTransientNotice(): [string, (message: string) => void] {
+  const [notice, setNotice] = useState('')
+  const timerRef = useRef<number | null>(null)
+
+  const showNotice = useCallback((message: string) => {
+    setNotice(message)
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current)
+    timerRef.current = window.setTimeout(() => setNotice(''), NOTICE_MS)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current)
+    },
+    [],
+  )
+
+  return [notice, showNotice]
 }
 
 /**

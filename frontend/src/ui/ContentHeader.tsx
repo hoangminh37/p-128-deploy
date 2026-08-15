@@ -13,20 +13,12 @@
  * bản ghi từ dữ liệu API. Lý do: một hội thoại vừa mở còn chưa được lưu ở máy
  * chủ, mà người dùng vẫn phải sao chép được câu trả lời để đưa bác sĩ xem.
  */
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { Link } from 'react-router-dom'
 
+import { copyTextToClipboard, downloadText } from '../lib/transcript'
 import { CopyIcon, MenuIcon, PlusIcon, SaveIcon } from './icons'
-
-/** Đủ lâu để đọc hết một câu, đủ ngắn để không đọng lại trên thanh tiêu đề. */
-const NOTICE_MS = 4000
+import { useTransientNotice } from './shellHooks'
 
 /**
  * Lấy chữ đang hiện trong vùng nội dung.
@@ -58,13 +50,6 @@ function readTranscript(root: HTMLElement | null): string {
   // Gộp các dòng trống liên tiếp lại còn một, giữ nhịp đoạn mà không để tệp
   // đầy khoảng trắng.
   return text.replace(/\n{3,}/g, '\n\n').trim()
-}
-
-/** Tên tệp khi lưu: ngày tháng để người dùng xếp được nhiều lần lưu theo thứ tự. */
-function transcriptFileName(): string {
-  const now = new Date()
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return `hoi-thoai-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.txt`
 }
 
 /**
@@ -114,21 +99,7 @@ export function ContentHeader({
   /** Vùng nội dung mà hai nút sao chép và lưu đọc chữ từ đó. */
   contentRef: RefObject<HTMLElement | null>
 }) {
-  const [notice, setNotice] = useState('')
-  const timerRef = useRef<number | null>(null)
-
-  const showNotice = useCallback((message: string) => {
-    setNotice(message)
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current)
-    timerRef.current = window.setTimeout(() => setNotice(''), NOTICE_MS)
-  }, [])
-
-  useEffect(
-    () => () => {
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current)
-    },
-    [],
-  )
+  const [notice, showNotice] = useTransientNotice()
 
   async function handleCopy(): Promise<void> {
     const text = readTranscript(contentRef.current)
@@ -137,15 +108,8 @@ export function ContentHeader({
       return
     }
 
-    try {
-      await navigator.clipboard.writeText(text)
-      showNotice('Đã sao chép nội dung.')
-    } catch {
-      // Trình duyệt chặn clipboard khi trang không chạy trên HTTPS, hoặc người
-      // dùng đã từ chối quyền. Phải nói ra, chứ bấm mà im lặng thì người dùng
-      // tưởng đã chép được rồi dán ra chỗ khác mới biết là không.
-      showNotice('Trình duyệt không cho phép sao chép.')
-    }
+    const copied = await copyTextToClipboard(text)
+    showNotice(copied ? 'Đã sao chép nội dung.' : 'Trình duyệt không cho phép sao chép.')
   }
 
   function handleSave(): void {
@@ -155,16 +119,7 @@ export function ContentHeader({
       return
     }
 
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = transcriptFileName()
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-
+    downloadText(text)
     showNotice('Đã lưu về máy.')
   }
 

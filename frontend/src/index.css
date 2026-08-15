@@ -62,54 +62,79 @@
    * Đổi tên thay vì đổi số để chỗ dùng tự nói lên nó đang là gì, và để
    * chỉnh một vai trò không vô tình kéo theo vai trò khác.
    *
+   * SÀN CỨNG: không bậc nào dưới 15px. Màn câu trả lời có chữ ở đủ bảy bậc
+   * dưới đây, và bậc thấp nhất trong số đó vẫn phải đọc được bởi người 45–70
+   * tuổi cầm điện thoại. Chỗ nào không vừa thì đổi bố cục, không hạ cỡ chữ.
+   *
    * Thứ tự hiện diện, từ nổi nhất xuống mờ nhất:
-   *   answer > heading > question > input > source > note
+   *   ask > heading > answer > app > input = source > question > note = marker
    * ------------------------------------------------------------------ */
 
-  /* Nội dung câu trả lời. 19px vượt mức tối thiểu 18px, giãn dòng 1.75 cho
-   * mắt 45–70 tuổi dò dòng không bị lạc. Đây là thứ nổi nhất trên trang. */
-  --text-answer: 19px;
-  --text-answer--line-height: 1.75;
+  /* Câu hỏi của người dùng, đóng vai TIÊU ĐỀ của trang câu trả lời.
+   *
+   * Đây là bậc lớn nhất của cả thang. Trước kia câu hỏi là một ghi chú nhỏ lệch
+   * phải; nay màn câu trả lời được đọc như một trang tra cứu, mà trang tra cứu
+   * nào cũng mở đầu bằng chính điều đang được tra. Dùng font body (Lora) chứ
+   * không dùng font display, để tiêu đề nối liền mạch đọc với đoạn văn bên dưới
+   * thay vì cắt ngang nó. */
+  --text-ask: 26px;
+  --text-ask--line-height: 1.35;
 
   /* Tiêu đề khối trạng thái: red_flag, refused, referral. */
   --text-heading: 22px;
   --text-heading--line-height: 1.35;
 
-  /* Tên ứng dụng ở thanh trên cùng. */
+  /* Nội dung câu trả lời. 18px là mức tối thiểu cho mắt 45–70 tuổi, giãn dòng
+   * 1.8 để dò từ cuối dòng này sang đầu dòng sau không bị lạc. Cỡ nhỏ hơn tiêu
+   * đề câu hỏi nhưng đây vẫn là thứ chiếm nhiều diện tích nhất trên trang. */
+  --text-answer: 18px;
+  --text-answer--line-height: 1.8;
+
+  /* Tên ứng dụng ở thanh bên và thanh tiêu đề. */
   --text-app: 18px;
   --text-app--line-height: 1.3;
-
-  /* Câu hỏi của người dùng — nhỏ hơn câu trả lời, vì nó là ghi chú dẫn vào. */
-  --text-question: 16px;
-  --text-question--line-height: 1.5;
 
   /* Chữ trong ô nhập và trên nút. */
   --text-input: 17px;
   --text-input--line-height: 1.5;
 
-  /* Nhãn nguồn: tên tài liệu, cơ quan ban hành, số hiệu văn bản. */
-  --text-source: 15px;
-  --text-source--line-height: 1.45;
+  /* Tên tài liệu trong thẻ nguồn — dòng nổi nhất của thẻ, phải đọc lướt được
+   * để người bệnh biết ngay câu trả lời dựa trên văn bản nào. */
+  --text-source: 17px;
+  --text-source--line-height: 1.4;
 
-  /* Chú thích mờ nhất: dòng miễn trừ trách nhiệm, nhãn phụ. */
+  /* Chữ chạy dòng ở mọi vai trò phụ trợ: đoạn trích trong thẻ nguồn, cơ quan
+   * ban hành, số hiệu văn bản, dòng miễn trừ, nhãn số tài liệu, câu dẫn và
+   * thông báo trạng thái.
+   *
+   * Tên `question` là dấu vết của bản trước, khi bậc này dùng cho câu hỏi của
+   * người dùng. Giữ nguyên tên vì đổi tên là sửa 82 chỗ ở 12 file, mà class
+   * Tailwind gõ sai thì không có gì báo lỗi — chữ chỉ âm thầm rơi về cỡ thừa
+   * kế. Vai trò thật của bậc này là dòng mô tả ngay trên đây. */
+  --text-question: 16px;
+  --text-question--line-height: 1.5;
+
+  /* Nhãn phụ nhỏ nhất: câu dẫn "Câu hỏi của bạn", nhãn nhóm trên thanh bên. */
   --text-note: 15px;
   --text-note--line-height: 1.5;
 
-  /* Marker [n] trong dòng chữ. Nhỏ để không cắt nhịp đọc. */
-  --text-marker: 13px;
+  /* Marker [n] trong dòng chữ. Bằng đúng sàn 15px: nó là con trỏ tới nguồn của
+   * một khẳng định y khoa, người đọc phải đọc được con số chứ không chỉ thấy có
+   * một vệt màu. */
+  --text-marker: 15px;
   --text-marker--line-height: 1;
 
   /* ------------------------------------------------------------------
    * CHIỀU RỘNG CỘT
    *
-   * 33rem ở cỡ chữ gốc 18px là 594px. Với Lora 19px, một ký tự trung bình
-   * rộng khoảng 9px, nên một dòng chứa khoảng 64 ký tự — nằm giữa khoảng
-   * 62–68 ký tự dễ đọc.
+   * 33rem ở cỡ chữ gốc 18px là 594px. Với Lora 18px, một ký tự trung bình
+   * rộng khoảng 8,5px, nên một dòng chứa khoảng 70 ký tự — sát mép trên của
+   * khoảng 62–68 ký tự dễ đọc, và giãn dòng 1.8 bù lại phần vượt đó.
    *
    * KHÔNG dùng đơn vị `ch`: `ch` đo bề ngang chữ số "0", mà trong Lora chữ
    * số rộng hơn chữ thường khá nhiều, nên `65ch` cho ra tận ~85 ký tự thật.
    * ------------------------------------------------------------------ */
-  --container-answer: 33rem;  /* cột câu trả lời, ~64 ký tự mỗi dòng */
+  --container-answer: 33rem;  /* cột câu trả lời, ~70 ký tự mỗi dòng */
   --container-reading: 49rem; /* cột câu trả lời cộng dải nguồn, dùng từ 1024px */
 
   /* Chuyển động DUY NHẤT trong ứng dụng: câu trả lời hiện dần khi vừa tới.

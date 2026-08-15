@@ -42,27 +42,13 @@ export function RedFlagBanner() {
   )
 }
 
-/**
- * Một phần câu trả lời chưa bám nguồn đầy đủ.
+/* Trạng thái `partial` không còn khối riêng ở đây.
  *
- * Giọng phải bình tĩnh: đây là ghi chú về mức độ chắc chắn, không phải cảnh báo
- * nguy hiểm. Cố tình KHÔNG dùng màu alert và KHÔNG dùng `role="alert"` — trình
- * đọc màn hình mà ngắt lời để báo cái này thì cũng là làm người dùng hoảng.
- */
-export function PartialSupportNotice() {
-  return (
-    <div className="mb-block max-w-answer border-l-2 border-rule pl-snug">
-      <p className="font-display text-question font-semibold">
-        Một phần câu trả lời này chưa có tài liệu nói rõ
-      </p>
-      <p className="font-display mt-hair text-note text-moss">
-        Những chỗ có số nguồn bên cạnh là lấy từ tài liệu đã duyệt. Những chỗ
-        không có số nguồn thì tài liệu chưa nói rõ, bạn nên hỏi thêm bác sĩ điều
-        trị của mình.
-      </p>
-    </div>
-  )
-}
+ * Bản trước dựng một đoạn hai câu đặt TRÊN câu trả lời để báo rằng một phần
+ * chưa bám nguồn. Nay việc đó do nhãn số tài liệu ngay dưới tiêu đề câu hỏi
+ * đảm nhận (xem `SourceBadge` trong `AnswerTurn.tsx`): cùng một thông tin, một
+ * dòng thay vì bốn, và nằm đúng chỗ mắt nhìn tới trước khi bắt đầu đọc. Giữ cả
+ * hai là nói một điều hai lần ở hai cỡ chữ khác nhau. */
 
 /** Khung chung cho hai khối refused và referral, để phần khác nhau nằm ở chỗ dễ thấy. */
 function StateBlock({
@@ -113,12 +99,16 @@ export function ReferralBlock({ children }: { children: ReactNode }) {
 /**
  * Câu chốt bắt buộc ở mọi phản hồi, theo mục 4 hợp đồng.
  *
- * Mờ nhất trên trang: cỡ `note`, màu moss, tách bằng một nét kẻ mảnh. Nó phải
- * luôn đọc được, nhưng không bao giờ được tranh chỗ với câu trả lời.
+ * Mờ nhất trên trang: màu moss, tách bằng một nét kẻ mảnh. Nó phải luôn đọc
+ * được, nhưng không bao giờ được tranh chỗ với câu trả lời.
+ *
+ * Cỡ 16px chứ không phải bậc `note` 15px: đây là câu nói ra giới hạn pháp lý
+ * và y khoa của cả ứng dụng. Mờ nhất KHÔNG có nghĩa là nhỏ tới mức người ta bỏ
+ * qua — nó lùi lại bằng màu và bằng vị trí, không bằng cỡ chữ.
  */
 export function Disclaimer({ text }: { text: string }) {
   return (
-    <p className="font-display mt-block max-w-answer border-t border-rule pt-snug text-note text-moss">
+    <p className="font-display mt-block max-w-answer border-t border-rule pt-snug text-question text-moss">
       {text}
     </p>
   )
