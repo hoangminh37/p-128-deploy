@@ -9,12 +9,11 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 
 import { createQueryClient } from './app/queryClient'
-import { RedirectIfPatientExists, RequirePatient } from './app/guards'
+import { LandingRedirect, RequirePatient } from './app/guards'
 import { PatientProvider } from './patient/PatientProvider'
 import { RootLayout } from './ui/RootLayout'
 import { ChatScreen } from './screens/ChatScreen'
 import { ProfileScreen } from './screens/ProfileScreen'
-import { RoleScreen } from './screens/RoleScreen'
 
 /**
  * Hai đường dẫn cùng dẫn tới màn hỏi đáp:
@@ -43,14 +42,8 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<RootLayout />}>
-              <Route
-                index
-                element={
-                  <RedirectIfPatientExists>
-                    <RoleScreen />
-                  </RedirectIfPatientExists>
-                }
-              />
+              {/* Đường dẫn gốc không còn màn nào của riêng nó — chỉ rẽ đường. */}
+              <Route index element={<LandingRedirect />} />
               <Route path="profile" element={<ProfileScreen />} />
               <Route
                 path="chat"

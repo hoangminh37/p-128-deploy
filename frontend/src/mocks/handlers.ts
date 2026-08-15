@@ -7,7 +7,11 @@
 import { delay, http, HttpResponse } from 'msw'
 import { z } from 'zod'
 
-import { patientProfileSchema, type ChatStatus } from '../lib/schemas'
+import {
+  patientProfileSchema,
+  type ChatStatus,
+  type PatientProfileResponse,
+} from '../lib/schemas'
 import {
   chatFixtures,
   conversationDetailFixture,
@@ -28,6 +32,23 @@ const CHAT_DELAY_MS = 1500
 
 /** Các endpoint còn lại chỉ đọc ghi dữ liệu, cho trễ ngắn thôi. */
 const QUICK_DELAY_MS = 300
+
+/**
+ * Kho hồ sơ trong bộ nhớ, sống theo vòng đời của tab.
+ *
+ * Bản trước để GET luôn trả về fixture, tức mock KHÔNG BAO GIỜ nói được câu
+ * "bệnh nhân này chưa khai hồ sơ". Mà đó lại đúng là trạng thái mà cả luồng
+ * người dùng mới xoay quanh: đường dẫn gốc rẽ đi đâu, và màn hỏi đáp có hiện
+ * dải nhắc chưa có hồ sơ hay không. Không dựng được trạng thái đó thì không thử
+ * được luồng chính.
+ *
+ * Gieo sẵn đúng fixture để ai đang dùng `patient_id` mẫu vẫn thấy hồ sơ cũ.
+ * `patient_id` sinh mới ở máy khách thì không có trong kho, nên GET trả 404 —
+ * đúng như backend thật sẽ trả.
+ */
+const profiles = new Map<string, PatientProfileResponse>([
+  [patientProfileFixture.patient_id, patientProfileFixture],
+])
 
 // ---------------------------------------------------------------------------
 // Chọn kịch bản theo từ khóa trong câu hỏi
@@ -105,20 +126,29 @@ export const handlers = [
       return HttpResponse.json({ detail: z.prettifyError(parsed.error) }, { status: 422 })
     }
 
-    return HttpResponse.json({
+    const saved: PatientProfileResponse = {
       ...parsed.data,
       updated_at: new Date().toISOString(),
-    })
+    }
+    profiles.set(saved.patient_id, saved)
+
+    return HttpResponse.json(saved)
   }),
 
-  /** Mục 3 — đọc hồ sơ. Mock luôn coi như hồ sơ đã tồn tại. */
+  /** Mục 3 — đọc hồ sơ. Chưa khai thì trả 404, đúng như hợp đồng mục 3. */
   http.get(url('/patients/:patientId/profile'), async ({ params }) => {
     await delay(QUICK_DELAY_MS)
 
-    return HttpResponse.json({
-      ...patientProfileFixture,
-      patient_id: String(params.patientId),
-    })
+    const patientId = String(params.patientId)
+    const saved = profiles.get(patientId)
+    if (saved === undefined) {
+      return HttpResponse.json(
+        { detail: `Chưa có hồ sơ cho bệnh nhân ${patientId}` },
+        { status: 404 },
+      )
+    }
+
+    return HttpResponse.json(saved)
   }),
 
   /** Mục 6 — danh sách phiên hội thoại. */

@@ -27,6 +27,16 @@ export const chatStatusSchema = z.enum([
 /** Mục 4: mức độ câu trả lời được nguồn chống lưng, `null` khi không chạy Self-RAG. */
 export const supportLevelSchema = z.enum(['fully', 'partially', 'no_support'])
 
+/**
+ * Mục 3: người hỏi là chính bệnh nhân (`self`) hay người chăm sóc (`caregiver`).
+ *
+ * Hợp đồng nói rõ trường này CHỈ đổi cách xưng hô trong câu trả lời, không đổi
+ * nội dung y khoa. Nghĩa là frontend cũng không được dùng nó để ẩn bớt hay đổi
+ * bất kỳ cảnh báo nào — người chăm sóc cần biết đúng những điều mà người bệnh
+ * cần biết.
+ */
+export const askingAsSchema = z.enum(['self', 'caregiver'])
+
 // ---------------------------------------------------------------------------
 // Mục 3: Hồ sơ bệnh nhân
 // ---------------------------------------------------------------------------
@@ -47,6 +57,10 @@ export const patientProfileSchema = z.object({
     .string()
     .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'diagnosed_at phải theo định dạng YYYY-MM.')
     .nullish(),
+  // Không bắt buộc, mặc định `self` — cùng lối với `comorbidities` ở trên: hồ sơ
+  // cũ lưu trước khi có trường này vẫn parse được, và ra đúng giá trị mà hợp
+  // đồng quy định là mặc định.
+  asking_as: askingAsSchema.default('self'),
 })
 
 /**
@@ -236,6 +250,7 @@ export const conversationDetailSchema = z.object({
 export type PrimaryCondition = z.infer<typeof primaryConditionSchema>
 export type ChatStatus = z.infer<typeof chatStatusSchema>
 export type SupportLevel = z.infer<typeof supportLevelSchema>
+export type AskingAs = z.infer<typeof askingAsSchema>
 
 export type PatientProfile = z.infer<typeof patientProfileSchema>
 export type PatientProfileResponse = z.infer<typeof patientProfileResponseSchema>

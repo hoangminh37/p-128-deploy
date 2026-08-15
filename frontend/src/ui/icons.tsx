@@ -135,6 +135,23 @@ export function LibraryIcon({ className }: IconProps) {
   )
 }
 
+/** Thuốc: một viên nhộng nằm chéo. Dùng cho lời nhắc không kê đơn, không chỉnh liều. */
+export function PillIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <rect
+        x="2.5"
+        y="8.5"
+        width="19"
+        height="7"
+        rx="3.5"
+        transform="rotate(-45 12 12)"
+      />
+      <path d="M9.5 9.5 14.5 14.5" />
+    </StrokeIcon>
+  )
+}
+
 /** Kính lúp ở đầu thanh nhập — dấu hiệu quen thuộc của một ô để tra cứu. */
 export function SearchIcon({ className }: IconProps) {
   return (

@@ -91,14 +91,17 @@
   --text-heading: 22px;
   --text-heading--line-height: 1.35;
 
-  /* Nội dung của bốn khối trạng thái: red_flag, refused, referral và khối lỗi
-   * kỹ thuật. Cùng chữ trên nút gọi cấp cứu 115.
+  /* Chữ mà người dùng KHÔNG ĐƯỢC PHÉP đọc lướt.
    *
-   * LỚN HƠN câu trả lời thường đúng một bậc, và đó là chủ ý: bốn khối này là
-   * những phản hồi mà đọc sót một câu là hỏng chuyện — bỏ qua dấu hiệu cấp cứu,
-   * tự chỉnh liều thuốc, hoặc tưởng máy chủ đã trả lời trong khi nó vừa hỏng.
-   * Câu trả lời bình thường thì dài, người đọc có thể lướt rồi quay lại; bốn
-   * khối này ngắn và phải đọc hết ngay lần đầu. */
+   * Bốn khối trạng thái (red_flag, refused, referral, lỗi kỹ thuật), chữ trên
+   * nút gọi cấp cứu 115, ba điều cần nói ở đầu màn hồ sơ, và nhãn trên các thẻ
+   * lựa chọn lớn của form.
+   *
+   * LỚN HƠN câu trả lời thường đúng một bậc, và đó là chủ ý: những chỗ này ngắn
+   * và phải đọc hết ngay lần đầu — bỏ sót một câu là bỏ qua dấu hiệu cấp cứu,
+   * là tự chỉnh liều thuốc, là tưởng máy chủ đã trả lời trong khi nó vừa hỏng,
+   * hoặc là chọn nhầm ô "tôi hỏi giúp người nhà" rồi khai tuổi của chính mình.
+   * Câu trả lời thì dài, người đọc lướt rồi quay lại được; những chỗ này không. */
   --text-notice: 19px;
   --text-notice--line-height: 1.75;
 
