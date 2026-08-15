@@ -27,8 +27,11 @@ import { PatientProvider } from './patient/PatientProvider'
 import { SessionProvider } from './session/SessionProvider'
 import { RootLayout } from './ui/RootLayout'
 import { ChatScreen } from './screens/ChatScreen'
-import { EditorScreen } from './screens/EditorScreen'
+import { EditorDashboardScreen } from './screens/EditorDashboardScreen'
+import { EditorItemScreen } from './screens/EditorItemScreen'
+import { EditorQueueScreen } from './screens/EditorQueueScreen'
 import { LoginScreen } from './screens/LoginScreen'
+import { OutOfScopeScreen } from './screens/OutOfScopeScreen'
 import { ProfileScreen } from './screens/ProfileScreen'
 
 /**
@@ -101,11 +104,36 @@ function App() {
                     </RequireRole>
                   }
                 />
+                {/* Bốn màn của khu vực biên tập, cùng một guard vai trò. */}
                 <Route
                   path="editor"
                   element={
                     <RequireRole role="editor">
-                      <EditorScreen />
+                      <EditorDashboardScreen />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="editor/queue"
+                  element={
+                    <RequireRole role="editor">
+                      <EditorQueueScreen />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="editor/queue/:itemId"
+                  element={
+                    <RequireRole role="editor">
+                      <EditorItemScreen />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="editor/out-of-scope"
+                  element={
+                    <RequireRole role="editor">
+                      <OutOfScopeScreen />
                     </RequireRole>
                   }
                 />
