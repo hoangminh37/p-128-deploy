@@ -38,8 +38,9 @@ async def intent_router_node(state: AgentState) -> AgentState:
         result = await chain.ainvoke({"query": query})
         raw = result.content.strip().lower()
 
-        # Parse LLM output — chỉ chấp nhận 3 giá trị hợp lệ
-        intent = raw if raw in {"education", "red_flag", "diagnosis"} else "education"
+        # Parse LLM output — chỉ chấp nhận 4 giá trị hợp lệ
+        valid_intents = {"education", "red_flag", "diagnosis", "out_of_domain"}
+        intent = raw if raw in valid_intents else "education"
         is_red_flag = intent == "red_flag"
 
         logger.info("[intent_router] LLM intent=%s", intent)

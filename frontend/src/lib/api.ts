@@ -52,8 +52,8 @@ const BASE_URL: string = import.meta.env.VITE_API_URL ?? ''
 /** Mục 1 — toàn bộ endpoint nằm dưới prefix này. */
 const API_PREFIX = '/api/v1'
 
-/** Câu trả lời của LLM có thể chậm, cho 30 giây trước khi bỏ cuộc. */
-const TIMEOUT_MS = 30_000
+/** Thời gian chờ tối đa cho một request (trước đây 30s, tăng lên 90s cho RAG) */
+const TIMEOUT_MS = 90_000
 
 /**
  * Mục 1 — token gắn vào header `Authorization` của mọi request sau khi đăng nhập.

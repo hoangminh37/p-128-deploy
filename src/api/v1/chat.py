@@ -27,14 +27,24 @@ NODE_MESSAGES: dict[str, dict] = {
     "partial_rewrite": {"message": "🔄 Đang tìm kiếm bổ sung...", "icon": "🔄"},
     "safety_disclaimer": {"message": "⚠️ Đang thêm cảnh báo y tế...", "icon": "⚠️"},
     "memory_checkpoint": {"message": "💾 Đang lưu kết quả...", "icon": "💾"},
+    "refuse_handler": {"message": "🛑 Đang xử lý yêu cầu...", "icon": "🛑"},
+    "out_of_domain_handler": {"message": "👋 Đang phản hồi...", "icon": "👋"},
+    "emergency_handler": {"message": "🚨 Đang xử lý khẩn cấp...", "icon": "🚨"},
+    "doctor_referral": {"message": "👨‍⚕️ Đang chuyển hướng chuyên gia...", "icon": "👨‍⚕️"},
 }
 
 
 # ── POST /chat — synchronous (dùng để test, không streaming) ─────────────────
 
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from fastapi import APIRouter, HTTPException, Depends
+from src.core.database import get_db
+from src.models.domain import Patient
+
 @router.post("/chat", response_model=ChatResponse, summary="Chat (sync)")
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> ChatResponse:
     """Gọi Medical AI Agent và trả về kết quả đầy đủ (không streaming).
 
     Dùng cho test hoặc client không hỗ trợ SSE.
@@ -42,7 +52,22 @@ async def chat(request: ChatRequest) -> ChatResponse:
     import time
     start_time = time.time()
     try:
-        state = request.to_agent_state()
+        # Fetch real patient profile
+        result = await db.execute(select(Patient).filter(Patient.id == request.patient_id))
+        patient = result.scalars().first()
+        if not patient:
+            raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ bệnh nhân")
+            
+        patient_profile_dict = {
+            "patient_id": patient.id,
+            "age": patient.age,
+            "primary_condition": patient.primary_condition,
+            "comorbidities": patient.comorbidities,
+            "diagnosed_at": patient.diagnosed_at,
+            "asking_as": patient.asking_as
+        }
+        
+        state = request.to_agent_state(patient_profile_dict)
         result = await agent.ainvoke(state)
 
         from src.schemas.chat import Citation, ResponseMetadata
@@ -50,11 +75,19 @@ async def chat(request: ChatRequest) -> ChatResponse:
         # Ensure citations match the new schema
         raw_citations = result.get("citations", [])
         citations = []
+        answer = result.get("response", "")
         for i, c in enumerate(raw_citations):
+            cid = i + 1
+            doc_id = c.get("doc_id")
+            
+            # Replace [doc_X] with [cid] in answer
+            if doc_id and f"[{doc_id}]" in answer:
+                answer = answer.replace(f"[{doc_id}]", f"[{cid}]")
+                
             citations.append(
                 Citation(
-                    id=i + 1,
-                    title=c.get("title", f"Tài liệu {i+1}"),
+                    id=cid,
+                    title=c.get("title", f"Tài liệu {cid}"),
                     issuer=c.get("issuer", "Cơ sở y tế"),
                     doc_code=c.get("doc_code"),
                     url=c.get("url"),
@@ -83,11 +116,85 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
         latency_ms = int((time.time() - start_time) * 1000)
 
-        return ChatResponse(
-            conversation_id=request.conversation_id or f"c_mock_{int(time.time())}",
-            message_id=f"m_mock_{int(time.time())}",
+        # Đảm bảo answer luôn chứa marker [id] của mọi citation để qua cửa Zod schema của Frontend
+        if citations and status not in ["red_flag", "refused", "referral"]:
+            missing_markers = [f"[{c.id}]" for c in citations if f"[{c.id}]" not in answer]
+            if missing_markers:
+                answer = f"{answer.strip()} {''.join(missing_markers)}"
+
+        # Nếu status là 3 loại này thì KHÔNG ĐƯỢC có citations (Zod schema bắt buộc rỗng)
+        if status in ["red_flag", "refused", "referral"]:
+            citations = []
+
+        from src.models.domain import Conversation, Message
+        from datetime import datetime
+        import uuid
+        
+        # Save to DB
+        conversation_id = request.conversation_id
+        if not conversation_id:
+            # Create new conversation
+            conversation_id = f"c_{uuid.uuid4().hex[:6].upper()}"
+            # Lấy 60 ký tự đầu làm title
+            title = request.query[:60] if len(request.query) <= 60 else request.query[:57] + "..."
+            new_conv = Conversation(
+                id=conversation_id,
+                patient_id=request.patient_id,
+                title=title,
+                last_message_at=datetime.utcnow(),
+                message_count=2
+            )
+            db.add(new_conv)
+        else:
+            # Update existing conversation
+            conv_result = await db.execute(select(Conversation).filter(Conversation.id == conversation_id))
+            existing_conv = conv_result.scalars().first()
+            if existing_conv:
+                existing_conv.last_message_at = datetime.utcnow()
+                existing_conv.message_count += 2
+        
+        message_id = f"m_{uuid.uuid4().hex[:6].upper()}"
+        
+        # Add user message
+        user_msg = Message(
+            conversation_id=conversation_id,
+            role="user",
+            content=request.query,
+        )
+        db.add(user_msg)
+        
+        # Format citations for DB
+        citations_db = []
+        for c in citations:
+            citations_db.append({
+                "id": c.id,
+                "title": c.title,
+                "issuer": c.issuer,
+                "doc_code": c.doc_code,
+                "url": c.url,
+                "snippet": c.snippet
+            })
+            
+        # Add assistant message
+        assistant_msg = Message(
+            id=message_id,
+            conversation_id=conversation_id,
+            role="assistant",
             status=status,
-            answer=result.get("response", ""),
+            content=answer,
+            citations=citations_db,
+            support_level=support_level if status in ["answered", "partial"] else None,
+            disclaimer="⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng."
+        )
+        db.add(assistant_msg)
+        
+        await db.commit()
+
+        return ChatResponse(
+            conversation_id=conversation_id,
+            message_id=message_id,
+            status=status,
+            answer=answer,
             citations=citations,
             support_level=support_level if status in ["answered", "partial"] else None,
             disclaimer="⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng.",
@@ -102,7 +209,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 
 @router.post("/chat/stream", summary="Chat (SSE stream)")
-async def chat_stream(request: ChatRequest) -> StreamingResponse:
+async def chat_stream(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> StreamingResponse:
     """Gọi Medical AI Agent với Server-Sent Events streaming.
 
     Phát 3 loại event:
@@ -112,7 +219,24 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
     """
 
     async def generate():
-        state = request.to_agent_state()
+        # Fetch real patient profile
+        result = await db.execute(select(Patient).filter(Patient.id == request.patient_id))
+        patient = result.scalars().first()
+        if not patient:
+            error_payload = json.dumps({"error": "Không tìm thấy hồ sơ bệnh nhân"}, ensure_ascii=False)
+            yield f"event: error\ndata: {error_payload}\n\n"
+            return
+            
+        patient_profile_dict = {
+            "patient_id": patient.id,
+            "age": patient.age,
+            "primary_condition": patient.primary_condition,
+            "comorbidities": patient.comorbidities,
+            "diagnosed_at": patient.diagnosed_at,
+            "asking_as": patient.asking_as
+        }
+        
+        state = request.to_agent_state(patient_profile_dict)
         final_state: dict = {}
 
         try:
@@ -133,15 +257,17 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                     )
                     yield f"event: step\ndata: {payload}\n\n"
 
-                # Capture final state từ memory_checkpoint output
-                if event_type == "on_chain_end" and event_name == "memory_checkpoint":
-                    final_state = event.get("data", {}).get("output", {})
+                # Emit token events for streaming
+                if event_type == "on_chat_model_stream":
+                    chunk = event.get("data", {}).get("chunk")
+                    # (Tùy chọn: Dùng nếu LLM trực tiếp stream text ra ngoài)
+                    pass
 
-                # Fallback: lấy từ graph end event
-                if event_type == "on_chain_end" and event_name == "__end__":
+                # Trích xuất state từ bất kỳ node nào kết thúc
+                if event_type == "on_chain_end":
                     output = event.get("data", {}).get("output", {})
-                    if output and not final_state:
-                        final_state = output
+                    if isinstance(output, dict) and "response" in output:
+                        final_state.update(output)
 
             # ── Token events (word-by-word) ───────────────────────────────
             response_text = final_state.get("response", "")
@@ -164,6 +290,78 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 ensure_ascii=False,
             )
             yield f"event: done\ndata: {done_payload}\n\n"
+
+            # Save to DB at the end
+            from src.models.domain import Conversation, Message
+            from datetime import datetime
+            import uuid
+            
+            conversation_id = request.conversation_id
+            if not conversation_id:
+                conversation_id = f"c_{uuid.uuid4().hex[:6].upper()}"
+                title = request.query[:60] if len(request.query) <= 60 else request.query[:57] + "..."
+                new_conv = Conversation(
+                    id=conversation_id,
+                    patient_id=request.patient_id,
+                    title=title,
+                    last_message_at=datetime.utcnow(),
+                    message_count=2
+                )
+                db.add(new_conv)
+            else:
+                conv_result = await db.execute(select(Conversation).filter(Conversation.id == conversation_id))
+                existing_conv = conv_result.scalars().first()
+                if existing_conv:
+                    existing_conv.last_message_at = datetime.utcnow()
+                    existing_conv.message_count += 2
+            
+            message_id = f"m_{uuid.uuid4().hex[:6].upper()}"
+            
+            # User message
+            db.add(Message(
+                conversation_id=conversation_id,
+                role="user",
+                content=request.query,
+            ))
+            
+            # Format citations
+            citations_db = []
+            for c in final_state.get("citations", []):
+                citations_db.append({
+                    "id": c.get("id"),
+                    "title": c.get("title"),
+                    "issuer": c.get("issuer"),
+                    "doc_code": c.get("doc_code"),
+                    "url": c.get("url"),
+                    "snippet": c.get("snippet")
+                })
+                
+            status = "answered"
+            intent = final_state.get("intent", "")
+            support_level = final_state.get("support_level", "fully")
+            is_red_flag = final_state.get("is_red_flag", False)
+            
+            if is_red_flag:
+                status = "red_flag"
+            elif intent in ["diagnosis", "refusal", "out_of_domain"]:
+                status = "refused"
+            elif intent == "doctor_referral":
+                status = "referral"
+            elif support_level == "partially":
+                status = "partial"
+                
+            db.add(Message(
+                id=message_id,
+                conversation_id=conversation_id,
+                role="assistant",
+                status=status,
+                content=final_state.get("response", ""),
+                citations=citations_db if status not in ["red_flag", "refused", "referral"] else [],
+                support_level=support_level if status in ["answered", "partial"] else None,
+                disclaimer="⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng." if support_level != "fully" else ""
+            ))
+            
+            await db.commit()
 
         except Exception as exc:
             logger.error("[chat_stream] error: %s", exc)

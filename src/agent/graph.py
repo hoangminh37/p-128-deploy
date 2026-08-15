@@ -17,6 +17,7 @@ from src.agent.nodes.retrieval.doctor_referral import doctor_referral_node
 from src.agent.nodes.retrieval.hybrid_retrieval import hybrid_retrieval_node
 from src.agent.nodes.safety.emergency_handler import emergency_handler_node
 from src.agent.nodes.safety.intent_router import intent_router_node
+from src.agent.nodes.safety.out_of_domain_handler import out_of_domain_handler_node
 from src.agent.nodes.safety.refuse_handler import refuse_handler_node
 from src.agent.state import AgentState
 
@@ -33,6 +34,8 @@ def route_intent(state: AgentState) -> str:
     intent = state.get("intent", "education")
     if intent == "diagnosis":
         return "refuse_handler"
+    if intent == "out_of_domain":
+        return "out_of_domain_handler"
     return "coref_resolution"
 
 
@@ -71,6 +74,7 @@ def build_graph() -> CompiledStateGraph:
     g.add_node("intent_router", intent_router_node)
     g.add_node("emergency_handler", emergency_handler_node)
     g.add_node("refuse_handler", refuse_handler_node)
+    g.add_node("out_of_domain_handler", out_of_domain_handler_node)
 
     # ── Stage 2: Preprocessing ────────────────────────────────────────────
     g.add_node("coref_resolution", coref_resolution_node)
@@ -98,6 +102,7 @@ def build_graph() -> CompiledStateGraph:
         {
             "emergency_handler": "emergency_handler",
             "refuse_handler": "refuse_handler",
+            "out_of_domain_handler": "out_of_domain_handler",
             "coref_resolution": "coref_resolution",
         },
     )
@@ -140,6 +145,7 @@ def build_graph() -> CompiledStateGraph:
     # ── Terminal edges ────────────────────────────────────────────────────
     g.add_edge("emergency_handler", END)
     g.add_edge("refuse_handler", END)
+    g.add_edge("out_of_domain_handler", END)
     g.add_edge("doctor_referral", END)
     g.add_edge("memory_checkpoint", END)
 
