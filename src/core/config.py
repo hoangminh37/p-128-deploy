@@ -33,11 +33,6 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dim: int = 1536
 
-    # ── Qdrant Vector DB ────────────────────────────────────────────────────
-    qdrant_url: str = "http://localhost:6333"
-    qdrant_api_key: str = ""
-    qdrant_collection: str = "medical_docs"
-
     # ── LangSmith Tracing ───────────────────────────────────────────────────
     langchain_api_key: str = ""
     langchain_tracing_v2: bool = True

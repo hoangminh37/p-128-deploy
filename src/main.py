@@ -19,7 +19,6 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     logger.info("Starting %s in %s mode", settings.app_name, settings.app_env)
     logger.info("LLM provider: %s | model: %s", settings.llm_provider, settings.model_name)
-    logger.info("Qdrant: %s | collection: %s", settings.qdrant_url, settings.qdrant_collection)
     yield
     logger.info("Shutting down %s", settings.app_name)
 

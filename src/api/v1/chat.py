@@ -39,19 +39,59 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     Dùng cho test hoặc client không hỗ trợ SSE.
     """
+    import time
+    start_time = time.time()
     try:
         state = request.to_agent_state()
         result = await agent.ainvoke(state)
 
-        from src.schemas.patient import Citation
+        from src.schemas.chat import Citation, ResponseMetadata
 
-        citations = [Citation(**c) for c in result.get("citations", [])]
+        # Ensure citations match the new schema
+        raw_citations = result.get("citations", [])
+        citations = []
+        for i, c in enumerate(raw_citations):
+            citations.append(
+                Citation(
+                    id=i + 1,
+                    title=c.get("title", f"Tài liệu {i+1}"),
+                    issuer=c.get("issuer", "Cơ sở y tế"),
+                    doc_code=c.get("doc_code"),
+                    url=c.get("url"),
+                    snippet=c.get("snippet", c.get("content", ""))[:300]
+                )
+            )
+
+        # Map status based on agent intent/support_level
+        intent = result.get("intent", "")
+        support_level = result.get("support_level", "fully")
+        is_red_flag = result.get("is_red_flag", False)
+
+        from typing import Literal
+        status: Literal["answered", "partial", "red_flag", "refused", "referral"]
+
+        if is_red_flag:
+            status = "red_flag"
+        elif intent in ["diagnosis", "refusal", "out_of_domain"]:
+            status = "refused"
+        elif intent == "doctor_referral":
+            status = "referral"
+        elif support_level == "partially":
+            status = "partial"
+        else:
+            status = "answered"
+
+        latency_ms = int((time.time() - start_time) * 1000)
 
         return ChatResponse(
-            response=result.get("response", ""),
-            intent=result.get("intent", ""),
-            support_level=result.get("support_level", "fully"),
+            conversation_id=request.conversation_id or f"c_mock_{int(time.time())}",
+            message_id=f"m_mock_{int(time.time())}",
+            status=status,
+            answer=result.get("response", ""),
             citations=citations,
+            support_level=support_level if status in ["answered", "partial"] else None,
+            disclaimer="⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng.",
+            metadata=ResponseMetadata(latency_ms=latency_ms, cached=False)
         )
     except Exception as exc:
         logger.error("[chat] error: %s", exc)
