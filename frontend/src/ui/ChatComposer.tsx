@@ -23,6 +23,7 @@
  */
 import { useId, useRef, type FormEvent } from 'react'
 
+import { MIN_QUERY_LENGTH } from '../lib/schemas'
 import { SearchIcon, SendIcon } from './icons'
 
 export function ChatComposer({
@@ -37,13 +38,20 @@ export function ChatComposer({
   disabled: boolean
 }) {
   const inputId = useId()
+  const hintId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const isEmpty = value.trim() === ''
+  const trimmed = value.trim()
+  const isEmpty = trimmed === ''
+  /** Đã gõ gì đó nhưng chưa đủ để thành một câu hỏi. Xem `MIN_QUERY_LENGTH`. */
+  const isTooShort = trimmed.length < MIN_QUERY_LENGTH
+  const showHint = !isEmpty && isTooShort
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    if (disabled || isEmpty) return
+    // Chặn ở đây nữa chứ không chỉ dựa vào nút bị vô hiệu hóa: phím Enter cũng
+    // gửi được form, mà Enter thì không đi qua nút.
+    if (disabled || isTooShort) return
     onSubmit()
     // Trả focus về ô nhập để người dùng bàn phím hỏi tiếp không phải Tab lại.
     inputRef.current?.focus()
@@ -79,13 +87,14 @@ export function ChatComposer({
             disabled={disabled}
             autoComplete="off"
             placeholder="Hỏi tiếp về bệnh của bạn"
+            aria-describedby={showHint ? hintId : undefined}
             className="font-body min-h-touch w-full min-w-0 flex-1 bg-transparent text-input text-ink placeholder:text-moss focus:outline-none disabled:text-moss"
           />
 
           {!isEmpty && (
             <button
               type="submit"
-              disabled={disabled}
+              disabled={disabled || isTooShort}
               aria-label="Gửi câu hỏi"
               title="Gửi câu hỏi"
               className="flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-full bg-medical text-paper disabled:bg-transparent disabled:text-moss"
@@ -94,6 +103,19 @@ export function ChatComposer({
             </button>
           )}
         </div>
+
+        {/* Lời nhắc chỉ hiện khi đã gõ nhưng chưa đủ. Ô còn trống thì chữ gợi ý
+            trong ô đã nói việc cần làm rồi, thêm một dòng nữa là thừa. */}
+        {showHint && (
+          <p
+            id={hintId}
+            role="status"
+            className="font-display mt-tight text-question text-moss"
+          >
+            Câu hỏi cần ít nhất {MIN_QUERY_LENGTH} ký tự để trợ lý biết bạn đang
+            hỏi điều gì.
+          </p>
+        )}
       </div>
     </form>
   )

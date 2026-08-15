@@ -13,16 +13,29 @@ import {
   chatResponseSchema,
   conversationDetailSchema,
   conversationListSchema,
+  editorApproveRequestSchema,
+  editorDashboardSchema,
+  editorQueueItemDetailSchema,
+  editorQueueListSchema,
+  editorRejectRequestSchema,
   loginRequestSchema,
   loginResponseSchema,
+  outOfScopeListSchema,
   patientProfileResponseSchema,
   patientProfileSchema,
   type ChatRequest,
   type ChatResponse,
   type ConversationDetail,
   type ConversationList,
+  type EditorApproveRequest,
+  type EditorDashboard,
+  type EditorItemStatus,
+  type EditorQueueItemDetail,
+  type EditorQueueList,
+  type EditorRejectRequest,
   type LoginRequest,
   type LoginResponse,
+  type OutOfScopeList,
   type PatientProfileResponse,
 } from './schemas'
 
@@ -113,7 +126,11 @@ export class ApiError extends Error {
 const HTTP_USER_MESSAGES: Record<number, string> = {
   400: 'Dữ liệu gửi lên không hợp lệ. Vui lòng kiểm tra lại thông tin đã nhập.',
   401: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.',
+  403: 'Tài khoản của bạn không có quyền truy cập phần này. Khu vực quản trị nội dung chỉ dành cho biên tập viên y khoa.',
   404: 'Không tìm thấy dữ liệu. Có thể hồ sơ hoặc phiên hội thoại chưa được tạo.',
+  // Mục 8 — duyệt hoặc từ chối một mục đã xử lý rồi. Gần như luôn là hệ quả của
+  // việc bấm hai lần khi mạng chậm, nên câu chữ phải trấn an chứ không doạ.
+  409: 'Mục này đã được xử lý trước đó rồi. Bạn hãy tải lại danh sách để xem trạng thái mới nhất.',
   422: 'Thông tin gửi lên chưa đúng định dạng máy chủ yêu cầu. Vui lòng kiểm tra lại.',
   500: 'Hệ thống gặp sự cố khi xử lý câu hỏi. Vui lòng thử lại sau ít phút.',
   503: 'Trợ lý đang tạm thời không phản hồi. Vui lòng thử lại sau ít phút.',
@@ -382,5 +399,115 @@ export function getConversationDetail(
     path: `/conversations/${encodeURIComponent(patientId)}/${encodeURIComponent(conversationId)}`,
     method: 'GET',
     schema: conversationDetailSchema,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Mục 8: Quản trị nội dung
+//
+// Bảy hàm dưới đây chỉ chạy được với tài khoản có `role` bằng `editor`. Vai trò
+// khác thì backend trả 403, và `HTTP_USER_MESSAGES` ở trên đã có sẵn câu tiếng
+// Việt cho mã đó.
+// ---------------------------------------------------------------------------
+
+/** Mục 8 — hai con số ở màn tổng quan: đang chờ duyệt, và chưa ai bắt đầu. */
+export function getEditorDashboard(): Promise<EditorDashboard> {
+  return request({
+    path: '/editor/dashboard',
+    method: 'GET',
+    schema: editorDashboardSchema,
+  })
+}
+
+/**
+ * Mục 8 — danh sách mục trong hàng đợi.
+ *
+ * Bỏ trống `status` thì backend mặc định trả nhóm `pending`, đúng như bản vẽ:
+ * mở màn hàng đợi ra là thấy ngay việc đang chờ duyệt.
+ */
+export function listEditorQueue(status?: EditorItemStatus): Promise<EditorQueueList> {
+  const query = status === undefined ? '' : `?status=${encodeURIComponent(status)}`
+  return request({
+    path: `/editor/queue${query}`,
+    method: 'GET',
+    schema: editorQueueListSchema,
+  })
+}
+
+/** Mục 8 — chi tiết một mục, đủ để dựng cả màn duyệt trong một lần gọi. */
+export function getEditorQueueItem(itemId: string): Promise<EditorQueueItemDetail> {
+  return request({
+    path: `/editor/queue/${encodeURIComponent(itemId)}`,
+    method: 'GET',
+    schema: editorQueueItemDetailSchema,
+  })
+}
+
+/**
+ * Mục 8 — duyệt một mục, đưa vào thư viện chính thức.
+ *
+ * Ném `ApiError` với `status` 409 khi mục đã được duyệt hoặc từ chối trước đó.
+ * Đây là hành động một chiều: một nút bấm hai lần vì mạng chậm không được phép
+ * ghi vào thư viện hai lần.
+ */
+export async function approveEditorQueueItem(
+  itemId: string,
+  payload: EditorApproveRequest = {},
+): Promise<EditorQueueItemDetail> {
+  assertValidRequestBody(
+    editorApproveRequestSchema,
+    payload,
+    `POST /editor/queue/${itemId}/approve`,
+  )
+  return request({
+    path: `/editor/queue/${encodeURIComponent(itemId)}/approve`,
+    method: 'POST',
+    schema: editorQueueItemDetailSchema,
+    body: payload,
+  })
+}
+
+/**
+ * Mục 8 — từ chối một mục. `reason` bắt buộc, schema chặn cả chuỗi toàn khoảng
+ * trắng ngay tại client nên không tốn một vòng request để nhận về 422.
+ */
+export async function rejectEditorQueueItem(
+  itemId: string,
+  payload: EditorRejectRequest,
+): Promise<EditorQueueItemDetail> {
+  assertValidRequestBody(
+    editorRejectRequestSchema,
+    payload,
+    `POST /editor/queue/${itemId}/reject`,
+  )
+  return request({
+    path: `/editor/queue/${encodeURIComponent(itemId)}/reject`,
+    method: 'POST',
+    schema: editorQueueItemDetailSchema,
+    body: payload,
+  })
+}
+
+/** Mục 8 — câu hỏi thư viện chưa trả lời được, xếp theo số lượt hỏi giảm dần. */
+export function listOutOfScopeLogs(): Promise<OutOfScopeList> {
+  return request({
+    path: '/editor/out-of-scope',
+    method: 'GET',
+    schema: outOfScopeListSchema,
+  })
+}
+
+/**
+ * Mục 8 — tạo một mục nháp trong hàng đợi từ một câu hỏi ngoài phạm vi.
+ *
+ * KHÔNG gửi body: hợp đồng ghi rõ endpoint này không nhận gì. Log đã có nháp rồi
+ * thì backend trả lại chính mục nháp đang có thay vì tạo cái thứ hai, nên hàm
+ * này gọi mấy lần cũng chỉ ra một kết quả.
+ */
+export function createDraftFromLog(logId: string): Promise<EditorQueueItemDetail> {
+  return request({
+    path: `/editor/out-of-scope/${encodeURIComponent(logId)}/draft`,
+    method: 'POST',
+    schema: editorQueueItemDetailSchema,
   })
 }

@@ -39,6 +39,8 @@ Dùng định dạng lỗi mặc định của FastAPI:
 | Mã | Khi nào |
 | :-- | :-- |
 | 400 | Payload sai định dạng |
+| 401 | Chưa đăng nhập, hoặc token không hợp lệ |
+| 403 | Tài khoản không đủ quyền cho endpoint này, xem mục 8 |
 | 404 | Không tìm thấy `patient_id` hoặc `conversation_id` |
 | 422 | Validation của Pydantic không qua |
 | 500 | Lỗi phía agent hoặc LLM |
@@ -57,6 +59,13 @@ Dùng định dạng lỗi mặc định của FastAPI:
 | POST | `/api/v1/chat` | Gửi câu hỏi, nhận câu trả lời |
 | GET | `/api/v1/conversations/{patient_id}` | Danh sách phiên hội thoại |
 | GET | `/api/v1/conversations/{patient_id}/{conversation_id}` | Chi tiết một phiên |
+| GET | `/api/v1/editor/dashboard` | Số liệu tổng quan của biên tập viên |
+| GET | `/api/v1/editor/queue` | Danh sách mục chờ duyệt |
+| GET | `/api/v1/editor/queue/{item_id}` | Chi tiết một mục chờ duyệt |
+| POST | `/api/v1/editor/queue/{item_id}/approve` | Duyệt, đưa vào thư viện chính thức |
+| POST | `/api/v1/editor/queue/{item_id}/reject` | Từ chối, bắt buộc kèm lý do |
+| GET | `/api/v1/editor/out-of-scope` | Câu hỏi thư viện chưa trả lời được |
+| POST | `/api/v1/editor/out-of-scope/{log_id}/draft` | Tạo mục nháp từ một câu hỏi |
 | GET | `/api/v1/status` | Kiểm tra trạng thái agent, đã có sẵn |
 
 ---
@@ -367,11 +376,288 @@ thành `content` để thống nhất với message của user.
 
 ---
 
-## 8. Ngoài phạm vi Gate 2
+## 8. Quản trị nội dung
+
+Phần dành cho vai trò `editor`, bám theo `docs/gate1/prd.md` mục FR4.1 tới FR4.3 và bản vẽ
+`docs/gate1/wireframes/wireframe_bientapvien.pdf`.
+
+### Quyền truy cập
+
+MỌI endpoint trong mục này chỉ mở cho tài khoản có `role` bằng `editor` (xem mục 3). Gọi
+bằng vai trò khác trả **403**:
+
+```json
+{ "detail": "Tài khoản này không có quyền truy cập khu vực biên tập" }
+```
+
+Kiểm quyền phải làm ở backend, không được dựa vào việc frontend ẩn đường dẫn. Frontend đã
+chặn ở tầng điều hướng, nhưng đó chỉ là để giao diện không dẫn người dùng vào chỗ không phải
+của họ — nó không ngăn được ai gọi thẳng vào API.
+
+### Ràng buộc PII của log câu hỏi
+
+Đây là ràng buộc NẶNG NHẤT của cả mục này, vì nó là chỗ duy nhất trong hệ thống mà nội dung
+do bệnh nhân gõ ra được đưa cho một người khác đọc.
+
+1. Trường `question` trong log ngoài phạm vi chỉ chứa nội dung câu hỏi. Backend phải loại bỏ
+   tên, số điện thoại, số căn cước, số thẻ bảo hiểm và địa chỉ TRƯỚC khi ghi vào log. Câu nào
+   không làm sạch được thì không ghi — thà mất một dòng thống kê còn hơn lộ danh tính.
+2. Log KHÔNG kèm `patient_id`, và không có bất kỳ trường nào lần ngược được về một tài khoản.
+   Biên tập viên đọc log để biết thư viện còn thiếu chủ đề gì, không phải để biết ai đang hỏi.
+3. `ask_count` là số đếm đã gộp. Không có endpoint nào trả về danh sách từng lượt hỏi riêng lẻ,
+   vì gộp lại rồi tách ra được thì việc gộp không còn ý nghĩa bảo vệ nào.
+
+Ràng buộc này bắt nguồn từ brief mục 7.4, và chặt hơn ở chỗ: hồ sơ bệnh nhân vốn đã không
+chứa PII, còn câu hỏi thì là chữ tự do nên phải làm sạch chủ động.
+
+### Enum dùng chung
+
+| Enum | Giá trị | Ý nghĩa |
+| :-- | :-- | :-- |
+| `status` | `draft` | Mới tạo từ log câu hỏi, biên tập viên chưa soạn xong |
+| | `pending` | Đã soạn xong, đang chờ duyệt |
+| | `approved` | Đã duyệt, nội dung nằm trong thư viện chính thức |
+| | `rejected` | Bị từ chối, không vào thư viện |
+| `origin` | `question_log` | Sinh ra từ một câu hỏi ngoài phạm vi mà bệnh nhân đã hỏi |
+| | `editor_upload` | Biên tập viên tự thêm tài liệu, theo FR4.1 |
+
+`origin` là thứ bản vẽ hiển thị ngay dưới tiêu đề mỗi mục ("Từ log câu hỏi" và "Tự thêm"),
+nên nó phải là dữ liệu có sẵn ở danh sách, không phải thứ chỉ tra được khi mở chi tiết.
+
+### GET /api/v1/editor/dashboard
+
+Hai con số ở màn Tổng quan của bản vẽ.
+
+```json
+{
+  "pending_count": 12,
+  "out_of_scope_count": 27
+}
+```
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `pending_count` | int | Số mục có `status` bằng `pending`. Không tính `draft` |
+| `out_of_scope_count` | int | Số câu hỏi ngoài phạm vi CHƯA được tạo bài, tức `drafted` bằng `false` |
+
+Hai con số này cố ý đếm hai thứ khác nhau: `pending_count` là việc đang chờ người duyệt,
+`out_of_scope_count` là việc chưa ai bắt đầu. Gộp lại thành một con số "việc cần làm" sẽ giấu
+mất chuyện cái nào đang tắc.
+
+### GET /api/v1/editor/queue
+
+Query param `status`, không bắt buộc, mặc định `pending` — đúng như bản vẽ, màn hàng đợi mở
+ra là thấy ngay danh sách chờ duyệt. Truyền giá trị khác để xem các nhóm còn lại.
+
+```json
+{
+  "items": [
+    {
+      "item_id": "e_01HR10",
+      "title": "Dinh dưỡng cho người tiểu đường",
+      "origin": "question_log",
+      "topics": ["Tiểu đường", "Dinh dưỡng"],
+      "created_at": "2026-08-12T09:14:00+07:00",
+      "status": "pending"
+    },
+    {
+      "item_id": "e_01HR11",
+      "title": "Chăm sóc sau phẫu thuật nhỏ",
+      "origin": "editor_upload",
+      "topics": ["Chăm sóc tại nhà"],
+      "created_at": "2026-08-11T16:02:00+07:00",
+      "status": "pending"
+    }
+  ]
+}
+```
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `item_id` | string | Định danh mục |
+| `title` | string | Tiêu đề, tối đa 120 ký tự |
+| `origin` | enum | `question_log` hoặc `editor_upload` |
+| `topics` | string[] | Thẻ chủ đề, có thể rỗng |
+| `created_at` | string | ISO 8601 có offset múi giờ |
+| `status` | enum | `draft`, `pending`, `approved`, `rejected` |
+
+Sắp theo `created_at` giảm dần, mới nhất lên đầu.
+
+### GET /api/v1/editor/queue/{item_id}
+
+Toàn bộ những gì màn duyệt chi tiết cần, trong một lần gọi.
+
+```json
+{
+  "item_id": "e_01HR10",
+  "title": "Dinh dưỡng cho người tiểu đường",
+  "origin": "question_log",
+  "topics": ["Tiểu đường", "Dinh dưỡng"],
+  "created_at": "2026-08-12T09:14:00+07:00",
+  "status": "pending",
+  "content": "Người bệnh đái tháo đường típ 2 nên phân bố đều lượng chất bột đường trong các bữa ăn trong ngày. Tăng rau xanh và chất xơ. Hạn chế đường hấp thu nhanh và đồ uống có đường.",
+  "source_url": "https://kcb.vn/van-ban/huong-dan-chan-doan-va-dieu-tri-dai-thao-duong-tip-2",
+  "issuer": "Bộ Y tế",
+  "doc_code": "5481/QĐ-BYT",
+  "conditions": ["type2_diabetes"],
+  "review_note": null,
+  "reject_reason": null,
+  "reviewed_at": null,
+  "reviewed_by": null
+}
+```
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `content` | string | Toàn bộ nội dung sẽ đưa vào thư viện |
+| `source_url` | string hoặc null | Đường dẫn tài liệu nguồn |
+| `issuer` | string hoặc null | Cơ quan ban hành |
+| `doc_code` | string hoặc null | Số hiệu văn bản, ví dụ `5481/QĐ-BYT` |
+| `conditions` | enum[] | Bệnh mà nội dung này áp dụng. Cùng tập giá trị với `primary_condition` ở mục 4 |
+| `review_note` | string hoặc null | Ghi chú của người duyệt, chỉ có khi `status` là `approved` |
+| `reject_reason` | string hoặc null | Lý do từ chối, chỉ có khi `status` là `rejected` |
+| `reviewed_at` | string hoặc null | Thời điểm duyệt hoặc từ chối |
+| `reviewed_by` | string hoặc null | `user_id` của biên tập viên đã xử lý |
+
+Ba trường `source_url`, `issuer`, `doc_code` chính là ba trường `url`, `issuer`, `doc_code` của
+`Citation` ở mục 5. Duyệt xong thì nội dung này trở thành nguồn mà bệnh nhân nhìn thấy cạnh
+câu trả lời, nên thiếu `issuer` là bệnh nhân không biết ai nói câu đó. Bản vẽ Gate 1 lấy ví dụ
+một nguồn nước ngoài (`medlineplus.gov`); nếu thư viện thật sự nhận nguồn ngoài nước thì phải
+chốt quy ước phân biệt trước, xem mục 12 điểm 3.
+
+`conditions` có thể rỗng ở mục `draft` — lúc mới tạo từ log thì chưa ai gán bệnh. Nhưng phải
+có ít nhất một giá trị trước khi chuyển sang `pending`, vì trợ lý chỉ tra tài liệu theo bệnh
+trong hồ sơ; nội dung không gắn bệnh nào sẽ không bao giờ được lấy ra.
+
+404 nếu `item_id` không tồn tại.
+
+### POST /api/v1/editor/queue/{item_id}/approve
+
+Duyệt và đưa vào thư viện chính thức. Cả hai trường trong body đều không bắt buộc.
+
+```json
+{
+  "content": "Người bệnh đái tháo đường típ 2 nên chia đều chất bột đường ra các bữa trong ngày. Nên ăn nhiều rau. Nên tránh nước ngọt và bánh kẹo.",
+  "note": "Viết lại bằng câu ngắn cho dễ đọc. Giữ nguyên ý của văn bản gốc."
+}
+```
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| :-- | :-- | :-- | :-- |
+| `content` | string | không | Nội dung đã chỉnh sửa. Bỏ trống thì giữ nguyên `content` đang có |
+| `note` | string | không | Ghi chú của người duyệt, lưu vào `review_note` |
+
+Response 200 trả về đúng object của `GET /editor/queue/{item_id}` sau khi cập nhật: `status`
+thành `approved`, `reviewed_at` và `reviewed_by` được điền.
+
+Duyệt một mục đã `approved` hoặc `rejected` trả **409**. Duyệt là hành động một chiều, và một
+nút bấm hai lần vì mạng chậm không được phép ghi vào thư viện hai lần.
+
+### POST /api/v1/editor/queue/{item_id}/reject
+
+```json
+{
+  "reason": "Nội dung nói về liều thuốc, nằm ngoài phạm vi trợ lý được phép trả lời."
+}
+```
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| :-- | :-- | :-- | :-- |
+| `reason` | string | **có** | Không được rỗng. Trả 422 nếu thiếu hoặc chỉ có khoảng trắng |
+
+Lý do là bắt buộc chứ không phải tuỳ chọn: mục bị từ chối mà không ghi vì sao thì người sau
+lại soạn đúng nội dung ấy lần nữa, và cả vòng duyệt lặp lại từ đầu.
+
+Response 200 trả về object đã cập nhật, `status` thành `rejected` và `reject_reason` được điền.
+Từ chối một mục đã xử lý cũng trả **409**, cùng lý do như `approve`.
+
+### GET /api/v1/editor/out-of-scope
+
+Những câu hỏi mà trợ lý đã trả `status` bằng `referral` ở mục 6 — tức thư viện chưa có tài
+liệu. Đây là đầu vào của FR4.2.
+
+```json
+{
+  "logs": [
+    {
+      "log_id": "o_01HR20",
+      "question": "Chăm sóc vết mổ tại nhà thế nào cho đúng?",
+      "ask_count": 8,
+      "last_asked_at": "2026-08-12T08:40:00+07:00",
+      "drafted": false,
+      "drafted_item_id": null
+    },
+    {
+      "log_id": "o_01HR21",
+      "question": "Chế độ ăn cho người suy thận nên như thế nào?",
+      "ask_count": 5,
+      "last_asked_at": "2026-08-11T19:12:00+07:00",
+      "drafted": true,
+      "drafted_item_id": "e_01HR12"
+    }
+  ]
+}
+```
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `log_id` | string | Định danh nhóm câu hỏi đã gộp |
+| `question` | string | Nội dung câu hỏi, đã làm sạch PII. Xem ràng buộc ở đầu mục này |
+| `ask_count` | int | Số lượt đã được hỏi, từ 1 trở lên |
+| `last_asked_at` | string | Lần hỏi gần nhất, ISO 8601 có offset múi giờ |
+| `drafted` | bool | Đã tạo mục nháp trong hàng đợi hay chưa |
+| `drafted_item_id` | string hoặc null | `item_id` của mục nháp, `null` khi `drafted` là `false` |
+
+Sắp theo `ask_count` giảm dần — bản vẽ xếp 8, 5, 4 lượt từ trên xuống. Thứ tự này chính là
+thứ tự ưu tiên bổ sung tài liệu, nên nó thuộc về hợp đồng chứ không phải lựa chọn của frontend.
+
+Không có trường nào chứa `patient_id`. Đó là chủ ý, không phải thiếu sót.
+
+### POST /api/v1/editor/out-of-scope/{log_id}/draft
+
+Nút "+ Thêm bài" ở bản vẽ. Tạo một mục nháp trong hàng đợi từ một câu hỏi ngoài phạm vi.
+
+Không có body.
+
+Response 201 khi tạo mới, trả về object của `GET /editor/queue/{item_id}`:
+
+```json
+{
+  "item_id": "e_01HR13",
+  "title": "Chăm sóc vết mổ tại nhà thế nào cho đúng?",
+  "origin": "question_log",
+  "topics": [],
+  "created_at": "2026-08-13T10:05:00+07:00",
+  "status": "draft",
+  "content": "",
+  "source_url": null,
+  "issuer": null,
+  "doc_code": null,
+  "conditions": [],
+  "review_note": null,
+  "reject_reason": null,
+  "reviewed_at": null,
+  "reviewed_by": null
+}
+```
+
+Mục mới luôn có `origin` bằng `question_log` và `status` bằng `draft`. `title` lấy từ
+`question`, cắt còn tối đa 120 ký tự. Mọi trường nội dung để trống — đây mới là cái vỏ, biên
+tập viên còn phải soạn.
+
+Log đã có nháp rồi thì trả **200** kèm chính mục nháp đang có, KHÔNG tạo thêm cái thứ hai và
+cũng không báo lỗi. Bấm nhầm hai lần là chuyện thường, mà hai bản nháp trùng nhau trong hàng
+đợi thì người duyệt phải tự đoán nên xoá cái nào.
+
+404 nếu `log_id` không tồn tại.
+
+---
+
+## 9. Ngoài phạm vi Gate 2
 
 Các mục sau có trong `ARCHITECTURE.md` nhưng không thuộc hợp đồng v1:
 
-- SSE streaming. Gate 2 dùng response một lần. Xem mục 9 để biết hướng mở rộng
+- SSE streaming. Gate 2 dùng response một lần. Xem mục 10 để biết hướng mở rộng
 - Kiểm tra token thật ở backend. Frontend đã có luồng đăng nhập đầy đủ theo mục 3 nhưng đang
   chạy trên mock; backend chưa implement `/auth/login`, `/auth/logout`, và chưa kiểm tra
   header `Authorization` ở bất kỳ endpoint nào. Việc xác thực và phân quyền thật làm sau
@@ -381,7 +667,7 @@ Các mục sau có trong `ARCHITECTURE.md` nhưng không thuộc hợp đồng v
 
 ---
 
-## 9. Hướng mở rộng SSE
+## 10. Hướng mở rộng SSE
 
 Khi backend làm SSE, giữ nguyên endpoint `/api/v1/chat` và thêm query param `stream=true`.
 Frontend đã tách riêng lớp api client nên chỉ cần đổi ở một chỗ.
@@ -401,7 +687,7 @@ Không dựng chuỗi trạng thái giả để làm đẹp giao diện.
 
 ---
 
-## 10. Pydantic cho backend
+## 11. Pydantic cho backend
 
 Đoạn dưới dán được thẳng vào `src/models/schemas.py`.
 
@@ -483,12 +769,88 @@ class ChatResponse(BaseModel):
     metadata: ResponseMetadata
 ```
 
+```python
+# ---------------------------------------------------------------------------
+# Mục 8: Quản trị nội dung. Chỉ vai trò editor được gọi.
+# ---------------------------------------------------------------------------
+
+EditorItemStatus = Literal["draft", "pending", "approved", "rejected"]
+EditorItemOrigin = Literal["question_log", "editor_upload"]
+PatientCondition = Literal["type2_diabetes", "hypertension"]
+
+
+class EditorDashboard(BaseModel):
+    """Response GET /editor/dashboard."""
+    pending_count: int = Field(..., ge=0)
+    out_of_scope_count: int = Field(..., ge=0)
+
+
+class EditorQueueItem(BaseModel):
+    """Một dòng trong GET /editor/queue."""
+    item_id: str
+    title: str = Field(..., max_length=120)
+    origin: EditorItemOrigin
+    topics: list[str] = Field(default_factory=list)
+    created_at: str
+    status: EditorItemStatus
+
+
+class EditorQueueList(BaseModel):
+    items: list[EditorQueueItem] = Field(default_factory=list)
+
+
+class EditorQueueItemDetail(EditorQueueItem):
+    """Response GET /editor/queue/{item_id}, và của cả approve lẫn reject."""
+    content: str = ""
+    # Ba trường này thành url / issuer / doc_code của Citation sau khi duyệt.
+    source_url: Optional[str] = None
+    issuer: Optional[str] = None
+    doc_code: Optional[str] = None
+    # Rỗng được khi status là "draft", nhưng phải có ít nhất một giá trị
+    # trước khi chuyển sang "pending".
+    conditions: list[PatientCondition] = Field(default_factory=list)
+    review_note: Optional[str] = None
+    reject_reason: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    reviewed_by: Optional[str] = None
+
+
+class EditorApproveRequest(BaseModel):
+    """Body POST /editor/queue/{item_id}/approve. Cả hai trường đều tuỳ chọn."""
+    content: Optional[str] = None
+    note: Optional[str] = None
+
+
+class EditorRejectRequest(BaseModel):
+    """Body POST /editor/queue/{item_id}/reject."""
+    reason: str = Field(..., min_length=1)
+
+
+class OutOfScopeLog(BaseModel):
+    """Một dòng trong GET /editor/out-of-scope.
+
+    KHÔNG có patient_id, và cố ý không có. Xem ràng buộc PII ở mục 8: biên tập
+    viên đọc log để biết thư viện thiếu chủ đề gì, không phải để biết ai hỏi.
+    Thêm bất kỳ trường nào lần ngược được về tài khoản là phá ràng buộc đó.
+    """
+    log_id: str
+    question: str
+    ask_count: int = Field(..., ge=1)
+    last_asked_at: str
+    drafted: bool = False
+    drafted_item_id: Optional[str] = None
+
+
+class OutOfScopeList(BaseModel):
+    logs: list[OutOfScopeLog] = Field(default_factory=list)
+```
+
 Lưu ý: `ChatRequest` hiện tại trong repo chỉ có `message`. Cần đổi tên trường thành `query`
 cho khớp `AgentState.query` trong `ARCHITECTURE.md`.
 
 ---
 
-## 11. Điểm cần backend xác nhận
+## 12. Điểm cần backend xác nhận
 
 1. Tên trường request là `query` hay giữ `message`. Hợp đồng này chọn `query` theo `AgentState`
 2. `patient_id` do client sinh hay backend cấp khi tạo hồ sơ
@@ -503,3 +865,11 @@ cho khớp `AgentState.query` trong `ARCHITECTURE.md`.
 6. Cơ chế xác thực ở mục 3 dùng JWT hay session phía máy chủ. Nếu JWT thì token sống bao lâu,
    và có refresh token không. Ba câu này quyết định frontend phải làm gì khi token hết hạn:
    im lặng xin token mới, hay đá người dùng về màn đăng nhập giữa lúc đang đọc câu trả lời
+7. Duyệt một mục ở mục 8 thì ghi vào vector store bằng cách nào. Cụ thể: chunking và embedding
+   chạy ngay trong request `approve` rồi mới trả 200, hay đẩy vào hàng đợi nền và trả 200 trước.
+   Và có cần một bước reindex riêng nữa không, hay ghi thêm là dùng được luôn.
+
+   Câu trả lời quyết định frontend hiện gì sau khi bấm Duyệt. Nếu ghi đồng bộ thì báo "đã vào
+   thư viện" là đúng. Nếu chạy nền thì phải báo "đang xử lý, vài phút nữa trợ lý mới dùng
+   được" — nói sai chỗ này thì biên tập viên tưởng nội dung đã sống, đi kiểm tra bằng cách hỏi
+   trợ lý, thấy vẫn trả `referral`, và kết luận là hệ thống hỏng

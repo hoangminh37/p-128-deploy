@@ -1,0 +1,93 @@
+/**
+ * Cache cho khu vực biên tập (hợp đồng mục 8).
+ *
+ * Khóa cache để tập trung ở đây, cùng lối mà `app/conversations.ts` đang dùng.
+ * Riêng phần này còn một lý do nữa: bốn màn của biên tập viên đọc chồng lên
+ * nhau — thanh bên hiện số từ dashboard, màn hàng đợi đọc danh sách, màn chi
+ * tiết đọc một mục, màn log đọc log. Duyệt MỘT mục làm sai lệch cả bốn.
+ */
+import { useCallback } from 'react'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+
+import {
+  getEditorDashboard,
+  getEditorQueueItem,
+  listEditorQueue,
+  listOutOfScopeLogs,
+  type ApiError,
+} from '../lib/api'
+import type {
+  EditorDashboard,
+  EditorItemStatus,
+  EditorQueueItemDetail,
+  OutOfScopeList,
+} from '../lib/schemas'
+
+/** Tiền tố chung của mọi khóa trong khu vực biên tập. */
+const EDITOR_KEY_ROOT = 'editor'
+
+export const editorKeys = {
+  dashboard: () => [EDITOR_KEY_ROOT, 'dashboard'] as const,
+  queue: (status: EditorItemStatus) => [EDITOR_KEY_ROOT, 'queue', status] as const,
+  item: (itemId: string) => [EDITOR_KEY_ROOT, 'item', itemId] as const,
+  outOfScope: () => [EDITOR_KEY_ROOT, 'out-of-scope'] as const,
+}
+
+/**
+ * Làm mới TOÀN BỘ dữ liệu biên tập sau mỗi lần ghi.
+ *
+ * Vô hiệu hóa theo tiền tố `editor` chứ không liệt kê từng khóa. Duyệt một mục
+ * làm đổi: con số trên dashboard, danh sách `pending`, danh sách `approved`, và
+ * chính mục đó. Tạo nháp từ log còn đổi thêm danh sách `draft` và danh sách log.
+ * Liệt kê tay thì sớm muộn cũng sót một cái, mà cái sót lại là một con số cũ nằm
+ * chình ình trên thanh bên.
+ *
+ * Đây là vài request thừa đổi lấy việc không bao giờ hiện số sai. Với một màn
+ * quản trị mà mỗi thao tác cách nhau vài giây thì đổi thế là đáng.
+ */
+export function useInvalidateEditorData(): () => void {
+  const queryClient = useQueryClient()
+
+  return useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: [EDITOR_KEY_ROOT] })
+  }, [queryClient])
+}
+
+/** Hai con số ở màn tổng quan. Thanh bên cũng đọc chính query này. */
+export function useEditorDashboard() {
+  return useQuery<EditorDashboard, ApiError>({
+    queryKey: editorKeys.dashboard(),
+    queryFn: getEditorDashboard,
+  })
+}
+
+/**
+ * Hàng đợi, gộp nhiều trạng thái trong một lần.
+ *
+ * Hợp đồng chỉ cho lọc MỘT trạng thái mỗi lần gọi, mà bộ lọc mặc định của màn
+ * hàng đợi lại là "đang xử lý" — gồm cả `pending` lẫn `draft`. `useQueries` cho
+ * phép số lượng query thay đổi theo bộ lọc mà không phá luật số lần gọi hook.
+ */
+export function useEditorQueues(statuses: readonly EditorItemStatus[]) {
+  return useQueries({
+    queries: statuses.map((status) => ({
+      queryKey: editorKeys.queue(status),
+      queryFn: () => listEditorQueue(status),
+    })),
+  })
+}
+
+export function useEditorQueueItem(itemId: string) {
+  return useQuery<EditorQueueItemDetail, ApiError>({
+    queryKey: editorKeys.item(itemId),
+    queryFn: () => getEditorQueueItem(itemId),
+    enabled: itemId !== '',
+  })
+}
+
+export function useOutOfScopeLogs() {
+  return useQuery<OutOfScopeList, ApiError>({
+    queryKey: editorKeys.outOfScope(),
+    queryFn: listOutOfScopeLogs,
+  })
+}

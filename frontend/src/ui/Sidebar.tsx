@@ -23,6 +23,7 @@ import { CONDITION_LABEL } from '../lib/conditions'
 import { usePatient } from '../patient/context'
 import { useSession } from '../session/context'
 import { ConversationNav } from './ConversationNav'
+import { EditorNav } from './EditorNav'
 import { AppMark, CloseIcon, PlusIcon, UserIcon } from './icons'
 import { SignOutButton } from './SignOutButton'
 
@@ -105,12 +106,7 @@ export function Sidebar({
           onNavigate={onNavigate}
         />
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto px-snug pt-snug">
-          <p className="font-display text-note text-moss">
-            Khu vực biên tập viên đang được dựng. Danh sách tài liệu chờ duyệt sẽ
-            hiện ở đây.
-          </p>
-        </div>
+        <EditorNav onNavigate={onNavigate} />
       )}
 
       {/* ---- Khối hồ sơ và đăng xuất, ghim ở đáy ---- */}

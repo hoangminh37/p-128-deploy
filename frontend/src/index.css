@@ -50,6 +50,16 @@
   --spacing-snug: 12px;   /* giữa hai thẻ nguồn; padding của khối nhỏ */
   --spacing-cozy: 16px;   /* padding trong khối lớn: banner, khối refused/referral */
   --spacing-para: 24px;   /* GIỮA CÁC ĐOẠN VĂN trong câu trả lời — bậc dùng nhiều nhất */
+  /* CẢNH BÁO — tên bậc này đụng tên một tiện ích có sẵn của Tailwind.
+   *
+   * `inline-block` bị Tailwind đọc được theo HAI nghĩa: `display: inline-block`,
+   * và tiện ích logic `inline-<bậc>` đặt `inline-size` — mà `block` đúng là một
+   * bậc ở đây. Cả hai rule cùng specificity, rule `inline-size` sinh ra sau nên
+   * nó thắng, và mọi phần tử gắn class `inline-block` bị ép còn 32px.
+   *
+   * Không có cảnh báo nào lúc build: class vẫn tồn tại, chỉ là nó làm việc khác.
+   * ĐỪNG dùng `inline-block` trong dự án này — dùng `w-fit`, `inline-flex`,
+   * hoặc `inline` tùy ý định. */
   --spacing-block: 32px;  /* giữa các khối lớn: banner với câu trả lời, cột chữ với dải nguồn */
   --spacing-turn: 56px;   /* giữa hai lượt hỏi đáp — nhịp nghỉ lớn nhất của trang */
 
