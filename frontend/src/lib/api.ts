@@ -244,7 +244,7 @@ async function request<S extends z.ZodType>(options: {
 // ---------------------------------------------------------------------------
 
 /**
- * Mục 4 — gửi câu hỏi. `conversation_id` bằng `null` là mở phiên mới.
+ * Mục 5 — gửi câu hỏi. `conversation_id` bằng `null` là mở phiên mới.
  *
  * `async` để lỗi payload cũng trả về dưới dạng promise bị reject, đồng nhất với
  * mọi lỗi khác thay vì ném đồng bộ.
@@ -260,10 +260,10 @@ export async function sendChatMessage(payload: ChatRequest): Promise<ChatRespons
 }
 
 /**
- * Mục 3 — tạo hoặc cập nhật hồ sơ bệnh nhân.
+ * Mục 4 — tạo hoặc cập nhật hồ sơ bệnh nhân.
  *
  * Nhận kiểu input của schema nên `comorbidities` và `diagnosed_at` được phép
- * bỏ trống, đúng như cột "Bắt buộc" trong bảng mục 3.
+ * bỏ trống, đúng như cột "Bắt buộc" trong bảng mục 4.
  */
 export async function upsertPatientProfile(
   payload: z.input<typeof patientProfileSchema>,
@@ -277,7 +277,7 @@ export async function upsertPatientProfile(
   })
 }
 
-/** Mục 3 — đọc hồ sơ. Backend trả 404 nếu chưa có hồ sơ. */
+/** Mục 4 — đọc hồ sơ. Backend trả 404 nếu chưa có hồ sơ. */
 export function getPatientProfile(patientId: string): Promise<PatientProfileResponse> {
   return request({
     path: `/patients/${encodeURIComponent(patientId)}/profile`,
@@ -286,7 +286,7 @@ export function getPatientProfile(patientId: string): Promise<PatientProfileResp
   })
 }
 
-/** Mục 6 — danh sách phiên hội thoại của một bệnh nhân. */
+/** Mục 7 — danh sách phiên hội thoại của một bệnh nhân. */
 export function listConversations(patientId: string): Promise<ConversationList> {
   return request({
     path: `/conversations/${encodeURIComponent(patientId)}`,
@@ -295,7 +295,7 @@ export function listConversations(patientId: string): Promise<ConversationList> 
   })
 }
 
-/** Mục 6 — chi tiết một phiên, gồm toàn bộ message theo thứ tự thời gian. */
+/** Mục 7 — chi tiết một phiên, gồm toàn bộ message theo thứ tự thời gian. */
 export function getConversationDetail(
   patientId: string,
   conversationId: string,

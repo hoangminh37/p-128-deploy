@@ -32,7 +32,7 @@ import { ErrorNotice } from '../ui/ErrorNotice'
 import { SuggestedQuestions } from '../ui/SuggestedQuestions'
 
 /**
- * Ghép lịch sử của mục 6 thành các lượt.
+ * Ghép lịch sử của mục 7 thành các lượt.
  *
  * Message của user đứng trước message của assistant trong cùng một lượt. Câu hỏi
  * nào không có câu trả lời đi kèm (phiên bị cắt giữa chừng) thì bị bỏ qua, vì
@@ -148,7 +148,7 @@ export function ChatScreen({
           disclaimer: response.disclaimer,
         },
       ])
-      // Lượt sau nối tiếp cùng một phiên, theo mục 4 hợp đồng.
+      // Lượt sau nối tiếp cùng một phiên, theo mục 5 hợp đồng.
       setConversationId(response.conversation_id)
       setPendingQuestion(null)
       // Phiên vừa được tạo hoặc vừa có thêm lượt, danh sách trên thanh bên đã cũ.

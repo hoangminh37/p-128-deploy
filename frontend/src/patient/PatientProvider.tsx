@@ -2,7 +2,7 @@
  * Provider giữ patient_id ẩn danh và hồ sơ tương ứng.
  *
  * patient_id sinh hoàn toàn ở client và không mang thông tin định danh thật:
- * chỉ là một UUID ngẫu nhiên. Hợp đồng API ở mục 3 cũng cấm gửi tên, số điện
+ * chỉ là một UUID ngẫu nhiên. Hợp đồng API ở mục 4 cũng cấm gửi tên, số điện
  * thoại hay số căn cước, nên không có gì để lẫn vào đây.
  */
 import { useCallback, useMemo, useState, type ReactNode } from 'react'

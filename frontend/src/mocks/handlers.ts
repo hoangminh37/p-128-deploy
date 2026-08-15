@@ -103,7 +103,7 @@ function pickFixture(query: string) {
 // ---------------------------------------------------------------------------
 
 export const handlers = [
-  /** Mục 4 — gửi câu hỏi. */
+  /** Mục 5 — gửi câu hỏi. */
   http.post(url('/chat'), async ({ request }) => {
     await delay(CHAT_DELAY_MS)
 
@@ -116,7 +116,7 @@ export const handlers = [
     return HttpResponse.json(pickFixture(query).response)
   }),
 
-  /** Mục 3 — tạo hoặc cập nhật hồ sơ. Trả lại đúng object vừa lưu, thêm `updated_at`. */
+  /** Mục 4 — tạo hoặc cập nhật hồ sơ. Trả lại đúng object vừa lưu, thêm `updated_at`. */
   http.post(url('/patients/profile'), async ({ request }) => {
     await delay(QUICK_DELAY_MS)
 
@@ -135,7 +135,7 @@ export const handlers = [
     return HttpResponse.json(saved)
   }),
 
-  /** Mục 3 — đọc hồ sơ. Chưa khai thì trả 404, đúng như hợp đồng mục 3. */
+  /** Mục 4 — đọc hồ sơ. Chưa khai thì trả 404, đúng như hợp đồng mục 4. */
   http.get(url('/patients/:patientId/profile'), async ({ params }) => {
     await delay(QUICK_DELAY_MS)
 
@@ -151,14 +151,14 @@ export const handlers = [
     return HttpResponse.json(saved)
   }),
 
-  /** Mục 6 — danh sách phiên hội thoại. */
+  /** Mục 7 — danh sách phiên hội thoại. */
   http.get(url('/conversations/:patientId'), async () => {
     await delay(QUICK_DELAY_MS)
 
     return HttpResponse.json(conversationListFixture)
   }),
 
-  /** Mục 6 — chi tiết một phiên. Id lạ thì trả 404 để test được nhánh lỗi. */
+  /** Mục 7 — chi tiết một phiên. Id lạ thì trả 404 để test được nhánh lỗi. */
   http.get(url('/conversations/:patientId/:conversationId'), async ({ params }) => {
     await delay(QUICK_DELAY_MS)
 

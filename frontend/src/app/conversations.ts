@@ -1,5 +1,5 @@
 /**
- * Cache lịch sử hội thoại (mục 6 hợp đồng API).
+ * Cache lịch sử hội thoại (mục 7 hợp đồng API).
  *
  * Khóa cache để ở đây chứ không gõ tay tại từng chỗ dùng: thanh bên, thanh tiêu
  * đề và màn hỏi đáp đều đọc cùng một danh sách, mà ba nơi gõ ba mảng giống nhau

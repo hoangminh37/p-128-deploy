@@ -28,7 +28,7 @@ import {
 // Nguồn trích dẫn dùng lại
 // ---------------------------------------------------------------------------
 
-/** Mục 4 — hai văn bản Bộ Y tế tương ứng hai bệnh trong phạm vi dự án. */
+/** Mục 5 — hai văn bản Bộ Y tế tương ứng hai bệnh trong phạm vi dự án. */
 const HUONG_DAN_TANG_HUYET_AP = {
   title: 'Hướng dẫn chẩn đoán và điều trị tăng huyết áp',
   issuer: 'Bộ Y tế',
@@ -43,7 +43,7 @@ const HUONG_DAN_DAI_THAO_DUONG = {
   url: 'https://kcb.vn/van-ban/huong-dan-chan-doan-va-dieu-tri-dai-thao-duong-tip-2',
 } as const
 
-/** Câu chốt bắt buộc có ở mọi phản hồi, theo mục 4 của hợp đồng. */
+/** Câu chốt bắt buộc có ở mọi phản hồi, theo mục 5 của hợp đồng. */
 const DISCLAIMER = 'Thông tin mang tính giáo dục, không thay thế tư vấn của bác sĩ.'
 
 // ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ const DISCLAIMER = 'Thông tin mang tính giáo dục, không thay thế tư v�
 export interface ChatFixture {
   /** Câu hỏi mẫu dẫn tới phản hồi này. */
   question: string
-  /** Phản hồi đúng hợp đồng mục 4. */
+  /** Phản hồi đúng hợp đồng mục 5. */
   response: ChatResponse
 }
 
@@ -203,7 +203,7 @@ export const chatFixtures: Record<ChatStatus, ChatFixture> = {
 // Dữ liệu mẫu cho các endpoint còn lại
 // ---------------------------------------------------------------------------
 
-/** Mục 3 — hồ sơ mẫu: người 58 tuổi, tăng huyết áp kèm đái tháo đường típ 2. */
+/** Mục 4 — hồ sơ mẫu: người 58 tuổi, tăng huyết áp kèm đái tháo đường típ 2. */
 export const patientProfileFixture: PatientProfileResponse = {
   patient_id: 'p_01HQZX',
   age: 58,
@@ -214,7 +214,7 @@ export const patientProfileFixture: PatientProfileResponse = {
   updated_at: '2026-08-12T09:14:00+07:00',
 }
 
-/** Mục 6 — danh sách phiên hội thoại. */
+/** Mục 7 — danh sách phiên hội thoại. */
 export const conversationListFixture: ConversationList = {
   conversations: [
     {
@@ -232,7 +232,7 @@ export const conversationListFixture: ConversationList = {
   ],
 }
 
-/** Mục 6 — chi tiết một phiên, dựng lại từ kịch bản `answered`. */
+/** Mục 7 — chi tiết một phiên, dựng lại từ kịch bản `answered`. */
 export const conversationDetailFixture: ConversationDetail = {
   conversation_id: 'c_mock_answered',
   messages: [
