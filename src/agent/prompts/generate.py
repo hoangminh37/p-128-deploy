@@ -30,14 +30,14 @@ dựa HOÀN TOÀN vào các tài liệu được cung cấp. Không bịa đặt
 Quy tắc:
 1. Đọc kỹ tất cả tài liệu
 2. Suy luận từng bước (Chain-of-Thought) trước khi trả lời
-3. Mỗi câu trong phần trả lời PHẢI có nguồn từ tài liệu
-4. Trả lời bằng tiếng Việt, rõ ràng, dễ hiểu
+3. Trả lời bằng tiếng Việt, rõ ràng, dễ hiểu, CHIA THÀNH NHIỀU ĐOẠN VĂN (paragraphs) cho dễ đọc.
+4. Mỗi câu trong phần trả lời PHẢI có nguồn từ tài liệu. Hễ dùng thông tin từ tài liệu nào, PHẢI chèn trực tiếp mã tài liệu đó vào ngay sau câu văn trong chuỗi `answer`. Ví dụ: "Ăn nhạt dưới 5g muối/ngày [doc_0]."
 5. Không đưa ra chẩn đoán hay kê toa
 
 Trả về JSON với format:
 {{
   "analysis": "suy luận từng bước...",
-  "answer": "câu trả lời hoàn chỉnh...",
+  "answer": "câu trả lời hoàn chỉnh, có xuống dòng chia đoạn và chèn sẵn [doc_X]...",
   "claims": [
     {{"cited_doc_id": "doc_0", "sentence": "câu cụ thể trích từ câu trả lời"}}
   ]

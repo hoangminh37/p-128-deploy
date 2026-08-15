@@ -180,18 +180,18 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 })
   }),
 
-  /** Mục 5 — gửi câu hỏi. */
-  http.post(url('/chat'), async ({ request }) => {
-    await delay(CHAT_DELAY_MS)
-
-    const body = await request.json().catch(() => null)
-    const query =
-      body && typeof body === 'object' && 'query' in body && typeof body.query === 'string'
-        ? body.query
-        : ''
-
-    return HttpResponse.json(pickFixture(query).response)
-  }),
+  /** Mục 5 — gửi câu hỏi (BỎ MOCK ĐỂ GỌI BACKEND THẬT) */
+  // http.post(url('/chat'), async ({ request }) => {
+  //   await delay(CHAT_DELAY_MS)
+  //
+  //   const body = await request.json().catch(() => null)
+  //   const query =
+  //     body && typeof body === 'object' && 'query' in body && typeof body.query === 'string'
+  //       ? body.query
+  //       : ''
+  //
+  //   return HttpResponse.json(pickFixture(query).response)
+  // }),
 
   /** Mục 4 — tạo hoặc cập nhật hồ sơ. Trả lại đúng object vừa lưu, thêm `updated_at`. */
   http.post(url('/patients/profile'), async ({ request }) => {

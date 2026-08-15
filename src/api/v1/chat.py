@@ -50,11 +50,19 @@ async def chat(request: ChatRequest) -> ChatResponse:
         # Ensure citations match the new schema
         raw_citations = result.get("citations", [])
         citations = []
+        answer = result.get("response", "")
         for i, c in enumerate(raw_citations):
+            cid = i + 1
+            doc_id = c.get("doc_id")
+            
+            # Replace [doc_X] with [cid] in answer
+            if doc_id and f"[{doc_id}]" in answer:
+                answer = answer.replace(f"[{doc_id}]", f"[{cid}]")
+                
             citations.append(
                 Citation(
-                    id=i + 1,
-                    title=c.get("title", f"Tài liệu {i+1}"),
+                    id=cid,
+                    title=c.get("title", f"Tài liệu {cid}"),
                     issuer=c.get("issuer", "Cơ sở y tế"),
                     doc_code=c.get("doc_code"),
                     url=c.get("url"),
@@ -83,11 +91,21 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
         latency_ms = int((time.time() - start_time) * 1000)
 
+        # Đảm bảo answer luôn chứa marker [id] của mọi citation để qua cửa Zod schema của Frontend
+        if citations and status not in ["red_flag", "refused", "referral"]:
+            missing_markers = [f"[{c.id}]" for c in citations if f"[{c.id}]" not in answer]
+            if missing_markers:
+                answer = f"{answer.strip()} {''.join(missing_markers)}"
+
+        # Nếu status là 3 loại này thì KHÔNG ĐƯỢC có citations (Zod schema bắt buộc rỗng)
+        if status in ["red_flag", "refused", "referral"]:
+            citations = []
+
         return ChatResponse(
             conversation_id=request.conversation_id or f"c_mock_{int(time.time())}",
             message_id=f"m_mock_{int(time.time())}",
             status=status,
-            answer=result.get("response", ""),
+            answer=answer,
             citations=citations,
             support_level=support_level if status in ["answered", "partial"] else None,
             disclaimer="⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng.",
