@@ -10,7 +10,6 @@
 
 ## 2026-07-24
 
-
 | Member | Task | Status | Output | Time |
 |--------|------|--------|--------|------|
 | Cả team | Khởi tạo repo từ starter template (`src/`, `tests/`, `eval/`, Docker, Makefile, CI) | ✅ Done | Commit `63d145a` — initial commit | 1h |
@@ -54,21 +53,29 @@
 
 ---
 
-## Trạng thái deliverables
+## 2026-08-13
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Hoàng Minh | Bổ sung test cases cá nhân hóa (người cao tuổi, caregiver) vào `raw_test_cases.json` | ✅ Done | `eval/data/raw_test_cases.json` | 1h |
+| Hoàng Minh | Viết kịch bản Custom LLM-as-a-Judge bằng `gpt-4o-mini` để đánh giá nghiệp vụ PRD (Citations, Tone, Next-best questions) | ✅ Done | `eval/run_custom_eval.py`, báo cáo `custom_report.md` | 2h |
+| Hoàng Minh | Tái cấu trúc CI Pipeline, tách Backend/Frontend, thiết lập branch protection, và sửa toàn bộ lỗi Mypy typing | ✅ Done | `.github/workflows/ci.yml`, `src/services/llm.py`, `src/agents/graph.py` | 2h |
+
+**Tổng kết ngày:** Hoàn thiện 100% cơ sở hạ tầng Evaluation (kết hợp RAGAS và Custom Judge). Xử lý dứt điểm nợ kỹ thuật (typing errors) và thiết lập vòng lặp CI/CD an toàn thông qua Pull Request Workflow.
+
+---
+
+## Trạng thái deliverables (Cập nhật 13/08/2026)
 
 | # | Deliverable | Vị trí | Trạng thái |
 |---|---|---|---|
-| 1 | Source Code | `src/` | Chưa bắt đầu |
+| 1 | Source Code | `src/` | 🔄 Đang cập nhật |
 | 2 | README.md | `README.md` | Chưa bắt đầu |
-| 3 | Architecture Diagram | `docs/architecture_diagram.md` | Chưa bắt đầu |
+| 3 | Architecture Diagram | `ARCHITECTURE.md` | 🔄 Đang cập nhật |
 | 4 | AI Logs | `.ai-log/` + LangSmith | ✅ Đã cấu hình |
 | 5 | Live URL | Render / Vercel | Chưa bắt đầu |
 | 6 | Video Demo | `presentation/` | Chưa bắt đầu |
 | 7 | Pitch Deck | `presentation/` | Chưa bắt đầu |
-| 8 | Development Journal | `JOURNAL.md` | 🔄 Đang cập nhật |
-| 9 | Worklog | `WORKLOG.md` | 🔄 Đang cập nhật |
-| 10 | Evaluation Evidence | `eval/results/report.md` | Chưa bắt đầu |
-
----
-
-<!-- Format: copy block ngày ở trên cho mỗi ngày làm việc -->
+| 8 | Development Journal | `JOURNAL.md` | ✅ Đã cập nhật |
+| 9 | Worklog | `WORKLOG.md` | ✅ Đã cập nhật |
+| 10 | Evaluation Evidence | `eval/results/` | ✅ Đã hoàn thành |
