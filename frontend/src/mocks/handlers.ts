@@ -8,10 +8,13 @@ import { delay, http, HttpResponse } from 'msw'
 import { z } from 'zod'
 
 import {
+  loginRequestSchema,
   patientProfileSchema,
   type ChatStatus,
   type PatientProfileResponse,
+  type UserInfo,
 } from '../lib/schemas'
+import { DEMO_ACCOUNTS } from './demoAccounts'
 import {
   chatFixtures,
   conversationDetailFixture,
@@ -49,6 +52,31 @@ const QUICK_DELAY_MS = 300
 const profiles = new Map<string, PatientProfileResponse>([
   [patientProfileFixture.patient_id, patientProfileFixture],
 ])
+
+/**
+ * Tài khoản của hai email mẫu.
+ *
+ * Mật khẩu nằm ở `demoAccounts.ts` để màn đăng nhập đọc được mà không kéo theo
+ * cả MSW; phần định danh và vai trò thì ở đây, vì chỉ máy chủ giả mới cần biết.
+ *
+ * Bệnh nhân mẫu dùng đúng `patient_id` của hồ sơ đã gieo sẵn trong `profiles`,
+ * nên đăng nhập xong là vào thẳng màn hỏi đáp với hồ sơ đầy đủ. Muốn xem lại
+ * luồng khai hồ sơ lần đầu thì đổi giá trị này sang một id chưa có trong kho.
+ */
+const DEMO_USERS: Record<string, UserInfo> = {
+  'benhnhan@demo.vn': {
+    user_id: 'u_01HQZW',
+    email: 'benhnhan@demo.vn',
+    role: 'patient',
+    patient_id: patientProfileFixture.patient_id,
+  },
+  'bientap@demo.vn': {
+    user_id: 'u_01HQZV',
+    email: 'bientap@demo.vn',
+    role: 'editor',
+    patient_id: null,
+  },
+}
 
 // ---------------------------------------------------------------------------
 // Chọn kịch bản theo từ khóa trong câu hỏi
@@ -103,7 +131,56 @@ function pickFixture(query: string) {
 // ---------------------------------------------------------------------------
 
 export const handlers = [
-  /** Mục 4 — gửi câu hỏi. */
+  /**
+   * Mục 3 — đăng nhập.
+   *
+   * Một thông báo 401 DUY NHẤT cho cả ba trường hợp: email không tồn tại, email
+   * đúng nhưng mật khẩu sai, và payload đúng dạng nhưng không khớp tài khoản
+   * nào. Phân biệt chúng cho phép người ngoài dò xem một địa chỉ có tài khoản
+   * trong hệ thống hay không — mà đây là hệ thống y tế, riêng việc "người này có
+   * bệnh mãn tính" đã là thông tin không được để lộ. Backend thật phải giữ đúng
+   * nguyên tắc này, đây không phải chi tiết riêng của mock.
+   */
+  http.post(url('/auth/login'), async ({ request }) => {
+    await delay(QUICK_DELAY_MS)
+
+    const parsed = loginRequestSchema.safeParse(await request.json().catch(() => null))
+    if (!parsed.success) {
+      return HttpResponse.json({ detail: z.prettifyError(parsed.error) }, { status: 422 })
+    }
+
+    const email = parsed.data.email.trim().toLowerCase()
+    const account = DEMO_ACCOUNTS.find((candidate) => candidate.email === email)
+    const user = DEMO_USERS[email]
+
+    if (
+      account === undefined ||
+      user === undefined ||
+      account.password !== parsed.data.password
+    ) {
+      return HttpResponse.json(
+        { detail: 'Email hoặc mật khẩu không đúng' },
+        { status: 401 },
+      )
+    }
+
+    return HttpResponse.json({
+      // Không phải JWT thật, chỉ là một chuỗi để lớp api có cái mà gắn vào
+      // header. Khi backend bật JWT thì chỉ chỗ này đổi, frontend không đổi gì.
+      access_token: `mock.${user.user_id}.${Date.now()}`,
+      token_type: 'bearer',
+      user,
+    })
+  }),
+
+  /** Mục 3 — đăng xuất. Response 204, không có body. */
+  http.post(url('/auth/logout'), async () => {
+    await delay(QUICK_DELAY_MS)
+
+    return new HttpResponse(null, { status: 204 })
+  }),
+
+  /** Mục 5 — gửi câu hỏi. */
   http.post(url('/chat'), async ({ request }) => {
     await delay(CHAT_DELAY_MS)
 
@@ -116,7 +193,7 @@ export const handlers = [
     return HttpResponse.json(pickFixture(query).response)
   }),
 
-  /** Mục 3 — tạo hoặc cập nhật hồ sơ. Trả lại đúng object vừa lưu, thêm `updated_at`. */
+  /** Mục 4 — tạo hoặc cập nhật hồ sơ. Trả lại đúng object vừa lưu, thêm `updated_at`. */
   http.post(url('/patients/profile'), async ({ request }) => {
     await delay(QUICK_DELAY_MS)
 
@@ -135,7 +212,7 @@ export const handlers = [
     return HttpResponse.json(saved)
   }),
 
-  /** Mục 3 — đọc hồ sơ. Chưa khai thì trả 404, đúng như hợp đồng mục 3. */
+  /** Mục 4 — đọc hồ sơ. Chưa khai thì trả 404, đúng như hợp đồng mục 4. */
   http.get(url('/patients/:patientId/profile'), async ({ params }) => {
     await delay(QUICK_DELAY_MS)
 
@@ -151,14 +228,14 @@ export const handlers = [
     return HttpResponse.json(saved)
   }),
 
-  /** Mục 6 — danh sách phiên hội thoại. */
+  /** Mục 7 — danh sách phiên hội thoại. */
   http.get(url('/conversations/:patientId'), async () => {
     await delay(QUICK_DELAY_MS)
 
     return HttpResponse.json(conversationListFixture)
   }),
 
-  /** Mục 6 — chi tiết một phiên. Id lạ thì trả 404 để test được nhánh lỗi. */
+  /** Mục 7 — chi tiết một phiên. Id lạ thì trả 404 để test được nhánh lỗi. */
   http.get(url('/conversations/:patientId/:conversationId'), async ({ params }) => {
     await delay(QUICK_DELAY_MS)
 

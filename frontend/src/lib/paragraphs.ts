@@ -6,8 +6,8 @@
  * nghỉ — thứ mà người 45–70 tuổi đọc vài dòng là lạc.
  *
  * Để ở đây vì hai nơi cần: `AnswerDocument` (câu trả lời có trích dẫn) và bốn
- * khối trạng thái ở `ResponseStates` (không bao giờ có trích dẫn, theo mục 4 và
- * mục 5 hợp đồng). Hai nơi cắt đoạn theo hai luật khác nhau thì cùng một câu
+ * khối trạng thái ở `ResponseStates` (không bao giờ có trích dẫn, theo mục 5 và
+ * mục 6 hợp đồng). Hai nơi cắt đoạn theo hai luật khác nhau thì cùng một câu
  * trả lời sẽ xuống dòng khác nhau tùy trạng thái.
  */
 export function splitParagraphs(text: string): string[] {

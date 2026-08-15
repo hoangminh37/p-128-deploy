@@ -29,7 +29,7 @@
 import { splitParagraphs } from '../lib/paragraphs'
 import type { Citation } from '../lib/schemas'
 
-/** Marker trích dẫn trong `answer`, dạng `[1]`, `[2]`... Khớp mục 4 hợp đồng. */
+/** Marker trích dẫn trong `answer`, dạng `[1]`, `[2]`... Khớp mục 5 hợp đồng. */
 const CITATION_MARKER = /\[(\d+)\]/g
 
 type Segment =

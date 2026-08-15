@@ -34,7 +34,7 @@ import { useTransientNotice } from './shellHooks'
 /**
  * Một lượt hỏi đáp đã hoàn tất.
  *
- * Cố ý KHÔNG giữ nguyên `ChatResponse`: lượt đọc từ lịch sử (mục 6) không có
+ * Cố ý KHÔNG giữ nguyên `ChatResponse`: lượt đọc từ lịch sử (mục 7) không có
  * `metadata` lẫn `conversation_id` ở mức từng message, nên dựng một `ChatResponse`
  * giả cho chúng sẽ là bịa dữ liệu ra chỉ để thỏa kiểu.
  */
@@ -46,7 +46,7 @@ export type Turn = {
   answer: string
   citations: Citation[]
   /**
-   * Mục 6 không trả `disclaimer` cho từng message, chỉ mục 4 mới có. Lượt đọc
+   * Mục 7 không trả `disclaimer` cho từng message, chỉ mục 5 mới có. Lượt đọc
    * từ lịch sử vì thế để `null` và không hiện dòng nào — thà thiếu còn hơn tự
    * viết ra một câu miễn trừ trách nhiệm mà máy chủ chưa từng gửi.
    */
@@ -114,7 +114,7 @@ function SourceBadge({ count, status }: { count: number; status: ChatStatus }) {
  * trạng thái tự chứa cả nội dung `answer`.
  *
  * Ba trạng thái `red_flag`, `refused`, `referral` không đi qua `AnswerDocument`:
- * theo mục 4 và mục 5 hợp đồng, `citations` của chúng LUÔN rỗng, nên cả bộ máy
+ * theo mục 5 và mục 6 hợp đồng, `citations` của chúng LUÔN rỗng, nên cả bộ máy
  * marker và thẻ nguồn là chỗ chết. Chúng tự dựng đoạn văn của mình ở cỡ `notice`
  * 19px — xem `ResponseStates.tsx`.
  *

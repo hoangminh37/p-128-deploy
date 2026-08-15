@@ -110,7 +110,7 @@ export function StateBlock({
  * Cỡ `notice` 19px — lớn hơn câu trả lời thường một bậc. Ba trạng thái này ngắn
  * và phải đọc hết ngay lần đầu, không phải thứ để lướt rồi quay lại.
  *
- * Ba trạng thái này luôn có `citations` rỗng theo mục 4 và mục 5 hợp đồng, nên
+ * Ba trạng thái này luôn có `citations` rỗng theo mục 5 và mục 6 hợp đồng, nên
  * `answer` không bao giờ chứa marker `[n]` — cắt đoạn thuần là đủ, không cần
  * tới bộ máy trích dẫn của `AnswerDocument`.
  */
@@ -258,7 +258,7 @@ export function ReferralBlock({ answer }: { answer: string }) {
 }
 
 /**
- * Câu chốt bắt buộc ở mọi phản hồi, theo mục 4 hợp đồng.
+ * Câu chốt bắt buộc ở mọi phản hồi, theo mục 5 hợp đồng.
  *
  * Mờ nhất trên trang: màu moss, tách bằng một nét kẻ mảnh. Nó phải luôn đọc
  * được, nhưng không bao giờ được tranh chỗ với câu trả lời.

@@ -1,5 +1,5 @@
 /**
- * Gom danh sách hội thoại của mục 6 thành ba nhóm theo thời gian.
+ * Gom danh sách hội thoại của mục 7 thành ba nhóm theo thời gian.
  *
  * Ranh giới đếm theo NGÀY LỊCH của máy người dùng, không đếm theo 24 giờ tính
  * ngược từ bây giờ. Người dùng nghĩ "hôm nay" là từ lúc ngủ dậy, nên một phiên

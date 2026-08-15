@@ -1,18 +1,34 @@
 /**
- * Gốc ứng dụng: provider, router, và ba route của luồng bệnh nhân.
+ * Gốc ứng dụng: provider, router, và các route của Gate 2.
  *
- * Thứ tự provider có ý nghĩa — `PatientProvider` gọi `useQuery` để đọc hồ sơ nên
- * bắt buộc phải nằm trong `QueryClientProvider`.
+ * THỨ TỰ PROVIDER có ý nghĩa và không đảo được:
+ *
+ *   QueryClientProvider  — `PatientProvider` gọi `useQuery`.
+ *   SessionProvider      — giữ token, và `PatientProvider` đọc `patient_id` từ đây.
+ *   PatientProvider      — đọc hồ sơ của tài khoản đang đăng nhập.
+ *
+ * BỐ CỤC ROUTE: `/login` đứng ngoài khung ứng dụng, mọi đường dẫn còn lại nằm
+ * trong một route layout đã bọc `RequireAuth`. Nhờ vậy "chưa đăng nhập thì về
+ * `/login`" là một luật duy nhất đặt ở một chỗ duy nhất, kể cả với đường dẫn lạ
+ * rơi vào nhánh `*`.
  */
 import { useState } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 
 import { createQueryClient } from './app/queryClient'
-import { LandingRedirect, RequirePatient } from './app/guards'
+import {
+  LandingRedirect,
+  RedirectIfAuthenticated,
+  RequireAuth,
+  RequireRole,
+} from './app/guards'
 import { PatientProvider } from './patient/PatientProvider'
+import { SessionProvider } from './session/SessionProvider'
 import { RootLayout } from './ui/RootLayout'
 import { ChatScreen } from './screens/ChatScreen'
+import { EditorScreen } from './screens/EditorScreen'
+import { LoginScreen } from './screens/LoginScreen'
 import { ProfileScreen } from './screens/ProfileScreen'
 
 /**
@@ -38,35 +54,69 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PatientProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<RootLayout />}>
-              {/* Đường dẫn gốc không còn màn nào của riêng nó — chỉ rẽ đường. */}
-              <Route index element={<LandingRedirect />} />
-              <Route path="profile" element={<ProfileScreen />} />
+      <SessionProvider>
+        <PatientProvider>
+          <BrowserRouter>
+            <Routes>
               <Route
-                path="chat"
+                path="/login"
                 element={
-                  <RequirePatient>
-                    <ChatRoute />
-                  </RequirePatient>
+                  <RedirectIfAuthenticated>
+                    <LoginScreen />
+                  </RedirectIfAuthenticated>
                 }
               />
+
               <Route
-                path="chat/:conversationId"
                 element={
-                  <RequirePatient>
-                    <ChatRoute />
-                  </RequirePatient>
+                  <RequireAuth>
+                    <RootLayout />
+                  </RequireAuth>
                 }
-              />
-              {/* Đường dẫn lạ thì đưa về gốc, để guard ở gốc tự quyết đi đâu. */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </PatientProvider>
+              >
+                {/* Đường dẫn gốc không còn màn nào của riêng nó — chỉ rẽ đường. */}
+                <Route index element={<LandingRedirect />} />
+
+                <Route
+                  path="profile"
+                  element={
+                    <RequireRole role="patient">
+                      <ProfileScreen />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="chat"
+                  element={
+                    <RequireRole role="patient">
+                      <ChatRoute />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="chat/:conversationId"
+                  element={
+                    <RequireRole role="patient">
+                      <ChatRoute />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="editor"
+                  element={
+                    <RequireRole role="editor">
+                      <EditorScreen />
+                    </RequireRole>
+                  }
+                />
+
+                {/* Đường dẫn lạ thì đưa về gốc, để guard ở gốc tự quyết đi đâu. */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </PatientProvider>
+      </SessionProvider>
     </QueryClientProvider>
   )
 }

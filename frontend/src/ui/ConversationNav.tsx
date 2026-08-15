@@ -127,7 +127,7 @@ export function ConversationNav({
                         : 'border-transparent'
                     }`}
                   >
-                    {/* Cắt ở dòng thứ hai. Tiêu đề dài tới 60 ký tự theo mục 6,
+                    {/* Cắt ở dòng thứ hai. Tiêu đề dài tới 60 ký tự theo mục 7,
                         để chạy hết thì một phiên chiếm bốn dòng và danh sách
                         không còn quét mắt được nữa. */}
                     <span className="line-clamp-2">{conversation.title}</span>

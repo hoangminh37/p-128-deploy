@@ -12,10 +12,10 @@ import { z } from 'zod'
 // Enum dùng chung
 // ---------------------------------------------------------------------------
 
-/** Mục 3: tập giá trị của `primary_condition` và `comorbidities`. */
+/** Mục 4: tập giá trị của `primary_condition` và `comorbidities`. */
 export const primaryConditionSchema = z.enum(['type2_diabetes', 'hypertension'])
 
-/** Mục 5: năm trạng thái quyết định cách frontend render câu trả lời. */
+/** Mục 6: năm trạng thái quyết định cách frontend render câu trả lời. */
 export const chatStatusSchema = z.enum([
   'answered',
   'partial',
@@ -24,11 +24,11 @@ export const chatStatusSchema = z.enum([
   'referral',
 ])
 
-/** Mục 4: mức độ câu trả lời được nguồn chống lưng, `null` khi không chạy Self-RAG. */
+/** Mục 5: mức độ câu trả lời được nguồn chống lưng, `null` khi không chạy Self-RAG. */
 export const supportLevelSchema = z.enum(['fully', 'partially', 'no_support'])
 
 /**
- * Mục 3: người hỏi là chính bệnh nhân (`self`) hay người chăm sóc (`caregiver`).
+ * Mục 4: người hỏi là chính bệnh nhân (`self`) hay người chăm sóc (`caregiver`).
  *
  * Hợp đồng nói rõ trường này CHỈ đổi cách xưng hô trong câu trả lời, không đổi
  * nội dung y khoa. Nghĩa là frontend cũng không được dùng nó để ẩn bớt hay đổi
@@ -38,11 +38,63 @@ export const supportLevelSchema = z.enum(['fully', 'partially', 'no_support'])
 export const askingAsSchema = z.enum(['self', 'caregiver'])
 
 // ---------------------------------------------------------------------------
-// Mục 3: Hồ sơ bệnh nhân
+// Mục 3: Xác thực
 // ---------------------------------------------------------------------------
 
 /**
- * Mục 3 — hồ sơ bệnh nhân, dùng cho cả POST /patients/profile và
+ * Mục 3: vai trò của tài khoản.
+ *
+ * BACKEND quyết định giá trị này từ tài khoản trong cơ sở dữ liệu. Frontend chỉ
+ * đọc, không có chỗ nào cho người dùng tự chọn hay tự đổi. Đây là lý do màn
+ * chọn vai trò cũ đã bị bỏ hẳn: hỏi "bạn là ai" rồi tin luôn câu trả lời thì
+ * bất kỳ ai cũng tự nhận là biên tập viên y khoa được.
+ */
+export const userRoleSchema = z.enum(['patient', 'editor'])
+
+/** Mục 3 — payload gửi lên POST /auth/login. */
+export const loginRequestSchema = z.object({
+  email: z.email(),
+  password: z.string().min(1),
+})
+
+/**
+ * Mục 3 — thông tin tài khoản trả kèm khi đăng nhập.
+ *
+ * Hai `refine` dưới đây canh đúng một câu trong hợp đồng: `patient_id` chỉ có
+ * giá trị khi `role` là `patient`. Lệch một trong hai chiều đều là lỗi nặng —
+ * một biên tập viên mang theo `patient_id` sẽ đọc được hồ sơ của người khác,
+ * còn một bệnh nhân không có `patient_id` thì mọi câu hỏi đều mất ngữ cảnh bệnh
+ * lý. Thà chặn ngay ở tầng parse còn hơn để nó chảy vào ứng dụng.
+ */
+export const userInfoSchema = z
+  .object({
+    user_id: z.string(),
+    email: z.string(),
+    role: userRoleSchema,
+    patient_id: z.string().nullable(),
+  })
+  .refine((value) => value.role !== 'editor' || value.patient_id === null, {
+    error: 'Tài khoản vai trò editor không được kèm patient_id.',
+    path: ['patient_id'],
+  })
+  .refine((value) => value.role !== 'patient' || value.patient_id !== null, {
+    error: 'Tài khoản vai trò patient bắt buộc phải có patient_id.',
+    path: ['patient_id'],
+  })
+
+/** Mục 3 — response 200 của POST /auth/login. */
+export const loginResponseSchema = z.object({
+  access_token: z.string().min(1),
+  token_type: z.literal('bearer'),
+  user: userInfoSchema,
+})
+
+// ---------------------------------------------------------------------------
+// Mục 4: Hồ sơ bệnh nhân
+// ---------------------------------------------------------------------------
+
+/**
+ * Mục 4 — hồ sơ bệnh nhân, dùng cho cả POST /patients/profile và
  * GET /patients/{patient_id}/profile.
  *
  * `diagnosed_at` theo định dạng `YYYY-MM`. Hợp đồng cấm gửi tên, số điện thoại,
@@ -64,7 +116,7 @@ export const patientProfileSchema = z.object({
 })
 
 /**
- * Mục 3 — hồ sơ trả về từ response 200 của POST /patients/profile và
+ * Mục 4 — hồ sơ trả về từ response 200 của POST /patients/profile và
  * GET /patients/{patient_id}/profile: đúng object vừa lưu, thêm `updated_at`.
  */
 export const patientProfileResponseSchema = patientProfileSchema.extend({
@@ -72,11 +124,11 @@ export const patientProfileResponseSchema = patientProfileSchema.extend({
 })
 
 // ---------------------------------------------------------------------------
-// Mục 4: Hỏi đáp
+// Mục 5: Hỏi đáp
 // ---------------------------------------------------------------------------
 
 /**
- * Mục 4 — một nguồn trích dẫn.
+ * Mục 5 — một nguồn trích dẫn.
  *
  * `snippet` là đoạn trích từ tài liệu y khoa đã duyệt trong thư viện, không bao
  * giờ chứa nội dung từ hồ sơ bệnh nhân.
@@ -90,7 +142,7 @@ export const citationSchema = z.object({
   snippet: z.string().max(300),
 })
 
-/** Mục 4 — payload gửi lên POST /chat. `conversation_id` bằng `null` là mở phiên mới. */
+/** Mục 5 — payload gửi lên POST /chat. `conversation_id` bằng `null` là mở phiên mới. */
 export const chatRequestSchema = z.object({
   query: z.string().min(1).max(5000),
   patient_id: z.string(),
@@ -98,7 +150,7 @@ export const chatRequestSchema = z.object({
 })
 
 /**
- * Mục 4 — phần cấu trúc của response POST /chat, chưa gắn ràng buộc trích dẫn.
+ * Mục 5 — phần cấu trúc của response POST /chat, chưa gắn ràng buộc trích dẫn.
  * Tách riêng để hai `.refine()` bên dưới dùng lại được kiểu đã suy ra.
  */
 const chatResponseShapeSchema = z.object({
@@ -137,7 +189,7 @@ function markersWithoutCitation(value: ChatResponseShape): number[] {
     .sort((a, b) => a - b)
 }
 
-/** Mục 4 và mục 5: ba trạng thái này không bao giờ kèm trích dẫn. */
+/** Mục 5 và mục 6: ba trạng thái này không bao giờ kèm trích dẫn. */
 const STATUSES_WITHOUT_CITATIONS: ReadonlySet<ChatResponseShape['status']> = new Set([
   'red_flag',
   'refused',
@@ -153,13 +205,13 @@ function citationsWithoutMarker(value: ChatResponseShape): number[] {
 }
 
 /**
- * Mục 4 — response của POST /chat.
+ * Mục 5 — response của POST /chat.
  *
- * Ràng buộc trích dẫn hai chiều theo quy tắc ở cuối mục 4: mọi marker `[n]`
+ * Ràng buộc trích dẫn hai chiều theo quy tắc ở cuối mục 5: mọi marker `[n]`
  * trong `answer` phải có citation id bằng n, và mọi citation id phải xuất hiện
  * ít nhất một lần dưới dạng marker trong `answer`.
  *
- * Thêm ràng buộc của mục 4 và mục 5: `red_flag`, `refused`, `referral` phải đi
+ * Thêm ràng buộc của mục 5 và mục 6: `red_flag`, `refused`, `referral` phải đi
  * kèm `citations` rỗng.
  */
 export const chatResponseSchema = chatResponseShapeSchema
@@ -190,11 +242,11 @@ export const chatResponseSchema = chatResponseShapeSchema
   )
 
 // ---------------------------------------------------------------------------
-// Mục 6: Lịch sử hội thoại
+// Mục 7: Lịch sử hội thoại
 // ---------------------------------------------------------------------------
 
 /**
- * Mục 6 — một dòng trong danh sách phiên hội thoại của
+ * Mục 7 — một dòng trong danh sách phiên hội thoại của
  * GET /conversations/{patient_id}. `title` do backend cắt tối đa 60 ký tự.
  */
 export const conversationSummarySchema = z.object({
@@ -204,12 +256,12 @@ export const conversationSummarySchema = z.object({
   message_count: z.number().int(),
 })
 
-/** Mục 6 — response của GET /conversations/{patient_id}, bọc danh sách phiên. */
+/** Mục 7 — response của GET /conversations/{patient_id}, bọc danh sách phiên. */
 export const conversationListSchema = z.object({
   conversations: z.array(conversationSummarySchema),
 })
 
-/** Mục 6 — message của người dùng trong một phiên. */
+/** Mục 7 — message của người dùng trong một phiên. */
 export const userMessageSchema = z.object({
   role: z.literal('user'),
   content: z.string(),
@@ -217,7 +269,7 @@ export const userMessageSchema = z.object({
 })
 
 /**
- * Mục 6 — message của assistant trong một phiên. Dùng lại đúng các trường của
+ * Mục 7 — message của assistant trong một phiên. Dùng lại đúng các trường của
  * POST /chat, riêng `answer` được đổi tên thành `content` cho thống nhất với
  * message của user.
  */
@@ -231,13 +283,13 @@ export const assistantMessageSchema = z.object({
   created_at: z.iso.datetime({ offset: true }),
 })
 
-/** Mục 6 — một message bất kỳ trong lịch sử, phân biệt bằng `role`. */
+/** Mục 7 — một message bất kỳ trong lịch sử, phân biệt bằng `role`. */
 export const conversationMessageSchema = z.discriminatedUnion('role', [
   userMessageSchema,
   assistantMessageSchema,
 ])
 
-/** Mục 6 — chi tiết một phiên từ GET /conversations/{patient_id}/{conversation_id}. */
+/** Mục 7 — chi tiết một phiên từ GET /conversations/{patient_id}/{conversation_id}. */
 export const conversationDetailSchema = z.object({
   conversation_id: z.string(),
   messages: z.array(conversationMessageSchema),
@@ -251,6 +303,11 @@ export type PrimaryCondition = z.infer<typeof primaryConditionSchema>
 export type ChatStatus = z.infer<typeof chatStatusSchema>
 export type SupportLevel = z.infer<typeof supportLevelSchema>
 export type AskingAs = z.infer<typeof askingAsSchema>
+export type UserRole = z.infer<typeof userRoleSchema>
+
+export type LoginRequest = z.infer<typeof loginRequestSchema>
+export type LoginResponse = z.infer<typeof loginResponseSchema>
+export type UserInfo = z.infer<typeof userInfoSchema>
 
 export type PatientProfile = z.infer<typeof patientProfileSchema>
 export type PatientProfileResponse = z.infer<typeof patientProfileResponseSchema>

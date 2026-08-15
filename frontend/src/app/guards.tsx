@@ -1,36 +1,69 @@
 /**
- * Điều hướng theo trạng thái hồ sơ.
+ * Điều hướng theo phiên đăng nhập và theo vai trò.
  *
- * Ứng dụng KHÔNG còn màn chọn vai trò. Vai trò phải đến từ tài khoản, không phải
- * từ việc người dùng tự khai — hỏi "bạn là ai" rồi tin luôn câu trả lời thì bất
- * kỳ ai cũng tự nhận là biên tập viên y khoa được. Phần đăng nhập và phân vai
- * trò làm ở đợt sau; từ giờ tới lúc đó, đường dẫn gốc chỉ còn một việc là rẽ
- * đúng chỗ.
+ * CHẶN Ở TẦNG ĐIỀU HƯỚNG, không phải chỉ ẩn nút. Một bệnh nhân gõ thẳng
+ * `/editor` vào thanh địa chỉ phải bị đá về `/chat`, chứ không phải chỉ là
+ * không nhìn thấy đường dẫn đó trên thanh bên.
+ *
+ * Và ngay cả thế này vẫn CHƯA PHẢI là bảo mật. Guard ở đây chỉ giữ cho giao
+ * diện không dẫn người dùng vào chỗ không phải của họ. Chặn thật nằm ở backend:
+ * máy chủ phải từ chối request của tài khoản không đủ quyền, kể cả khi request
+ * đó không thể phát sinh từ giao diện này (hợp đồng mục 3).
  */
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 
+import type { UserRole } from '../lib/schemas'
 import { usePatient } from '../patient/context'
+import { HOME_PATH, useSession } from '../session/context'
 
-/**
- * `/chat` cần patient_id — không có thì mọi câu hỏi đều thiếu ngữ cảnh bệnh lý,
- * và câu trả lời y khoa chung chung còn nguy hiểm hơn là không trả lời.
- *
- * Chỉ cần patient_id, KHÔNG cần hồ sơ: người bấm "bỏ qua" ở màn hồ sơ có
- * patient_id tạm và vẫn phải hỏi được. Màn hỏi đáp tự hiện dải nhắc chưa có hồ
- * sơ cho trường hợp đó.
- */
-export function RequirePatient({ children }: { children: ReactNode }) {
-  const { patientId } = usePatient()
+/** Chưa đăng nhập thì mọi đường dẫn đều dẫn về màn đăng nhập. */
+export function RequireAuth({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useSession()
 
-  if (patientId === null) {
-    return <Navigate to="/profile" replace />
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
   }
   return children
 }
 
 /**
- * Đường dẫn gốc: có hồ sơ thì vào thẳng chỗ hỏi đáp, chưa có thì đi khai hồ sơ.
+ * Đường dẫn chỉ dành cho một vai trò.
+ *
+ * Sai vai trò thì đưa về "nhà" của chính vai trò đang đăng nhập, không đưa về
+ * `/login`: người dùng không làm gì sai và cũng không cần đăng nhập lại, họ chỉ
+ * gõ nhầm một đường dẫn không thuộc về mình.
+ */
+export function RequireRole({
+  role,
+  children,
+}: {
+  role: UserRole
+  children: ReactNode
+}) {
+  const { user } = useSession()
+
+  if (user === null) {
+    return <Navigate to="/login" replace />
+  }
+  if (user.role !== role) {
+    return <Navigate to={HOME_PATH} replace />
+  }
+  return children
+}
+
+/** Đã đăng nhập rồi thì khỏi bắt đăng nhập lại, vào thẳng nhà của vai trò. */
+export function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useSession()
+
+  if (isAuthenticated) {
+    return <Navigate to={HOME_PATH} replace />
+  }
+  return children
+}
+
+/**
+ * Đường dẫn gốc: rẽ theo vai trò, và với bệnh nhân thì rẽ tiếp theo hồ sơ.
  *
  * Phải chờ đọc xong hồ sơ mới rẽ được. Rẽ sớm sang `/profile` rồi lát nữa hồ sơ
  * về lại đá ngược sang `/chat` sẽ cho người dùng thấy một màn nhấp nháy qua hai
@@ -41,7 +74,15 @@ export function RequirePatient({ children }: { children: ReactNode }) {
  * `/chat` thì không nói được gì về chuyện vừa xảy ra.
  */
 export function LandingRedirect() {
+  const { user } = useSession()
   const { profileState } = usePatient()
+
+  if (user === null) {
+    return <Navigate to="/login" replace />
+  }
+  if (user.role === 'editor') {
+    return <Navigate to="/editor" replace />
+  }
 
   if (profileState === 'loading') {
     return (
