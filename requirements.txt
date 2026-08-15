@@ -14,11 +14,28 @@ langchain-community>=0.3.0
 langchain-qdrant>=0.2.0
 langgraph>=0.2.0
 
-# Vector DB
-qdrant-client>=1.13.0
+# Database (uncomment as needed)
+# sqlalchemy>=2.0.0
+# alembic>=1.14.0
+# psycopg2-binary>=2.9.0
+
+# ---- Tầng dữ liệu / RAG (src/rag) -----------------------------------------
+# Những gói cần để CHẠY app (truy xuất từ vector store). Phần nặng dùng để
+# ingest nằm riêng ở requirements-rag.txt, xem ghi chú ở file đó.
+chromadb>=1.5.0           # vector store, chạy local, persist ra data/vectorstore
+cohere>=5.13.0            # embedding embed-multilingual-v3.0 — MẶC ĐỊNH
+openai>=1.60.0            # embedding qua API, phương án thay thế
+tiktoken>=0.8.0           # đếm token khi cắt chunk
+PyYAML>=6.0               # đọc data/registry.yaml
+#
+# sentence-transformers CHỈ cần khi RAG_EMBEDDING_PROVIDER=local (bge-m3). Nó
+# kéo theo torch nên nằm ở requirements-rag.txt, không cài mặc định. Mặc định
+# dùng Cohere: nhanh hơn khoảng 30 lần khi ingest, và server không phải nạp
+# model 2.5GB RAM nên deploy được lên free tier.
 
 # Dev tools
 ruff>=0.8.0
+types-PyYAML>=6.0        # stub cho mypy, không có thì `mypy src/` báo lỗi ở registry.py
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
 httpx>=0.28.0

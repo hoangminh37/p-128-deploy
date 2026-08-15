@@ -1,0 +1,177 @@
+{
+  "pipeline_version": "1.0.0",
+  "built_at": "2026-08-15T10:39:35+00:00",
+  "ranking_policy": "recency",
+  "config": {
+    "chunk_max_tokens": 500,
+    "chunk_overlap_tokens": 80,
+    "chunk_min_chars": 120,
+    "table_max_tokens": 900,
+    "dedup_jaccard_threshold": 0.9,
+    "embedding_model": "embed-multilingual-v3.0",
+    "embedding_dimensions": 1024
+  },
+  "totals": {
+    "documents": 5,
+    "chunks": 1088,
+    "tokens": 378093
+  },
+  "documents": [
+    {
+      "doc_id": "ada-soc-2026-t2dm",
+      "file": "ada-soc-2026-t2dm-slides.pptx",
+      "source_sha256": "034f66ea0fda2bab10121e1642492922aa875afabdd674f9b72cdf00cc4f122b",
+      "lang": "en",
+      "published": "2026",
+      "recency_rank": 1,
+      "priority": 1.0,
+      "pages_seen": 347,
+      "elements_raw": 1760,
+      "elements_after_repair": 1760,
+      "repairs": {},
+      "dropped": {
+        "boilerplate": 704,
+        "reference": 1,
+        "byline": 0,
+        "too_short": 203,
+        "out_of_scope": 0,
+        "duplicate": 0
+      },
+      "chunks": 204,
+      "tokens_total": 41464,
+      "tokens_avg": 203.3,
+      "tokens_max": 411,
+      "chunks_with_threshold": 40,
+      "chunks_table": 0
+    },
+    {
+      "doc_id": "aha-acc-2025-htn",
+      "file": "aha-acc-2025-htn.pdf",
+      "source_sha256": "d382f19c09c0e70dfedd772ac8e42fea86708fe354f2c626fc9a503040d20364",
+      "lang": "en",
+      "published": "2025-09-16",
+      "recency_rank": 1,
+      "priority": 1.0,
+      "pages_seen": 105,
+      "elements_raw": 1748,
+      "elements_after_repair": 1680,
+      "repairs": {
+        "caption_after": 29,
+        "heading_level": 68,
+        "merged_table": 10,
+        "merged_text": 28
+      },
+      "dropped": {
+        "boilerplate": 27,
+        "reference": 886,
+        "byline": 11,
+        "too_short": 20,
+        "out_of_scope": 0,
+        "duplicate": 0
+      },
+      "chunks": 296,
+      "tokens_total": 119468,
+      "tokens_avg": 403.6,
+      "tokens_max": 1157,
+      "chunks_with_threshold": 121,
+      "chunks_table": 76
+    },
+    {
+      "doc_id": "esc-2024-htn",
+      "file": "esc-2024-htn.pdf",
+      "source_sha256": "253cc6d0e5298a2f6d3de2da5d43fbdefbd811841a7ee503badc4210e0badd3c",
+      "lang": "en",
+      "published": "2024-08-30",
+      "recency_rank": 2,
+      "priority": 0.5,
+      "pages_seen": 107,
+      "elements_raw": 2292,
+      "elements_after_repair": 2243,
+      "repairs": {
+        "caption_after": 10,
+        "caption_before": 2,
+        "heading_level": 123,
+        "merged_table": 3,
+        "merged_text": 34
+      },
+      "dropped": {
+        "boilerplate": 138,
+        "reference": 927,
+        "byline": 0,
+        "too_short": 193,
+        "out_of_scope": 0,
+        "duplicate": 0
+      },
+      "chunks": 331,
+      "tokens_total": 118062,
+      "tokens_avg": 356.7,
+      "tokens_max": 1090,
+      "chunks_with_threshold": 126,
+      "chunks_table": 77
+    },
+    {
+      "doc_id": "vn-moh-5481-2020-t2dm",
+      "file": "vn-moh-5481-2020-t2dm.pdf",
+      "source_sha256": "c2275b84df4e7d8c1fb7eae93f88d91fbf5dbfc0dcb6767029035585af992761",
+      "lang": "vi",
+      "published": "2020",
+      "recency_rank": 2,
+      "priority": 0.0,
+      "pages_seen": 77,
+      "elements_raw": 1056,
+      "elements_after_repair": 1031,
+      "repairs": {
+        "caption_after": 11,
+        "heading_level": 95,
+        "merged_table": 4,
+        "merged_text": 7
+      },
+      "dropped": {
+        "boilerplate": 8,
+        "reference": 3,
+        "byline": 3,
+        "too_short": 61,
+        "out_of_scope": 0,
+        "duplicate": 1
+      },
+      "chunks": 224,
+      "tokens_total": 86428,
+      "tokens_avg": 385.8,
+      "tokens_max": 1254,
+      "chunks_with_threshold": 75,
+      "chunks_table": 19
+    },
+    {
+      "doc_id": "vn-moh-3192-2010-htn",
+      "file": "vn-moh-3192-2010-htn.pdf",
+      "source_sha256": "b4b84c7307c69b5a0da0f0e52824119047a95cb39f98fcb97a5e37ee035f3393",
+      "lang": "vi",
+      "published": "2010-08-31",
+      "recency_rank": 3,
+      "priority": 0.0,
+      "pages_seen": 19,
+      "elements_raw": 148,
+      "elements_after_repair": 142,
+      "repairs": {
+        "caption_after": 1,
+        "caption_before": 2,
+        "heading_level": 18,
+        "merged_table": 2
+      },
+      "dropped": {
+        "boilerplate": 5,
+        "reference": 0,
+        "byline": 0,
+        "too_short": 24,
+        "out_of_scope": 0,
+        "duplicate": 1
+      },
+      "chunks": 33,
+      "tokens_total": 12671,
+      "tokens_avg": 384.0,
+      "tokens_max": 1107,
+      "chunks_with_threshold": 6,
+      "chunks_table": 12
+    }
+  ]
+}
