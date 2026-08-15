@@ -1,4 +1,4 @@
-.PHONY: run test lint format typecheck check clean eval
+.PHONY: run dev test lint format typecheck check clean eval seed check-qdrant docker-up docker-down
 
 run:
 	uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
@@ -25,3 +25,16 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type d -name .pytest_cache -exec rm -rf {} +
 	find . -type d -name .ruff_cache -exec rm -rf {} +
+
+seed:		## Seed medical docs vào Qdrant
+	python scripts/seed_medical_docs.py
+
+check-qdrant:	## Kiểm tra Qdrant collection
+	python scripts/check_qdrant.py
+
+docker-up:	## Khởi động toàn bộ stack (backend + qdrant)
+	docker compose up -d
+
+docker-down:	## Dừng toàn bộ stack
+	docker compose down
+
