@@ -21,11 +21,11 @@ Các trường dưới đây ánh xạ trực tiếp sang `AgentState` trong `AR
 
 ### Xác thực
 
-Gate 2 chưa bật xác thực. Backend không kiểm tra token.
-Frontend vẫn gửi sẵn header sau để khi bật JWT không phải sửa lại client:
+Gate 2 có luồng đăng nhập ở frontend, nhưng backend chưa kiểm tra token.
+Frontend gửi header dưới đây với token nhận được từ endpoint đăng nhập ở mục 3:
 
 ```
-Authorization: Bearer <token>
+Authorization: Bearer <access_token>
 ```
 
 ### Lỗi
@@ -50,6 +50,8 @@ Dùng định dạng lỗi mặc định của FastAPI:
 
 | Method | Path | Mục đích |
 | :-- | :-- | :-- |
+| POST | `/api/v1/auth/login` | Đăng nhập, trả về token và vai trò của tài khoản |
+| POST | `/api/v1/auth/logout` | Đăng xuất, huỷ token phía máy chủ |
 | POST | `/api/v1/patients/profile` | Tạo hoặc cập nhật hồ sơ bệnh nhân |
 | GET | `/api/v1/patients/{patient_id}/profile` | Đọc hồ sơ |
 | POST | `/api/v1/chat` | Gửi câu hỏi, nhận câu trả lời |
@@ -59,7 +61,89 @@ Dùng định dạng lỗi mặc định của FastAPI:
 
 ---
 
-## 3. Hồ sơ bệnh nhân
+## 3. Xác thực
+
+### POST /api/v1/auth/login
+
+Request:
+
+```json
+{
+  "email": "benhnhan@example.com",
+  "password": "mat-khau-cua-toi"
+}
+```
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| :-- | :-- | :-- | :-- |
+| `email` | string | có | Định dạng email |
+| `password` | string | có | Không rỗng. Không log, không trả lại trong bất kỳ response nào |
+
+Response 200:
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "user": {
+    "user_id": "u_01HQZW",
+    "email": "benhnhan@example.com",
+    "role": "patient",
+    "patient_id": "p_01HQZX"
+  }
+}
+```
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `access_token` | string | Frontend gắn vào header `Authorization: Bearer <access_token>` |
+| `token_type` | string | Luôn là `bearer` |
+| `user` | UserInfo | Xem bảng dưới |
+
+### UserInfo
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `user_id` | string | Định danh tài khoản |
+| `email` | string | Email đăng nhập |
+| `role` | enum | `patient` hoặc `editor` |
+| `patient_id` | string hoặc null | Chỉ có giá trị khi `role` là `patient`. Với `editor` thì luôn là `null` |
+
+`patient_id` ở đây chính là `patient_id` mà mục 4, 5 và 7 dùng. Tài khoản bệnh nhân không
+cần tự sinh `patient_id` nữa, lấy thẳng từ response đăng nhập.
+
+Response 401 khi email hoặc mật khẩu sai:
+
+```json
+{ "detail": "Email hoặc mật khẩu không đúng" }
+```
+
+Không nói rõ sai email hay sai mật khẩu. Phân biệt hai cái này cho phép người ngoài dò xem
+một email có tài khoản trong hệ thống hay không, mà đây là hệ thống y tế nên riêng việc
+"người này có bệnh mãn tính" đã là thông tin không được để lộ.
+
+### Vai trò do backend quyết định
+
+`role` đến từ tài khoản trong cơ sở dữ liệu. Frontend KHÔNG được tự chọn vai trò, KHÔNG được
+đổi vai trò, và không có màn nào cho người dùng tự khai mình là ai. Frontend chỉ đọc `role`
+từ response này để biết đưa người dùng vào luồng nào sau khi đăng nhập.
+
+Mọi kiểm tra quyền thật nằm ở backend. Việc frontend ẩn đi một màn hình chỉ là chuyện giao
+diện, không phải là biện pháp bảo vệ — backend vẫn phải từ chối request của tài khoản không
+đủ quyền, kể cả khi request đó không thể phát sinh từ giao diện.
+
+### POST /api/v1/auth/logout
+
+Không có body. Gửi kèm header `Authorization` của token đang dùng.
+
+Response 204, không có body.
+
+Frontend xoá token khỏi máy ngay khi gọi, không chờ response — mất mạng giữa chừng thì token
+vẫn phải biến mất khỏi máy người dùng.
+
+---
+
+## 4. Hồ sơ bệnh nhân
 
 ### POST /api/v1/patients/profile
 
@@ -96,7 +180,7 @@ Response 200: cùng cấu trúc trên. Response 404 nếu chưa có hồ sơ.
 
 ---
 
-## 4. Hỏi đáp
+## 5. Hỏi đáp
 
 ### POST /api/v1/chat
 
@@ -146,7 +230,7 @@ Response 200:
 | :-- | :-- | :-- |
 | `conversation_id` | string | Luôn có. Client lưu lại cho lượt sau |
 | `message_id` | string | Định danh cặp hỏi đáp |
-| `status` | enum | Xem mục 5. Quyết định cách hiển thị |
+| `status` | enum | Xem mục 6. Quyết định cách hiển thị |
 | `answer` | string | Nội dung hiển thị cho mọi `status`. Marker `[n]` khớp với `citations[].id` |
 | `citations` | Citation[] | Mảng rỗng khi `status` không phải `answered` hoặc `partial` |
 | `support_level` | enum hoặc null | `fully`, `partially`, `no_support`. `null` khi không chạy qua Self-RAG |
@@ -173,7 +257,7 @@ và ngược lại. Frontend validate bằng Zod, lệch thì báo lỗi hiển 
 
 ---
 
-## 5. Năm trạng thái
+## 6. Năm trạng thái
 
 `status` là trường quyết định giao diện. Frontend render năm dạng khác nhau.
 
@@ -247,7 +331,7 @@ Giống `answered`, khác ở hai trường:
 
 ---
 
-## 6. Lịch sử hội thoại
+## 7. Lịch sử hội thoại
 
 ### GET /api/v1/conversations/{patient_id}
 
@@ -283,19 +367,21 @@ thành `content` để thống nhất với message của user.
 
 ---
 
-## 7. Ngoài phạm vi Gate 2
+## 8. Ngoài phạm vi Gate 2
 
 Các mục sau có trong `ARCHITECTURE.md` nhưng không thuộc hợp đồng v1:
 
-- SSE streaming. Gate 2 dùng response một lần. Xem mục 8 để biết hướng mở rộng
-- JWT authentication. Header đã đặt sẵn nhưng backend chưa kiểm tra
+- SSE streaming. Gate 2 dùng response một lần. Xem mục 9 để biết hướng mở rộng
+- Kiểm tra token thật ở backend. Frontend đã có luồng đăng nhập đầy đủ theo mục 3 nhưng đang
+  chạy trên mock; backend chưa implement `/auth/login`, `/auth/logout`, và chưa kiểm tra
+  header `Authorization` ở bất kỳ endpoint nào. Việc xác thực và phân quyền thật làm sau
 - Toàn bộ luồng biên tập viên
 - Lộ trình học và theo dõi tiến độ
 - Quiz
 
 ---
 
-## 8. Hướng mở rộng SSE
+## 9. Hướng mở rộng SSE
 
 Khi backend làm SSE, giữ nguyên endpoint `/api/v1/chat` và thêm query param `stream=true`.
 Frontend đã tách riêng lớp api client nên chỉ cần đổi ở một chỗ.
@@ -315,13 +401,38 @@ Không dựng chuỗi trạng thái giả để làm đẹp giao diện.
 
 ---
 
-## 9. Pydantic cho backend
+## 10. Pydantic cho backend
 
 Đoạn dưới dán được thẳng vào `src/models/schemas.py`.
 
+`EmailStr` cần gói `pydantic[email]`. Không muốn thêm phụ thuộc thì đổi thành `str` và tự
+kiểm định dạng, nhưng phải kiểm ở đâu đó — đừng bỏ hẳn.
+
 ```python
 from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
+
+
+class UserInfo(BaseModel):
+    """Thông tin tài khoản, trả kèm trong response đăng nhập."""
+    user_id: str
+    email: EmailStr
+    role: Literal["patient", "editor"]
+    # Chỉ có giá trị khi role là "patient". Với editor thì luôn None.
+    patient_id: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    """Dùng cho request POST /auth/login."""
+    email: EmailStr
+    password: str = Field(..., min_length=1)
+
+
+class LoginResponse(BaseModel):
+    """Dùng cho response 200 của POST /auth/login."""
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    user: UserInfo
 
 
 class PatientProfile(BaseModel):
@@ -375,7 +486,7 @@ cho khớp `AgentState.query` trong `ARCHITECTURE.md`.
 
 ---
 
-## 10. Điểm cần backend xác nhận
+## 11. Điểm cần backend xác nhận
 
 1. Tên trường request là `query` hay giữ `message`. Hợp đồng này chọn `query` theo `AgentState`
 2. `patient_id` do client sinh hay backend cấp khi tạo hồ sơ
@@ -384,6 +495,9 @@ cho khớp `AgentState.query` trong `ARCHITECTURE.md`.
    nước ngoài thì `Citation.issuer` cần thêm quy ước phân biệt nguồn trong nước và ngoài nước
 4. Có giữ `analysis` trong response không. Hợp đồng này bỏ vì đó là dữ liệu nội bộ,
    không hiển thị cho bệnh nhân
-5. Trường `asking_as` mới thêm ở mục 3. Backend cần dùng nó để đổi cách xưng hô trong câu
+5. Trường `asking_as` mới thêm ở mục 4. Backend cần dùng nó để đổi cách xưng hô trong câu
    trả lời: `self` thì xưng với chính người bệnh, `caregiver` thì xưng với người chăm sóc.
    Cần backend xác nhận việc này có ảnh hưởng gì tới prompt của agent không
+6. Cơ chế xác thực ở mục 3 dùng JWT hay session phía máy chủ. Nếu JWT thì token sống bao lâu,
+   và có refresh token không. Ba câu này quyết định frontend phải làm gì khi token hết hạn:
+   im lặng xin token mới, hay đá người dùng về màn đăng nhập giữa lúc đang đọc câu trả lời
