@@ -1,5 +1,5 @@
 /**
- * Câu trả lời trình bày như một trang tài liệu, kèm dải nguồn ở lề.
+ * Câu trả lời trình bày như một trang tài liệu, kèm thẻ nguồn.
  *
  * Nguyên tắc chi phối file này: bệnh nhân không bao giờ được nhìn thấy một
  * khẳng định y khoa mà không nhìn thấy nguồn của nó CÙNG LÚC. Nguồn không nằm
@@ -17,7 +17,14 @@
  * vì thế luôn đúng một bậc `para`, bất kể thẻ cao bao nhiêu.
  *
  * Dưới 1024px `absolute` tắt, thẻ rơi xuống ngay dưới đoạn của nó theo luồng
- * thường — vẫn đúng nguyên tắc trên, chỉ đổi hướng.
+ * thường — vẫn đúng nguyên tắc trên, chỉ đổi hướng. Ở bản hẹp thẻ có thêm nền
+ * nhạt để tách khỏi dòng chữ đang chảy quanh nó; ở bản rộng thì lề phải đã tách
+ * sẵn rồi nên bỏ nền, chỉ còn vạch dọc.
+ *
+ * THẺ LẶP LẠI: một nguồn được trích ở ba đoạn thì hiện ba thẻ đầy đủ, mỗi thẻ
+ * cạnh đúng đoạn của nó. Cố ý không rút gọn lần nhắc thứ hai thành một dòng —
+ * đoạn trích trong thẻ là bằng chứng cho ĐOẠN VĂN NẰM CẠNH NÓ, mà một dòng tên
+ * tài liệu cụt lủn thì không chứng minh được gì cho đoạn đó.
  */
 import type { Citation } from '../lib/schemas'
 
@@ -28,34 +35,20 @@ type Segment =
   | { kind: 'text'; value: string }
   | { kind: 'marker'; id: number }
 
-/**
- * Một nguồn gắn với một đoạn văn cụ thể.
- *
- * `isFirstMention` quyết định hiện thẻ đầy đủ hay chỉ một dòng mảnh: nhắc lại
- * nguyên thẻ ở mọi đoạn thì lề phải biến thành một bức tường chữ, tự nó lại
- * cạnh tranh với câu trả lời.
- */
-type ParagraphCitation = {
-  citation: Citation
-  isFirstMention: boolean
-}
-
 type Paragraph = {
   segments: Segment[]
-  citations: ParagraphCitation[]
+  citations: Citation[]
 }
 
 /**
  * Cắt `answer` thành các đoạn văn, mỗi đoạn kèm đúng những nguồn nó trích dẫn.
  *
  * Khoảng trắng ngay trước marker bị cắt bỏ, để `...dưa cà muối [1].` trong dữ
- * liệu render ra thành `...dưa cà muối[1].` — marker phải dính vào chữ nó chú
+ * liệu render ra thành `...dưa cà muối¹.` — marker phải dính vào chữ nó chú
  * thích và dính vào dấu câu theo sau, đúng lối chú thích của sách in.
  */
 function parseAnswer(answer: string, citations: Citation[]): Paragraph[] {
   const byId = new Map(citations.map((citation) => [citation.id, citation]))
-  /** Nguồn nào đã hiện thẻ đầy đủ rồi, tính xuyên suốt cả bài. */
-  const alreadyShown = new Set<number>()
 
   return answer
     .split(/\n\s*\n/)
@@ -87,120 +80,99 @@ function parseAnswer(answer: string, citations: Citation[]): Paragraph[] {
         .sort((a, b) => a - b)
         .map((id) => byId.get(id))
         .filter((citation): citation is Citation => citation !== undefined)
-        .map((citation) => {
-          const isFirstMention = !alreadyShown.has(citation.id)
-          alreadyShown.add(citation.id)
-          return { citation, isFirstMention }
-        })
 
       return { segments, citations: paragraphCitations }
     })
 }
 
 /**
- * Marker `[n]` giữa dòng chữ.
+ * Marker giữa dòng chữ: số nhỏ nâng lên, nền medical đặc, chữ paper (5.76:1).
  *
- * Không để nguyên chữ thường, nhưng cũng không viền: chỉ một mảng nền nhạt và
- * font mono là đủ để mắt nhận ra đây là con trỏ tới nguồn. Không có margin
- * ngang, nên nó dính liền chữ đứng trước và dấu câu đứng sau.
+ * Dùng `sup` thật chứ không phải `span` tự nâng bằng CSS, để trình đọc màn hình
+ * và chế độ đọc của trình duyệt hiểu đúng đây là chú thích chứ không phải một
+ * con số nằm giữa câu.
+ *
+ * Phần nâng lên để nguyên cho preflight của Tailwind lo: nó đã đặt sẵn
+ * `position: relative; top: -.5em` cho `sup`. Thêm `align-super` vào đây nữa là
+ * nâng hai lần, marker sẽ trôi lên trên cả dòng chữ. Riêng `font-size: 75%` của
+ * preflight thì bị `text-marker` đè lại — 75% của 18px chỉ còn 13,5px, dưới sàn
+ * 15px của cả ứng dụng.
+ *
+ * Cỡ 15px là sàn đó, không nhỏ hơn: con số này trỏ tới nguồn của một khẳng định
+ * y khoa, người đọc phải đọc được nó chứ không chỉ thấy có một vệt màu. Không có
+ * margin trái, nên marker dính liền chữ đứng trước và dấu câu đứng sau.
  */
 function CitationMarker({ id }: { id: number }) {
   return (
-    <span className="font-mono rounded-xs bg-medical/10 px-hair align-baseline text-marker text-medical">
+    <sup className="font-mono rounded-xs bg-medical px-hair text-marker font-semibold text-paper">
       {id}
       <span className="sr-only"> (nguồn {id})</span>
-    </span>
+    </sup>
   )
 }
 
 /**
- * Thẻ nguồn đầy đủ, hiện ở lần đầu nguồn được nhắc tới.
+ * Thẻ nguồn của một đoạn văn.
  *
- * Dấu hiệu thị giác chính DUY NHẤT là nét kẻ dọc bên trái. Bản trước có đồng
- * thời viền bao, nền, chữ đậm và gạch chân — bốn tín hiệu cùng lúc khiến chú
- * thích bên lề đòi được đọc trước cả câu trả lời. Nay bỏ hết, chỉ giữ nét kẻ.
- * Số hiệu văn bản vẫn để font mono vì đó là điểm nhận diện của nó.
+ * Bốn phần, theo thứ tự người bệnh cần: tài liệu nào, tài liệu nói gì, số hiệu
+ * để đối chiếu, rồi mới tới đường dẫn mở bản gốc.
+ *
+ * `snippet` là phần quan trọng nhất và trước đây bị bỏ quên hẳn: nó là chỗ duy
+ * nhất người bệnh đọc được ĐÚNG CÂU trong văn bản gốc mà không phải mở tài liệu
+ * ra. Đặt trong ngoặc kép và dùng font body để nhìn ra ngay đây là lời trích,
+ * không phải lời của trợ lý.
  */
-function FullCitation({ citation }: { citation: Citation }) {
-  const body = (
-    <>
-      <span className="font-display block text-source text-ink">
+function CitationCard({ citation }: { citation: Citation }) {
+  return (
+    <li className="rounded-lg border-l-4 border-medical bg-medical/10 p-snug lg:rounded-none lg:bg-transparent lg:py-0 lg:pr-0 lg:pl-snug">
+      <p className="font-display text-source text-ink">
         <span className="font-mono text-medical">{citation.id}.</span>{' '}
         {citation.title}
-      </span>
-      <span className="font-display mt-hair block text-source text-moss">
+      </p>
+
+      <p className="font-body mt-tight text-question text-ink">
+        “{citation.snippet}”
+      </p>
+
+      <p className="font-display mt-tight text-question text-moss">
         {citation.issuer}
-      </span>
+      </p>
+
       {citation.doc_code !== null && (
-        <span className="font-mono block text-source text-moss">
-          {citation.doc_code}
-        </span>
+        <p className="font-mono text-question text-moss">{citation.doc_code}</p>
       )}
-    </>
-  )
 
-  if (citation.url !== null) {
-    return (
-      <a
-        href={citation.url}
-        target="_blank"
-        rel="noreferrer"
-        // Gạch chân chỉ hiện khi rê chuột hoặc focus: ở trạng thái nghỉ, thẻ
-        // phải im lặng; khi người dùng chạm tới thì mới cần báo là bấm được.
-        className="block no-underline hover:underline focus-visible:underline"
-      >
-        <span className="sr-only">Nguồn {citation.id}, mở tài liệu gốc: </span>
-        {body}
-      </a>
-    )
-  }
-
-  return (
-    <div>
-      <span className="sr-only">Nguồn {citation.id}: </span>
-      {body}
-    </div>
+      {/* Hợp đồng cho phép `url` bằng `null` — tài liệu chưa được đăng công khai
+          thì không dựng một liên kết chết, người bệnh bấm vào sẽ mất lòng tin
+          vào cả những nguồn còn lại. */}
+      {citation.url !== null && (
+        <a
+          href={citation.url}
+          target="_blank"
+          rel="noreferrer"
+          className="font-display mt-tight inline-flex min-h-touch items-center text-question font-semibold text-medical underline underline-offset-4"
+        >
+          Mở tài liệu
+          <span className="sr-only">: {citation.title}, mở ở tab mới</span>
+        </a>
+      )}
+    </li>
   )
 }
 
-/**
- * Nhắc lại một nguồn đã hiện thẻ đầy đủ ở đoạn trên.
- *
- * Chỉ một dòng: số thứ tự và tên tài liệu cắt ngắn bằng `truncate`. Cắt bằng
- * CSS chứ không tự viết tên tắt — tên tài liệu pháp quy không được bịa lại.
- * `title` giữ tên đầy đủ cho ai rê chuột vào.
- */
-function RepeatCitation({ citation }: { citation: Citation }) {
-  return (
-    <p className="font-display truncate text-source text-moss" title={citation.title}>
-      <span className="font-mono text-medical">{citation.id}.</span>{' '}
-      {citation.title}
-    </p>
-  )
-}
-
-/** Dải nguồn của MỘT đoạn văn. */
-function CitationRail({ citations }: { citations: ParagraphCitation[] }) {
+/** Thẻ nguồn của MỘT đoạn văn. */
+function CitationRail({ citations }: { citations: Citation[] }) {
   if (citations.length === 0) return null
 
   return (
     <aside
       // Nhãn nói rõ đây là nguồn của riêng đoạn liền kề, không phải của cả bài.
       aria-label="Nguồn cho đoạn trên"
-      className="
-        mt-tight border-l-2 border-rule pl-snug
-        lg:absolute lg:top-0 lg:left-full lg:mt-0 lg:ml-block lg:w-rail
-      "
+      className="mt-snug lg:absolute lg:top-0 lg:left-full lg:mt-0 lg:ml-block lg:w-rail"
     >
       <ul className="space-y-snug">
-        {citations.map(({ citation, isFirstMention }) => (
-          <li key={citation.id}>
-            {isFirstMention ? (
-              <FullCitation citation={citation} />
-            ) : (
-              <RepeatCitation citation={citation} />
-            )}
-          </li>
+        {citations.map((citation) => (
+          <CitationCard key={citation.id} citation={citation} />
         ))}
       </ul>
     </aside>
@@ -219,7 +191,7 @@ export function AnswerDocument({
   return (
     <div className="max-w-answer">
       {paragraphs.map((paragraph, index) => (
-        // `relative` là mốc neo cho dải nguồn ở bản rộng. Khoảng cách dưới luôn
+        // `relative` là mốc neo cho thẻ nguồn ở bản rộng. Khoảng cách dưới luôn
         // đúng một bậc `para`, không phụ thuộc chiều cao thẻ nguồn.
         <div
           key={index}

@@ -1,5 +1,15 @@
 /**
- * Ô nhập câu hỏi, ghim ở đáy màn hình.
+ * Thanh tra cứu, ghim ở đáy màn hình.
+ *
+ * Cố ý mang hình dáng một Ô TÌM KIẾM chứ không phải ô soạn tin nhắn: bo tròn
+ * hoàn toàn, kính lúp ở đầu, một dòng. Đây là trang tra cứu tài liệu, và hình
+ * dáng của ô nhập phải nói ra điều đó trước khi người dùng kịp gõ chữ đầu tiên.
+ *
+ * Dùng `input` một dòng chứ không dùng `textarea`: Enter là phím gửi, nên một ô
+ * nhiều dòng chỉ tạo ra một khoảng trống không bao giờ dùng tới.
+ *
+ * Nút gửi CHỈ HIỆN khi đã có chữ. Ô rỗng thì không có gì để gửi, mà một nút trơ
+ * nằm sẵn ở đó chỉ mời người dùng bấm rồi không thấy gì xảy ra.
  *
  * Dùng `sticky` chứ không `fixed`. Hai lý do:
  *
@@ -13,6 +23,8 @@
  */
 import { useId, useRef, type FormEvent } from 'react'
 
+import { SearchIcon, SendIcon } from './icons'
+
 export function ChatComposer({
   value,
   onChange,
@@ -25,7 +37,7 @@ export function ChatComposer({
   disabled: boolean
 }) {
   const inputId = useId()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const isEmpty = value.trim() === ''
 
@@ -34,7 +46,7 @@ export function ChatComposer({
     if (disabled || isEmpty) return
     onSubmit()
     // Trả focus về ô nhập để người dùng bàn phím hỏi tiếp không phải Tab lại.
-    textareaRef.current?.focus()
+    inputRef.current?.focus()
   }
 
   return (
@@ -45,36 +57,42 @@ export function ChatComposer({
     >
       {/* Nét kẻ tách khỏi phần nội dung cuộn phía trên. */}
       <div className="border-t border-rule pt-snug">
-        <label htmlFor={inputId} className="font-display block text-note text-moss">
-          Câu hỏi của bạn
+        {/* Nhãn ẩn: kính lúp và chữ gợi ý đã nói rõ ô này để làm gì, nhưng trình
+            đọc màn hình không thấy hình, và `placeholder` biến mất ngay khi gõ
+            chữ đầu tiên nên không thay được nhãn. */}
+        <label htmlFor={inputId} className="sr-only">
+          Hỏi tiếp về bệnh của bạn
         </label>
 
-        <div className="mt-tight flex items-end gap-tight">
-          <textarea
+        {/* Viền focus vẽ trên cả thanh chứ không riêng ô `input`: một khung chữ
+            nhật nằm lọt trong một thanh bo tròn trông như lỗi hiển thị. */}
+        <div className="flex items-center gap-tight rounded-full border-2 border-border bg-paper pr-tight pl-cozy focus-within:outline-3 focus-within:outline-medical focus-within:outline-offset-2">
+          <SearchIcon className="h-6 w-6 shrink-0 text-moss" />
+
+          <input
             id={inputId}
-            ref={textareaRef}
+            ref={inputRef}
+            type="text"
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            rows={2}
             maxLength={5000}
             disabled={disabled}
-            placeholder="Ví dụ: Tôi bị tăng huyết áp thì nên ăn uống thế nào?"
-            className="font-body min-h-touch w-full flex-1 resize-none rounded-lg border-2 border-border bg-paper p-snug text-input text-ink placeholder:text-moss disabled:border-rule disabled:text-moss"
+            autoComplete="off"
+            placeholder="Hỏi tiếp về bệnh của bạn"
+            className="font-body min-h-touch w-full min-w-0 flex-1 bg-transparent text-input text-ink placeholder:text-moss focus:outline-none disabled:text-moss"
           />
 
-          {/* Nhãn chữ, không phải chỉ mũi tên: biểu tượng trơ không nói được gì
-              với người chưa quen dùng ứng dụng nhắn tin.
-
-              Dùng được  — nền medical đặc, chữ paper. Tương phản 5.76:1.
-              Vô hiệu hóa — bỏ hẳn nền, chỉ còn viền rule mảnh và chữ moss. Khác
-              hẳn về hình chứ không chỉ mờ đi, để không ai bấm nhầm rồi tưởng hỏng. */}
-          <button
-            type="submit"
-            disabled={disabled || isEmpty}
-            className="font-display min-h-touch shrink-0 rounded-lg border-2 border-medical bg-medical px-cozy text-input font-bold text-paper disabled:border-rule disabled:bg-transparent disabled:font-normal disabled:text-moss"
-          >
-            Gửi
-          </button>
+          {!isEmpty && (
+            <button
+              type="submit"
+              disabled={disabled}
+              aria-label="Gửi câu hỏi"
+              title="Gửi câu hỏi"
+              className="flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-full bg-medical text-paper disabled:bg-transparent disabled:text-moss"
+            >
+              <SendIcon className="h-6 w-6" />
+            </button>
+          )}
         </div>
       </div>
     </form>
