@@ -1,17 +1,18 @@
-"""Node: hybrid_retrieval — Dense vector search từ Qdrant (MVP: dense only)."""
+"""Node: hybrid_retrieval — Dense vector search từ ChromaDB (MVP: dense only)."""
 
 from __future__ import annotations
 
+import asyncio
+
 from src.agent.state import AgentState
-from src.core.exceptions import RetrievalFailed
 from src.core.logging import get_logger
-from src.services.vector_store.retriever import search_similar
+from src.rag.store import VectorStore
 
 logger = get_logger(__name__)
 
 
 async def hybrid_retrieval_node(state: AgentState) -> AgentState:
-    """Node 6 — tìm kiếm tài liệu y tế từ Qdrant.
+    """Node 6 — tìm kiếm tài liệu y tế từ ChromaDB.
 
     MVP: Dense vector search (top_k=8).
     Post-MVP: + BM25 hybrid, metadata filter theo disease_type.
@@ -25,26 +26,28 @@ async def hybrid_retrieval_node(state: AgentState) -> AgentState:
     logger.info("[hybrid_retrieval] query=%.80s | top_k=%d", query, top_k)
 
     try:
-        docs = await search_similar(query, top_k=top_k)
+        store = VectorStore()
+        hits = await asyncio.to_thread(store.search, query=query, top_k=top_k)
 
-        # Serialize Document → dict để lưu vào AgentState
+        # Serialize Hit → dict để lưu vào AgentState
         retrieved_docs = [
             {
-                "doc_id": f"doc_{i}",
-                "content": doc.page_content,
-                "metadata": doc.metadata,
-                "title": doc.metadata.get("title", f"Tài liệu {i + 1}"),
-                "source": doc.metadata.get("source", ""),
+                "id": i + 1,
+                "title": hit.metadata.get("title", f"Tài liệu {i + 1}"),
+                "issuer": hit.metadata.get("issuer", "Cơ sở y tế"),
+                "doc_code": hit.metadata.get("doc_code"),
+                "url": hit.metadata.get("url"),
+                "snippet": hit.text[:300],
+                # Internal fields needed for agent
+                "doc_id": hit.chunk_id,
+                "content": hit.text,
             }
-            for i, doc in enumerate(docs)
+            for i, hit in enumerate(hits)
         ]
 
         logger.info("[hybrid_retrieval] found %d docs", len(retrieved_docs))
         return {**state, "retrieved_docs": retrieved_docs}
 
-    except RetrievalFailed as exc:
-        logger.error("[hybrid_retrieval] Qdrant error: %s", exc)
-        return {**state, "retrieved_docs": [], "error": str(exc)}
     except Exception as exc:
         logger.error("[hybrid_retrieval] unexpected error: %s", exc)
         return {**state, "retrieved_docs": [], "error": str(exc)}

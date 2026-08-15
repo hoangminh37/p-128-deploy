@@ -1,31 +1,49 @@
-"""Domain schemas: PatientProfile, Message, Citation."""
+"""Domain schemas: UserInfo, LoginRequest, PatientProfile."""
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, EmailStr, Field
+
+
+class UserInfo(BaseModel):
+    """Thông tin tài khoản, trả kèm trong response đăng nhập."""
+
+    user_id: str
+    email: EmailStr
+    role: Literal["patient", "editor"]
+    # Chỉ có giá trị khi role là "patient". Với editor thì luôn None.
+    patient_id: str | None = None
+
+
+class LoginRequest(BaseModel):
+    """Dùng cho request POST /auth/login."""
+
+    email: EmailStr
+    password: str = Field(..., min_length=1)
+
+
+class LoginResponse(BaseModel):
+    """Dùng cho response 200 của POST /auth/login."""
+
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    user: UserInfo
 
 
 class PatientProfile(BaseModel):
-    """Hồ sơ bệnh nhân — dùng để cá nhân hóa query."""
+    """Dùng cho request POST /patients/profile."""
 
-    age: int | None = Field(default=None, ge=0, le=150)
-    gender: str | None = None  # "male" | "female" | "other"
-    conditions: list[str] = Field(default_factory=list)  # bệnh nền: ["tiểu đường", "cao huyết áp"]
-    medications: list[str] = Field(default_factory=list)  # thuốc đang dùng
-    allergies: list[str] = Field(default_factory=list)
-
-
-class Message(BaseModel):
-    """Một lượt hội thoại (Q hoặc A)."""
-
-    role: str  # "user" | "assistant"
-    content: str
+    patient_id: str
+    age: int = Field(..., ge=18, le=120)
+    primary_condition: Literal["type2_diabetes", "hypertension"]
+    comorbidities: list[Literal["type2_diabetes", "hypertension"]] = Field(default_factory=list)
+    diagnosed_at: str | None = None
+    asking_as: Literal["self", "caregiver"] = "self"
 
 
-class Citation(BaseModel):
-    """Nguồn tài liệu được trích dẫn trong câu trả lời."""
+class PatientProfileResponse(PatientProfile):
+    """Dùng cho response 200 của POST /patients/profile và GET /patients/{patient_id}/profile."""
 
-    doc_id: str
-    title: str = ""
-    source: str = ""
-    snippet: str = ""
+    updated_at: str

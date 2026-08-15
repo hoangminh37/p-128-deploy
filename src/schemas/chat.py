@@ -2,41 +2,64 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from src.schemas.patient import Citation, Message, PatientProfile
+
+class Citation(BaseModel):
+    id: int = Field(..., ge=1)
+    title: str
+    issuer: str
+    doc_code: str | None = None
+    url: str | None = None
+    snippet: str = Field(..., max_length=300)
 
 
 class ChatRequest(BaseModel):
     """Request body cho POST /api/v1/chat và /api/v1/chat/stream."""
 
-    message: str = Field(..., min_length=1, max_length=4096)
-    patient_id: str = "anonymous"
-    patient_profile: PatientProfile = Field(default_factory=PatientProfile)
-    history: list[Message] = Field(default_factory=list)
+    query: str = Field(..., min_length=1, max_length=5000)
+    patient_id: str
+    conversation_id: str | None = None
 
     def to_agent_state(self) -> dict[str, Any]:
         """Convert to initial AgentState dict cho LangGraph."""
         return {
-            "query": self.message,
+            "query": self.query,
             "patient_id": self.patient_id,
-            "patient_profile": self.patient_profile.model_dump(),
-            "messages": [m.model_dump() for m in self.history],
+            # Mock patient_profile since FE doesn't send it anymore, backend MUST fetch it.
+            # In a real system, this would be fetched from DB using patient_id.
+            "patient_profile": {
+                "patient_id": self.patient_id,
+                "age": 30,
+                "primary_condition": "hypertension",
+                "comorbidities": [],
+                "diagnosed_at": "2026-01",
+                "asking_as": "self"
+            },
+            "messages": [],  # History should also be fetched from DB
             "retry_count": 0,
             "metadata": {},
         }
 
 
+class ResponseMetadata(BaseModel):
+    latency_ms: int
+    cached: bool
+
+
 class ChatResponse(BaseModel):
     """Response cho POST /api/v1/chat (non-streaming)."""
 
-    response: str
-    intent: str = ""
-    support_level: str = "fully"
+    conversation_id: str
+    message_id: str
+    status: Literal["answered", "partial", "red_flag", "refused", "referral"]
+    answer: str
     citations: list[Citation] = Field(default_factory=list)
-    disclaimer: str = ""
+    support_level: Literal["fully", "partially", "no_support"] | None = None
+    disclaimer: str
+    metadata: ResponseMetadata
 
 
 class StepEvent(BaseModel):
