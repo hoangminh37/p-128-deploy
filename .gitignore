@@ -28,8 +28,23 @@ env/
 .DS_Store
 Thumbs.db
 
-# Data (never commit large data)
-data/
+# Data — file nặng bị bỏ qua, phần metadata curation vẫn được commit.
+# Xem data/README.md để biết vì sao từng thư mục được xử lý như dưới đây.
+data/raw/*
+!data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+data/vectorstore/*
+!data/vectorstore/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+!data/processed/manifest.json
+data/quarantine/*
+!data/quarantine/.gitkeep
+# Trạng thái runtime do server ghi khi biên tập viên tải tài liệu lên và duyệt.
+# Không commit: nó thuộc về máy đang chạy, không thuộc về mã nguồn. Bộ tài liệu
+# nền được duyệt qua Pull Request thì nằm ở data/registry.yaml và VẪN được commit.
+data/uploads.json
 *.db
 *.sqlite3
 

@@ -1,0 +1,20 @@
+# Dependency CHỈ dùng khi ingest tài liệu (chạy `make rag-parse`).
+#
+# Tách riêng khỏi requirements.txt vì docling kéo theo torch + transformers,
+# khoảng 2.5GB. App khi chạy không cần chúng: nó chỉ đọc vector store đã dựng
+# sẵn. Nếu để chung, CI sẽ tải 2.5GB ở mỗi lần chạy và người làm frontend hay
+# backend agent cũng phải tải theo dù không dùng đến.
+#
+#   pip install -r requirements.txt -r requirements-rag.txt
+#
+# Lưu ý cho máy Windows: src/rag/parse.py tự đặt TORCH_COMPILE_DISABLE=1, vì
+# backend inductor của torch cần trình biên dịch C++ (`cl`) mà máy không cài
+# Visual Studio Build Tools thì không có, và nó sẽ làm hỏng cả lần parse.
+
+docling>=2.120.0          # parse PDF/PPTX -> cấu trúc tài liệu (arXiv 2501.17887)
+pypdf>=5.0.0              # kiểm tra nhanh lớp text của PDF trước khi ingest
+
+# Chỉ cần khi RAG_EMBEDDING_PROVIDER=local (chạy BAAI/bge-m3 trên máy).
+# Mặc định dự án dùng Cohere nên không bắt buộc. Giữ lại vì đây là phương án
+# duy nhất chạy hoàn toàn offline — hữu ích khi làm việc không có mạng.
+sentence-transformers>=3.0.0

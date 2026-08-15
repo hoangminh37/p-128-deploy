@@ -1,0 +1,193 @@
+# =============================================================================
+# REGISTRY TÀI LIỆU Y KHOA — nguồn sự thật duy nhất cho thư viện đã duyệt
+# =============================================================================
+# File này ĐƯỢC COMMIT vào git (khác với file PDF trong data/raw/ bị .gitignore).
+# Mọi tài liệu muốn vào vector store bắt buộc phải có một mục ở đây với
+# status: approved. Pipeline không tự quét thư mục — nó chỉ đọc file này.
+#
+# Vì sao làm vậy: brief mục 7.1 và 7.6 yêu cầu "chỉ trả lời từ thư viện đã duyệt"
+# và "mọi khẳng định y khoa phải quy chiếu được về một tài liệu cụ thể". Registry
+# chính là bằng chứng của việc duyệt đó, và nó nằm trong git nên mọi thay đổi
+# đều đi qua Pull Request — tức là có review, đúng vai trò biên tập viên (FR4.3).
+#
+# Chủ sở hữu file: Khanh Nguyen (data). Thêm/sửa tài liệu phải mở PR.
+# -----------------------------------------------------------------------------
+
+version: 1
+
+# Chính sách xếp hạng khi nhiều tài liệu cùng nói về một chủ đề.
+#   recency  — tài liệu ban hành năm mới hơn được ưu tiên cao hơn (ĐANG DÙNG)
+#   vn_first — tài liệu Bộ Y tế Việt Nam luôn ưu tiên hơn nguồn quốc tế
+#
+# Team đã chốt "recency" ngày 15/08/2026: khi ngưỡng chẩn đoán giữa các tài liệu
+# mâu thuẫn nhau thì lấy số liệu của hướng dẫn mới nhất.
+# Hệ quả cần biết: nguồn số 1 cho tăng huyết áp trở thành AHA/ACC 2025 (tiếng Anh),
+# còn QĐ 3192 của Bộ Y tế (2010) xuống hạng thấp nhất. Đổi một dòng dưới đây là
+# lật lại được toàn bộ thứ tự ưu tiên, không phải ingest lại.
+ranking_policy: recency
+
+# Tập bệnh trong phạm vi. Đây là nơi DUY NHẤT định nghĩa danh sách bệnh —
+# không chỗ nào trong code viết cứng tên bệnh nữa. Thêm bệnh thứ ba chỉ cần
+# thêm một mục ở đây rồi ingest lại, không phải sửa file Python nào.
+#
+# Mỗi bệnh cần:
+#   label_vi  — tên hiển thị cho bệnh nhân, dùng trong prompt và giao diện
+#   label_en  — tên tiếng Anh, để đối chiếu với tài liệu quốc tế
+#   keywords  — biểu thức chính quy nhận diện chủ đề trong nội dung chunk.
+#               Dùng để gắn thêm nhãn bệnh cho đoạn văn, giúp bệnh nhân mắc
+#               đồng thời nhiều bệnh vẫn tìm được đoạn nói về bệnh kia.
+#               Viết cả từ tiếng Việt lẫn tiếng Anh vì thư viện có cả hai.
+diseases:
+  type2_diabetes:
+    label_vi: "đái tháo đường típ 2"
+    label_en: "Type 2 diabetes"
+    keywords: >-
+      đái\s*tháo\s*đường|tiểu\s*đường|diabet|hba1c|insulin|metformin|
+      glucose\s*máu|đường\s*huyết|glycemi|glycaemi|hyperglyc
+
+  hypertension:
+    label_vi: "tăng huyết áp"
+    label_en: "Hypertension"
+    keywords: >-
+      tăng\s*huyết\s*áp|huyết\s*áp|hypertens|blood\s*pressure|\bbp\b|mmhg|
+      antihypertens|systolic|diastolic|tâm\s*thu|tâm\s*trương
+
+# -----------------------------------------------------------------------------
+# TÀI LIỆU ĐÃ DUYỆT
+# -----------------------------------------------------------------------------
+documents:
+
+  - doc_id: ada-soc-2026-t2dm
+    file: ada-soc-2026-t2dm-slides.pptx
+    title: "ADA Standards of Care in Diabetes 2026 — All Recommendations (slide deck)"
+    title_vi: "Tiêu chuẩn chăm sóc bệnh đái tháo đường 2026 của Hiệp hội Đái tháo đường Hoa Kỳ"
+    issuer: "American Diabetes Association"
+    issuer_vi: "Hiệp hội Đái tháo đường Hoa Kỳ (ADA)"
+    doc_code: null
+    doc_code_verified: true       # slide deck không có số hiệu văn bản, đúng bản chất
+    url: null                     # TODO(bien-tap-vien): điền link tải chính thức từ diabetesjournals.org
+    published: "2026"
+    lang: en
+    authority: international
+    diseases: [type2_diabetes]
+    status: approved
+    approved_by: null             # TODO(bien-tap-vien): ký duyệt trước Gate 3
+    approved_at: null
+    notes: >
+      Định dạng slide nên mỗi slide là một khuyến cáo rời rạc, ít văn xuôi liên tục.
+      Ngược lại rất nhiều nội dung trùng lặp giữa các slide tổng kết — bước
+      khử trùng lặp trong pipeline sẽ cắt bớt. Đây là tài liệu MỚI NHẤT về
+      đái tháo đường, nên theo ranking_policy: recency nó thắng QĐ 5481 khi hai
+      bên nói khác nhau.
+
+  - doc_id: aha-acc-2025-htn
+    file: aha-acc-2025-htn.pdf
+    title: "2025 AHA/ACC/.../SGIM Guideline for the Prevention, Detection, Evaluation and Management of High Blood Pressure in Adults"
+    title_vi: "Hướng dẫn 2025 của AHA/ACC về dự phòng, phát hiện, đánh giá và xử trí tăng huyết áp ở người lớn"
+    issuer: "American Heart Association / American College of Cardiology"
+    issuer_vi: "Hội Tim mạch Hoa Kỳ / Trường môn Tim mạch Hoa Kỳ (AHA/ACC)"
+    doc_code: "Circulation. 2025;152:e114-e218"
+    doc_code_verified: true       # đọc được ngay trong thân tài liệu, trang 1
+    url: "https://doi.org/10.1161/CIR.0000000000001356"
+    published: "2025-09-16"
+    lang: en
+    authority: international
+    diseases: [hypertension]
+    status: approved
+    approved_by: null
+    approved_at: null
+    notes: >
+      CẢNH BÁO XUNG ĐỘT: tài liệu này định nghĩa tăng huyết áp từ ngưỡng 130/80 mmHg,
+      khác QĐ 3192 của Bộ Y tế (140/90). Theo ranking_policy: recency, đây là
+      con số được ưu tiên. Mọi chunk chứa ngưỡng chẩn đoán đều được gắn cờ
+      has_threshold: true để tầng sinh câu trả lời biết là đang có xung đột
+      và phải nêu rõ đang trích hướng dẫn năm nào.
+
+  - doc_id: esc-2024-htn
+    file: esc-2024-htn.pdf
+    title: "2024 ESC Guidelines for the management of elevated blood pressure and hypertension"
+    title_vi: "Hướng dẫn 2024 của Hội Tim mạch châu Âu về xử trí huyết áp tăng và tăng huyết áp"
+    issuer: "European Society of Cardiology"
+    issuer_vi: "Hội Tim mạch châu Âu (ESC)"
+    doc_code: "European Heart Journal (2024) 45, 3912-4018"
+    doc_code_verified: true
+    url: "https://doi.org/10.1093/eurheartj/ehae178"
+    published: "2024-08-30"
+    lang: en
+    authority: international
+    diseases: [hypertension]
+    status: approved
+    approved_by: null
+    approved_at: null
+    notes: >
+      Bài báo khoa học 2 cột, có khối tài liệu tham khảo rất dài ở cuối
+      (khoảng 25% số dòng những trang cuối là mục trích dẫn đánh số).
+      Bộ lọc reference-block trong pipeline sẽ loại phần này.
+
+  - doc_id: vn-moh-5481-2020-t2dm
+    file: vn-moh-5481-2020-t2dm.pdf
+    title: "Hướng dẫn chẩn đoán và điều trị đái tháo đường típ 2"
+    title_vi: "Hướng dẫn chẩn đoán và điều trị đái tháo đường típ 2"
+    issuer: "Bộ Y tế"
+    issuer_vi: "Bộ Y tế"
+    doc_code: "5481/QĐ-BYT"
+    doc_code_verified: false      # <-- CẦN BIÊN TẬP VIÊN XÁC NHẬN
+    url: null                     # TODO(bien-tap-vien): điền link kcb.vn hoặc thuvienphapluat
+    published: "2020"
+    lang: vi
+    authority: vn_moh
+    diseases: [type2_diabetes]
+    status: approved
+    approved_by: null
+    approved_at: null
+    notes: >
+      CẢNH BÁO NGUỒN GỐC: bản PDF này là BẢN DỰ THẢO. Trong thân văn bản, số hiệu
+      và ngày ban hành vẫn để trống ("Số: /QĐ-BYT", "Hà Nội, ngày tháng năm 2020").
+      Số hiệu 5481/QĐ-BYT hiện chỉ suy ra từ TÊN FILE, chưa xác nhận được từ nội dung.
+      Văn bản có nhắc việc thay thế QĐ 3319/QĐ-BYT ngày 19/07/2017, khớp với
+      bối cảnh 5481/QĐ-BYT năm 2020. Trước khi lên production, biên tập viên phải
+      đối chiếu với bản công bố chính thức rồi đặt doc_code_verified: true.
+      Trong lúc chờ, pipeline vẫn nạp nhưng citation sẽ kèm dấu hiệu chưa xác minh.
+
+  - doc_id: vn-moh-3192-2010-htn
+    file: vn-moh-3192-2010-htn.pdf
+    title: "Hướng dẫn chẩn đoán và điều trị tăng huyết áp"
+    title_vi: "Hướng dẫn chẩn đoán và điều trị tăng huyết áp"
+    issuer: "Bộ Y tế"
+    issuer_vi: "Bộ Y tế"
+    doc_code: "3192/QĐ-BYT"
+    doc_code_verified: true       # đọc được trong thân văn bản, trang 1
+    url: null                     # TODO(bien-tap-vien): điền link chính thức
+    published: "2010-08-31"
+    lang: vi
+    authority: vn_moh
+    diseases: [hypertension]
+    status: approved
+    approved_by: null
+    approved_at: null
+    notes: >
+      Tài liệu CŨ NHẤT trong thư viện (2010) nên theo ranking_policy: recency
+      nó bị xếp ưu tiên thấp nhất về tăng huyết áp. Định nghĩa THA ở đây là
+      >=140/90 mmHg, khác AHA/ACC 2025 (>=130/80). Vẫn giữ trong thư viện vì
+      đây là văn bản pháp quy của Bộ Y tế và là nguồn tiếng Việt duy nhất về
+      tăng huyết áp — bỏ đi thì không còn trích dẫn tiếng Việt nào cho bệnh này.
+
+# -----------------------------------------------------------------------------
+# TÀI LIỆU BỊ LOẠI — giữ lại lý do để không ai vô tình nạp lại
+# -----------------------------------------------------------------------------
+quarantined:
+
+  - doc_id: vn-moh-6858-2016-hospital-quality
+    file: vn-moh-6858-2016-hospital-quality.pdf
+    title: "Bộ tiêu chí chất lượng bệnh viện Việt Nam (phiên bản 2.0)"
+    issuer: "Bộ Y tế"
+    doc_code: "6858/QĐ-BYT"
+    published: "2016-11-18"
+    lang: vi
+    status: quarantined
+    reasons:
+      - "Ngoài phạm vi nội dung: đây là bộ tiêu chí quản lý chất lượng bệnh viện, không phải hướng dẫn lâm sàng về đái tháo đường hay tăng huyết áp."
+      - "Không trả lời được bất kỳ câu hỏi nào của bệnh nhân trong phạm vi sản phẩm."
+      - "Lỗi mã hoá font tiếng Việt kiểu cũ khi trích xuất text (ví dụ 'CHẤT LƯỢNG' ra thành 'CHẤT LƢỢNG'), cần chuẩn hoá riêng nếu sau này thực sự cần dùng."
+    decided_by: "Khanh Nguyen"
+    decided_at: "2026-08-15"
