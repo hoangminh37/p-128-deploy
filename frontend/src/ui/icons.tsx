@@ -1,0 +1,106 @@
+/**
+ * Biểu tượng nội tuyến của khung ứng dụng.
+ *
+ * Vẽ thẳng bằng SVG chứ không nạp thư viện icon: cả khung chỉ cần bảy hình, mà
+ * một gói icon kéo theo hàng trăm hình không dùng tới.
+ *
+ * Mọi biểu tượng đều `aria-hidden`. Chúng luôn đi kèm nhãn chữ, hoặc nằm trong
+ * một nút đã có `aria-label` — trình đọc màn hình đọc nhãn đó, không đọc hình.
+ *
+ * Nét vẽ dày 2 trên khung 24 để mắt lão thị bắt được hình ở cỡ 24px. Nét mảnh
+ * kiểu 1px là thứ đầu tiên biến mất với người 45–70 tuổi.
+ */
+import type { ReactNode } from 'react'
+
+type IconProps = {
+  /** Cỡ đặt bằng class ở chỗ dùng, ví dụ `h-6 w-6`. */
+  className?: string
+}
+
+/** Khung chung cho các hình vẽ bằng nét. Màu lấy theo `currentColor` của chữ. */
+function StrokeIcon({ className, children }: IconProps & { children: ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      className={className}
+    >
+      {children}
+    </svg>
+  )
+}
+
+/** Dấu hiệu của ứng dụng: chữ thập y tế trong một ô bo góc. */
+export function AppMark({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className={className}>
+      <rect x="1" y="1" width="22" height="22" rx="6" fill="currentColor" />
+      <path
+        d="M12 6.5v11M6.5 12h11"
+        fill="none"
+        stroke="var(--color-paper)"
+        strokeWidth={2.5}
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+export function MenuIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </StrokeIcon>
+  )
+}
+
+export function CloseIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </StrokeIcon>
+  )
+}
+
+export function PlusIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M12 5v14M5 12h14" />
+    </StrokeIcon>
+  )
+}
+
+/** Sao chép: hai tờ giấy chồng lên nhau. */
+export function CopyIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a1 1 0 0 1 1-1h9" />
+    </StrokeIcon>
+  )
+}
+
+/** Lưu về máy: mũi tên đi xuống một cái khay. */
+export function SaveIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M12 4v11M8 11l4 4 4-4M5 19h14" />
+    </StrokeIcon>
+  )
+}
+
+/** Hồ sơ: hình người, đầu và vai. */
+export function UserIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 19.5a7 7 0 0 1 14 0" />
+    </StrokeIcon>
+  )
+}
