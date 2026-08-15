@@ -71,7 +71,8 @@ Request:
   "age": 58,
   "primary_condition": "hypertension",
   "comorbidities": ["type2_diabetes"],
-  "diagnosed_at": "2026-03"
+  "diagnosed_at": "2026-03",
+  "asking_as": "self"
 }
 ```
 
@@ -82,6 +83,7 @@ Request:
 | `primary_condition` | enum | có | `type2_diabetes` hoặc `hypertension` |
 | `comorbidities` | enum[] | không | Cùng tập giá trị với `primary_condition`, mặc định rỗng |
 | `diagnosed_at` | string | không | Định dạng `YYYY-MM` |
+| `asking_as` | enum | không | `self` hoặc `caregiver`, mặc định `self`. Người hỏi là chính bệnh nhân hay người chăm sóc. Chỉ ảnh hưởng cách xưng hô trong câu trả lời, không đổi nội dung y khoa |
 | `updated_at` | string | chỉ có trong response | Định dạng ISO 8601 có offset múi giờ |
 
 Không nhận tên, số điện thoại, số căn cước. Ràng buộc PII trong brief mục 7.4.
@@ -329,6 +331,7 @@ class PatientProfile(BaseModel):
     primary_condition: Literal["type2_diabetes", "hypertension"]
     comorbidities: list[Literal["type2_diabetes", "hypertension"]] = Field(default_factory=list)
     diagnosed_at: Optional[str] = None
+    asking_as: Literal["self", "caregiver"] = "self"
 
 
 class PatientProfileResponse(PatientProfile):
@@ -381,3 +384,6 @@ cho khớp `AgentState.query` trong `ARCHITECTURE.md`.
    nước ngoài thì `Citation.issuer` cần thêm quy ước phân biệt nguồn trong nước và ngoài nước
 4. Có giữ `analysis` trong response không. Hợp đồng này bỏ vì đó là dữ liệu nội bộ,
    không hiển thị cho bệnh nhân
+5. Trường `asking_as` mới thêm ở mục 3. Backend cần dùng nó để đổi cách xưng hô trong câu
+   trả lời: `self` thì xưng với chính người bệnh, `caregiver` thì xưng với người chăm sóc.
+   Cần backend xác nhận việc này có ảnh hưởng gì tới prompt của agent không
