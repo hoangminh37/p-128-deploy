@@ -18,12 +18,13 @@
  */
 import { Link, useLocation } from 'react-router-dom'
 
+import { APP_NAME } from '../lib/appName'
 import { CONDITION_LABEL } from '../lib/conditions'
 import { usePatient } from '../patient/context'
+import { useSession } from '../session/context'
 import { ConversationNav } from './ConversationNav'
 import { AppMark, CloseIcon, PlusIcon, UserIcon } from './icons'
-
-export const APP_NAME = 'Trợ lý sức khỏe'
+import { SignOutButton } from './SignOutButton'
 
 export function Sidebar({
   activeConversationId,
@@ -37,9 +38,17 @@ export function Sidebar({
   onClose?: () => void
 }) {
   const { profile } = usePatient()
+  const { user } = useSession()
   const { pathname } = useLocation()
 
   const isProfileOpen = pathname === '/profile'
+  /**
+   * Biên tập viên không có hồ sơ bệnh nhân, không có hội thoại, và không được
+   * vào `/chat` lẫn `/profile`. Bày ra cho họ nút "Câu hỏi mới" cùng một danh
+   * sách hội thoại rỗng là bày ra toàn đường cụt — bấm vào sẽ bị guard đá ngược
+   * về `/editor` mà không hiểu vì sao.
+   */
+  const isPatient = user?.role === 'patient'
 
   /**
    * Dòng phụ của khối hồ sơ: bệnh chính và tuổi.
@@ -76,51 +85,84 @@ export function Sidebar({
           5.76:1. Cùng lối với nút "Gửi" ở ô nhập, để hai việc chính của ứng dụng
           trông giống nhau. Dùng `Link` thật chứ không phải nút gọi `navigate`,
           để bấm giữ vẫn mở được tab mới. */}
-      <div className="px-snug py-snug">
-        <Link
-          to="/chat"
-          onClick={onNavigate}
-          className="font-display flex min-h-touch items-center justify-center gap-tight rounded-lg border-2 border-medical bg-medical px-cozy text-input font-bold text-paper no-underline"
-        >
-          <PlusIcon className="h-5 w-5 shrink-0" />
-          Câu hỏi mới
-        </Link>
-      </div>
+      {isPatient && (
+        <div className="px-snug py-snug">
+          <Link
+            to="/chat"
+            onClick={onNavigate}
+            className="font-display flex min-h-touch items-center justify-center gap-tight rounded-lg border-2 border-medical bg-medical px-cozy text-input font-bold text-paper no-underline"
+          >
+            <PlusIcon className="h-5 w-5 shrink-0" />
+            Câu hỏi mới
+          </Link>
+        </div>
+      )}
 
       {/* ---- Danh sách hội thoại ---- */}
-      <ConversationNav
-        activeConversationId={activeConversationId}
-        onNavigate={onNavigate}
-      />
+      {isPatient ? (
+        <ConversationNav
+          activeConversationId={activeConversationId}
+          onNavigate={onNavigate}
+        />
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto px-snug pt-snug">
+          <p className="font-display text-note text-moss">
+            Khu vực biên tập viên đang được dựng. Danh sách tài liệu chờ duyệt sẽ
+            hiện ở đây.
+          </p>
+        </div>
+      )}
 
-      {/* ---- Hồ sơ ---- */}
-      <Link
-        to="/profile"
-        onClick={onNavigate}
-        aria-current={isProfileOpen ? 'page' : undefined}
-        className={`font-display flex min-h-touch shrink-0 items-center gap-snug border-t border-rule px-snug py-tight no-underline ${
-          isProfileOpen ? 'bg-rule' : ''
-        }`}
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-border text-ink">
-          <UserIcon className="h-6 w-6" />
-        </span>
-
-        <span className="min-w-0 flex-1">
-          <span className="block text-question font-semibold text-ink">
-            Hồ sơ của bạn
-          </span>
-          {/* Trên nền `rule` thì `moss` chỉ còn 4.20:1, chưa đạt 4.5:1 — nên khi
-              khối này đang được mở thì dòng phụ chuyển sang `ink` (8.57:1). */}
-          <span
-            className={`mt-hair block line-clamp-2 text-note ${
-              isProfileOpen ? 'text-ink' : 'text-moss'
+      {/* ---- Khối hồ sơ và đăng xuất, ghim ở đáy ---- */}
+      <div className="shrink-0 border-t border-rule">
+        {isPatient ? (
+          <Link
+            to="/profile"
+            onClick={onNavigate}
+            aria-current={isProfileOpen ? 'page' : undefined}
+            className={`font-display flex min-h-touch items-center gap-snug px-snug py-tight no-underline ${
+              isProfileOpen ? 'bg-rule' : ''
             }`}
           >
-            {profileSubline}
-          </span>
-        </span>
-      </Link>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-border text-ink">
+              <UserIcon className="h-6 w-6" />
+            </span>
+
+            <span className="min-w-0 flex-1">
+              <span className="block text-question font-semibold text-ink">
+                Hồ sơ của bạn
+              </span>
+              {/* Trên nền `rule` thì `moss` chỉ còn 4.20:1, chưa đạt 4.5:1 — nên
+                  khi khối này đang được mở thì dòng phụ chuyển sang `ink` (8.57:1). */}
+              <span
+                className={`mt-hair block line-clamp-2 text-note ${
+                  isProfileOpen ? 'text-ink' : 'text-moss'
+                }`}
+              >
+                {profileSubline}
+              </span>
+            </span>
+          </Link>
+        ) : (
+          <div className="font-display flex min-h-touch items-center gap-snug px-snug py-tight">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-border text-ink">
+              <UserIcon className="h-6 w-6" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-question font-semibold text-ink">
+                Biên tập viên y khoa
+              </span>
+              <span className="mt-hair block line-clamp-2 text-note text-moss">
+                {user?.email ?? ''}
+              </span>
+            </span>
+          </div>
+        )}
+
+        <div className="px-snug pb-snug">
+          <SignOutButton />
+        </div>
+      </div>
     </div>
   )
 }

@@ -13,12 +13,16 @@ import {
   chatResponseSchema,
   conversationDetailSchema,
   conversationListSchema,
+  loginRequestSchema,
+  loginResponseSchema,
   patientProfileResponseSchema,
   patientProfileSchema,
   type ChatRequest,
   type ChatResponse,
   type ConversationDetail,
   type ConversationList,
+  type LoginRequest,
+  type LoginResponse,
   type PatientProfileResponse,
 } from './schemas'
 
@@ -39,10 +43,21 @@ const API_PREFIX = '/api/v1'
 const TIMEOUT_MS = 30_000
 
 /**
- * Mục 1 — Gate 2 chưa bật xác thực, backend không kiểm tra token nên để `null`.
- * Khi bật JWT chỉ cần gán token vào đây, phần gắn header đã sẵn ở `buildHeaders`.
+ * Mục 1 — token gắn vào header `Authorization` của mọi request sau khi đăng nhập.
+ *
+ * Biến module chứ không phải hằng: `SessionProvider` gọi `setAuthToken` ngay khi
+ * có token, và gọi lại với `null` khi đăng xuất.
+ *
+ * Cố ý KHÔNG đọc thẳng localStorage trong `buildHeaders`. Lớp api không cần biết
+ * ứng dụng cất phiên đăng nhập ở đâu — mai này đổi sang cookie httpOnly hay
+ * sessionStorage thì file này không phải sửa một dòng nào.
  */
-const AUTH_TOKEN: string | null = null
+let authToken: string | null = null
+
+/** Gắn hoặc gỡ token. Chỉ `SessionProvider` được gọi hàm này. */
+export function setAuthToken(token: string | null): void {
+  authToken = token
+}
 
 // ---------------------------------------------------------------------------
 // Lỗi
@@ -97,6 +112,7 @@ export class ApiError extends Error {
 /** Mục 1 — bảng mã lỗi. Mỗi mã có một câu giải thích cho bệnh nhân. */
 const HTTP_USER_MESSAGES: Record<number, string> = {
   400: 'Dữ liệu gửi lên không hợp lệ. Vui lòng kiểm tra lại thông tin đã nhập.',
+  401: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.',
   404: 'Không tìm thấy dữ liệu. Có thể hồ sơ hoặc phiên hội thoại chưa được tạo.',
   422: 'Thông tin gửi lên chưa đúng định dạng máy chủ yêu cầu. Vui lòng kiểm tra lại.',
   500: 'Hệ thống gặp sự cố khi xử lý câu hỏi. Vui lòng thử lại sau ít phút.',
@@ -112,8 +128,8 @@ function buildHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   }
-  if (AUTH_TOKEN) {
-    headers.Authorization = `Bearer ${AUTH_TOKEN}`
+  if (authToken !== null && authToken !== '') {
+    headers.Authorization = `Bearer ${authToken}`
   }
   return headers
 }
@@ -158,17 +174,19 @@ async function readErrorDetail(response: Response): Promise<string | undefined> 
 }
 
 /**
- * Gọi một endpoint rồi parse response bằng `schema`.
+ * Gọi một endpoint và trả về `Response` đã chắc chắn `ok`.
  *
- * Mọi lỗi ném ra đều là `ApiError`, không bao giờ là lỗi thô của fetch hay Zod.
+ * Tách khỏi phần parse để `logout` — trả 204, không có body — dùng lại được
+ * toàn bộ xử lý timeout, lỗi mạng và mã HTTP mà không phải chép lại lần nữa.
+ *
+ * Mọi lỗi ném ra đều là `ApiError`, không bao giờ là lỗi thô của fetch.
  */
-async function request<S extends z.ZodType>(options: {
+async function sendRequest(options: {
   path: string
   method: 'GET' | 'POST'
-  schema: S
   body?: unknown
-}): Promise<z.infer<S>> {
-  const { path, method, schema, body } = options
+}): Promise<Response> {
+  const { path, method, body } = options
   const url = `${BASE_URL}${API_PREFIX}${path}`
 
   let response: Response
@@ -211,6 +229,25 @@ async function request<S extends z.ZodType>(options: {
     })
   }
 
+  return response
+}
+
+/**
+ * Gọi một endpoint rồi parse response bằng `schema`.
+ *
+ * Mọi lỗi ném ra đều là `ApiError`, không bao giờ là lỗi thô của fetch hay Zod.
+ */
+async function request<S extends z.ZodType>(options: {
+  path: string
+  method: 'GET' | 'POST'
+  schema: S
+  body?: unknown
+}): Promise<z.infer<S>> {
+  const { path, method, schema } = options
+  const url = `${BASE_URL}${API_PREFIX}${path}`
+
+  const response = await sendRequest(options)
+
   let payload: unknown
   try {
     payload = await response.json()
@@ -239,8 +276,49 @@ async function request<S extends z.ZodType>(options: {
   return parsed.data
 }
 
+/** Gọi một endpoint không trả body, ví dụ 204 của `/auth/logout`. */
+async function requestNoContent(options: {
+  path: string
+  method: 'GET' | 'POST'
+  body?: unknown
+}): Promise<void> {
+  await sendRequest(options)
+}
+
 // ---------------------------------------------------------------------------
-// Bốn endpoint của mục 2
+// Mục 3: Xác thực
+// ---------------------------------------------------------------------------
+
+/**
+ * Mục 3 — đăng nhập. Trả token và vai trò của tài khoản.
+ *
+ * Ném `ApiError` với `status` 401 khi sai email hoặc mật khẩu. Màn đăng nhập
+ * bắt riêng mã này để hiện một câu duy nhất cho cả hai trường hợp — phân biệt
+ * "sai email" với "sai mật khẩu" cho phép người ngoài dò xem một email có tài
+ * khoản trong hệ thống hay không.
+ */
+export async function login(payload: LoginRequest): Promise<LoginResponse> {
+  assertValidRequestBody(loginRequestSchema, payload, 'POST /auth/login')
+  return request({
+    path: '/auth/login',
+    method: 'POST',
+    schema: loginResponseSchema,
+    body: payload,
+  })
+}
+
+/**
+ * Mục 3 — đăng xuất. Response 204, không có body.
+ *
+ * Người gọi phải xoá phiên khỏi máy dù hàm này ném lỗi: token nằm lại trên một
+ * máy dùng chung còn nguy hiểm hơn là một phiên chưa kịp huỷ ở máy chủ.
+ */
+export function logout(): Promise<void> {
+  return requestNoContent({ path: '/auth/logout', method: 'POST' })
+}
+
+// ---------------------------------------------------------------------------
+// Bốn endpoint còn lại của mục 2
 // ---------------------------------------------------------------------------
 
 /**

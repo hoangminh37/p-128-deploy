@@ -9,9 +9,6 @@ import { createContext, useContext } from 'react'
 import type { ApiError } from '../lib/api'
 import type { PatientProfileResponse } from '../lib/schemas'
 
-/** Khóa localStorage. Đặt tiền tố theo app để không đụng khóa của thư viện khác. */
-export const PATIENT_ID_STORAGE_KEY = 'tro-ly-suc-khoe:patient_id'
-
 /**
  * Khóa cache TanStack Query cho hồ sơ.
  *
@@ -33,17 +30,14 @@ export function patientProfileQueryKey(patientId: string | null) {
 export type ProfileState = 'idle' | 'loading' | 'ready' | 'absent' | 'error'
 
 export type PatientContextValue = {
-  /** `null` khi máy này chưa từng bắt đầu một phiên nào. */
-  patientId: string | null
   /**
-   * Trả về patient_id hiện có, hoặc sinh mới rồi lưu vào localStorage.
+   * `patient_id` của tài khoản đang đăng nhập, lấy từ response `/auth/login`.
    *
-   * Gọi khi người dùng thực sự bắt đầu (chọn vai trò, gửi hồ sơ), KHÔNG gọi lúc
-   * app khởi động — sinh sẵn sẽ khiến guard của `/chat` không bao giờ chạy.
+   * `null` khi chưa đăng nhập, hoặc khi vai trò là `editor` — biên tập viên
+   * không có hồ sơ bệnh nhân nào cả. Client KHÔNG còn tự sinh id nữa: định danh
+   * bệnh nhân là thứ thuộc về tài khoản, không thuộc về cái máy đang mở trang.
    */
-  ensurePatientId: () => string
-  /** Xóa danh tính khỏi máy này, dùng cho nút "bắt đầu lại" ở bước sau. */
-  clearPatient: () => void
+  patientId: string | null
   /** Hồ sơ đã khai, `null` khi chưa có hoặc chưa đọc xong. */
   profile: PatientProfileResponse | null
   profileState: ProfileState

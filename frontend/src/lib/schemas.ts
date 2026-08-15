@@ -38,6 +38,58 @@ export const supportLevelSchema = z.enum(['fully', 'partially', 'no_support'])
 export const askingAsSchema = z.enum(['self', 'caregiver'])
 
 // ---------------------------------------------------------------------------
+// Mục 3: Xác thực
+// ---------------------------------------------------------------------------
+
+/**
+ * Mục 3: vai trò của tài khoản.
+ *
+ * BACKEND quyết định giá trị này từ tài khoản trong cơ sở dữ liệu. Frontend chỉ
+ * đọc, không có chỗ nào cho người dùng tự chọn hay tự đổi. Đây là lý do màn
+ * chọn vai trò cũ đã bị bỏ hẳn: hỏi "bạn là ai" rồi tin luôn câu trả lời thì
+ * bất kỳ ai cũng tự nhận là biên tập viên y khoa được.
+ */
+export const userRoleSchema = z.enum(['patient', 'editor'])
+
+/** Mục 3 — payload gửi lên POST /auth/login. */
+export const loginRequestSchema = z.object({
+  email: z.email(),
+  password: z.string().min(1),
+})
+
+/**
+ * Mục 3 — thông tin tài khoản trả kèm khi đăng nhập.
+ *
+ * Hai `refine` dưới đây canh đúng một câu trong hợp đồng: `patient_id` chỉ có
+ * giá trị khi `role` là `patient`. Lệch một trong hai chiều đều là lỗi nặng —
+ * một biên tập viên mang theo `patient_id` sẽ đọc được hồ sơ của người khác,
+ * còn một bệnh nhân không có `patient_id` thì mọi câu hỏi đều mất ngữ cảnh bệnh
+ * lý. Thà chặn ngay ở tầng parse còn hơn để nó chảy vào ứng dụng.
+ */
+export const userInfoSchema = z
+  .object({
+    user_id: z.string(),
+    email: z.string(),
+    role: userRoleSchema,
+    patient_id: z.string().nullable(),
+  })
+  .refine((value) => value.role !== 'editor' || value.patient_id === null, {
+    error: 'Tài khoản vai trò editor không được kèm patient_id.',
+    path: ['patient_id'],
+  })
+  .refine((value) => value.role !== 'patient' || value.patient_id !== null, {
+    error: 'Tài khoản vai trò patient bắt buộc phải có patient_id.',
+    path: ['patient_id'],
+  })
+
+/** Mục 3 — response 200 của POST /auth/login. */
+export const loginResponseSchema = z.object({
+  access_token: z.string().min(1),
+  token_type: z.literal('bearer'),
+  user: userInfoSchema,
+})
+
+// ---------------------------------------------------------------------------
 // Mục 4: Hồ sơ bệnh nhân
 // ---------------------------------------------------------------------------
 
@@ -251,6 +303,11 @@ export type PrimaryCondition = z.infer<typeof primaryConditionSchema>
 export type ChatStatus = z.infer<typeof chatStatusSchema>
 export type SupportLevel = z.infer<typeof supportLevelSchema>
 export type AskingAs = z.infer<typeof askingAsSchema>
+export type UserRole = z.infer<typeof userRoleSchema>
+
+export type LoginRequest = z.infer<typeof loginRequestSchema>
+export type LoginResponse = z.infer<typeof loginResponseSchema>
+export type UserInfo = z.infer<typeof userInfoSchema>
 
 export type PatientProfile = z.infer<typeof patientProfileSchema>
 export type PatientProfileResponse = z.infer<typeof patientProfileResponseSchema>

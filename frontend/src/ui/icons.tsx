@@ -171,6 +171,16 @@ export function SendIcon({ className }: IconProps) {
   )
 }
 
+/** Đăng xuất: mũi tên đi ra khỏi một khung mở. */
+export function SignOutIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M14 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2H14" />
+      <path d="M17 8.5 20.5 12 17 15.5M20.5 12H10" />
+    </StrokeIcon>
+  )
+}
+
 /** Hồ sơ: hình người, đầu và vai. */
 export function UserIcon({ className }: IconProps) {
   return (

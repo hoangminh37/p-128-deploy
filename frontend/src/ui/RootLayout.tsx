@@ -21,10 +21,11 @@ import { useCallback, useRef, useState } from 'react'
 import { Outlet, useLocation, useMatch } from 'react-router-dom'
 
 import { useConversations } from '../app/conversations'
+import { APP_NAME } from '../lib/appName'
 import { CONDITION_LABEL } from '../lib/conditions'
 import { usePatient } from '../patient/context'
 import { ContentHeader } from './ContentHeader'
-import { APP_NAME, Sidebar } from './Sidebar'
+import { Sidebar } from './Sidebar'
 import { useFocusTrap, useMediaQuery, useScrollLock } from './shellHooks'
 
 /** Bằng đúng mốc `lg` của Tailwind (64rem tính trên cỡ chữ gốc 16px của media query). */

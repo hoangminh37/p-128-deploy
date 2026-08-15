@@ -358,8 +358,7 @@ const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-ink'
 // ---------------------------------------------------------------------------
 
 export function ProfileScreen() {
-  const { profile, profileState, profileError, reloadProfile, ensurePatientId } =
-    usePatient()
+  const { patientId, profile, profileState, profileError, reloadProfile } = usePatient()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -420,9 +419,16 @@ export function ProfileScreen() {
 
   const mutation = useMutation({
     mutationFn: async (values: ProfileFormValues): Promise<PatientProfileResponse> => {
-      // Sinh patient_id đúng lúc này chứ không sớm hơn: đây là thời điểm người
-      // dùng thực sự bắt đầu, và cũng là điều kiện để guard của `/chat` mở ra.
-      const patientId = ensurePatientId()
+      // `patient_id` đến từ response đăng nhập, client không còn tự sinh nữa.
+      // Guard `RequireRole role="patient"` đã chặn từ tầng điều hướng, và schema
+      // hợp đồng bắt tài khoản `patient` phải có `patient_id` — nên nhánh này
+      // không xảy ra được. Vẫn ném để nếu một trong hai lớp kia bị gỡ thì hỏng
+      // ngay tại đây, thay vì lặng lẽ gửi lên máy chủ một hồ sơ vô chủ.
+      if (patientId === null) {
+        throw new Error(
+          'Không có patient_id khi lưu hồ sơ. Guard vai trò đáng lẽ đã chặn trước đó.',
+        )
+      }
 
       return upsertPatientProfile({
         patient_id: patientId,
@@ -474,12 +480,14 @@ export function ProfileScreen() {
    * Đường thoát cho người chưa muốn khai.
    *
    * Bắt khai đủ bốn trường trước khi cho hỏi câu nào là cách chắc chắn nhất để
-   * mất người dùng ở màn đầu tiên. Sinh `patient_id` tạm rồi cho vào thẳng màn
-   * hỏi đáp; ở đó có dải nhắc rằng câu trả lời chưa được đặt vào bệnh và tuổi
-   * của họ, kèm đường quay lại đây.
+   * mất người dùng ở màn đầu tiên. Cho vào thẳng màn hỏi đáp; ở đó có dải nhắc
+   * rằng câu trả lời chưa được đặt vào bệnh và tuổi của họ, kèm đường quay lại
+   * đây.
+   *
+   * `patient_id` đã có sẵn từ lúc đăng nhập nên ở đây không phải sinh gì cả —
+   * hội thoại họ hỏi trong lúc chưa khai hồ sơ vẫn được lưu đúng vào tài khoản.
    */
   function skipProfile(): void {
-    ensurePatientId()
     void navigate('/chat', { replace: true })
   }
 
