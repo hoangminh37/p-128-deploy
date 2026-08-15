@@ -23,21 +23,12 @@ class ChatRequest(BaseModel):
     patient_id: str
     conversation_id: str | None = None
 
-    def to_agent_state(self) -> dict[str, Any]:
+    def to_agent_state(self, patient_profile_dict: dict[str, Any]) -> dict[str, Any]:
         """Convert to initial AgentState dict cho LangGraph."""
         return {
             "query": self.query,
             "patient_id": self.patient_id,
-            # Mock patient_profile since FE doesn't send it anymore, backend MUST fetch it.
-            # In a real system, this would be fetched from DB using patient_id.
-            "patient_profile": {
-                "patient_id": self.patient_id,
-                "age": 30,
-                "primary_condition": "hypertension",
-                "comorbidities": [],
-                "diagnosed_at": "2026-01",
-                "asking_as": "self"
-            },
+            "patient_profile": patient_profile_dict,
             "messages": [],  # History should also be fetched from DB
             "retry_count": 0,
             "metadata": {},
@@ -83,3 +74,32 @@ class DoneEvent(BaseModel):
     support_level: str = "fully"
     intent: str = ""
     disclaimer: str = ""
+
+
+class ConversationSummary(BaseModel):
+    conversation_id: str
+    title: str
+    last_message_at: str
+    message_count: int
+
+
+class ConversationList(BaseModel):
+    conversations: list[ConversationSummary] = Field(default_factory=list)
+
+
+class ConversationMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+    created_at: str
+    
+    # Optional fields for assistant
+    message_id: str | None = None
+    status: Literal["answered", "partial", "red_flag", "refused", "referral"] | None = None
+    citations: list[Citation] = Field(default_factory=list)
+    support_level: Literal["fully", "partially", "no_support"] | None = None
+
+
+class ConversationDetail(BaseModel):
+    conversation_id: str
+    messages: list[ConversationMessage] = Field(default_factory=list)
+

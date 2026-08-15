@@ -25,10 +25,10 @@ import App from './App.tsx'
  * của ứng dụng có thể bay ra ngoài trước khi worker kịp chặn.
  */
 async function enableMocking(): Promise<void> {
-  if (!import.meta.env.DEV) return
-
-  const { worker } = await import('./mocks/browser')
-  await worker.start({ onUnhandledRequest: 'bypass' })
+  // if (!import.meta.env.DEV) return
+  // const { worker } = await import('./mocks/browser')
+  // await worker.start({ onUnhandledRequest: 'bypass' })
+  return
 }
 
 void enableMocking().then(() => {
