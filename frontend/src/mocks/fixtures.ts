@@ -15,12 +15,16 @@ import {
   chatResponseSchema,
   conversationDetailSchema,
   conversationListSchema,
+  editorQueueItemDetailSchema,
+  outOfScopeLogSchema,
   patientProfileResponseSchema,
   type ChatResponse,
   type ChatStatus,
   type Citation,
   type ConversationDetail,
   type ConversationList,
+  type EditorQueueItemDetail,
+  type OutOfScopeLog,
   type PatientProfileResponse,
 } from '../lib/schemas'
 
@@ -254,6 +258,184 @@ export const conversationDetailFixture: ConversationDetail = {
 }
 
 // ---------------------------------------------------------------------------
+// Mục 8: Quản trị nội dung
+// ---------------------------------------------------------------------------
+
+/**
+ * Hàng đợi duyệt, gieo sẵn để handler có cái mà biến đổi.
+ *
+ * Phủ đủ CẢ BỐN trạng thái và cả hai nguồn gốc, vì màn hàng đợi phải dựng và thử
+ * được từng nhóm mà không cần bấm qua bấm lại để tự tạo dữ liệu.
+ *
+ * Nội dung nằm trong phạm vi dự án — đái tháo đường típ 2 và tăng huyết áp — và
+ * viết lại cho dễ hiểu chứ không phải nguyên văn văn bản gốc. Không dùng làm
+ * nguồn tham khảo lâm sàng.
+ *
+ * Riêng `e_01HR13` là bản nháp sinh từ log `o_01HR22` bên dưới: nội dung rỗng,
+ * chưa gắn bệnh, đúng như cái vỏ mà `POST .../draft` tạo ra.
+ */
+export const editorQueueFixture: EditorQueueItemDetail[] = [
+  {
+    item_id: 'e_01HR10',
+    title: 'Dinh dưỡng cho người đái tháo đường típ 2',
+    origin: 'question_log',
+    topics: ['Đái tháo đường', 'Dinh dưỡng'],
+    created_at: '2026-08-13T08:30:00+07:00',
+    status: 'pending',
+    content: [
+      'Cơm, bún, phở, bánh mì đều làm đường huyết tăng. Bạn không cần bỏ hẳn, chỉ cần ăn vừa phải và chia đều ra các bữa trong ngày.',
+      '',
+      'Bữa nào cũng nên có rau xanh. Rau giúp no lâu và làm đường huyết lên chậm hơn.',
+      '',
+      'Nên tránh nước ngọt, bánh kẹo và trái cây quá ngọt. Nếu thèm ngọt thì ăn một miếng nhỏ ngay sau bữa chính, đừng ăn lúc đói.',
+      '',
+      'Về chất đạm: nên ăn cá, thịt nạc, đậu phụ. Nên bớt mỡ, da và nội tạng động vật.',
+    ].join('\n'),
+    source_url:
+      'https://kcb.vn/van-ban/huong-dan-chan-doan-va-dieu-tri-dai-thao-duong-tip-2',
+    issuer: 'Bộ Y tế',
+    doc_code: '5481/QĐ-BYT',
+    conditions: ['type2_diabetes'],
+    review_note: null,
+    reject_reason: null,
+    reviewed_at: null,
+    reviewed_by: null,
+  },
+  {
+    item_id: 'e_01HR11',
+    title: 'Đo huyết áp tại nhà cho đúng cách',
+    origin: 'editor_upload',
+    topics: ['Tăng huyết áp', 'Theo dõi tại nhà'],
+    created_at: '2026-08-12T15:05:00+07:00',
+    status: 'pending',
+    content: [
+      'Trước khi đo, bạn hãy ngồi nghỉ khoảng 5 phút. Không đo ngay sau khi vừa đi lại, vừa ăn no, hoặc vừa uống cà phê.',
+      '',
+      'Khi đo, ngồi tựa lưng, hai chân đặt phẳng xuống sàn, không bắt chéo chân. Cánh tay đặt ngang mức tim.',
+      '',
+      'Mỗi lần nên đo hai lượt, cách nhau 1 đến 2 phút, rồi lấy trung bình. Ghi lại cả hai chỉ số và giờ đo.',
+      '',
+      'Nên đo vào một khung giờ cố định mỗi ngày, thường là buổi sáng trước khi uống thuốc. Mang sổ ghi này theo khi đi khám.',
+    ].join('\n'),
+    source_url: 'https://kcb.vn/van-ban/huong-dan-chan-doan-va-dieu-tri-tang-huyet-ap',
+    issuer: 'Bộ Y tế',
+    doc_code: '3192/QĐ-BYT',
+    conditions: ['hypertension'],
+    review_note: null,
+    reject_reason: null,
+    reviewed_at: null,
+    reviewed_by: null,
+  },
+  {
+    item_id: 'e_01HR12',
+    title: 'Ăn nhạt khi vừa tăng huyết áp vừa đái tháo đường',
+    origin: 'editor_upload',
+    topics: ['Tăng huyết áp', 'Đái tháo đường', 'Dinh dưỡng'],
+    created_at: '2026-08-10T10:20:00+07:00',
+    status: 'approved',
+    content: [
+      'Mỗi ngày chỉ nên dùng dưới 5 gam muối, tức khoảng một thìa cà phê gạt ngang.',
+      '',
+      'Số này tính cả muối, nước mắm, nước tương và hạt nêm, không phải chỉ tính muối hạt. Bạn nên bớt mì gói, đồ hộp, dưa cà muối.',
+      '',
+      'Khi nấu, nêm nhạt hơn thói quen một chút rồi để cả nhà tự thêm nếu cần. Vị giác quen dần sau khoảng hai tuần.',
+    ].join('\n'),
+    source_url: 'https://kcb.vn/van-ban/huong-dan-chan-doan-va-dieu-tri-tang-huyet-ap',
+    issuer: 'Bộ Y tế',
+    doc_code: '3192/QĐ-BYT',
+    conditions: ['hypertension', 'type2_diabetes'],
+    review_note: 'Đã rút gọn còn ba đoạn. Giữ nguyên con số 5 gam của văn bản gốc.',
+    reject_reason: null,
+    reviewed_at: '2026-08-10T14:00:00+07:00',
+    reviewed_by: 'u_01HQZV',
+  },
+  {
+    item_id: 'e_01HR13',
+    title: 'Người tiểu đường bị hạ đường huyết ban đêm thì xử lý thế nào?',
+    origin: 'question_log',
+    topics: [],
+    created_at: '2026-08-13T09:45:00+07:00',
+    status: 'draft',
+    content: '',
+    source_url: null,
+    issuer: null,
+    doc_code: null,
+    conditions: [],
+    review_note: null,
+    reject_reason: null,
+    reviewed_at: null,
+    reviewed_by: null,
+  },
+  {
+    item_id: 'e_01HR14',
+    title: 'Uống metformin mấy viên một ngày',
+    origin: 'question_log',
+    topics: ['Đái tháo đường'],
+    created_at: '2026-08-09T11:00:00+07:00',
+    status: 'rejected',
+    content:
+      'Bản nháp ban đầu liệt kê các mức liều metformin thường dùng và cách tăng liều theo đáp ứng đường huyết.',
+    source_url: null,
+    issuer: null,
+    doc_code: null,
+    conditions: ['type2_diabetes'],
+    review_note: null,
+    reject_reason:
+      'Nội dung nói về liều thuốc. Trợ lý không được phép trả lời chuyện liều, nên đưa vào thư viện là mở đường cho một câu trả lời mà lẽ ra phải từ chối.',
+    reviewed_at: '2026-08-09T16:30:00+07:00',
+    reviewed_by: 'u_01HQZV',
+  },
+]
+
+/**
+ * Log câu hỏi ngoài phạm vi.
+ *
+ * Chủ đề ở đây CỐ Ý nằm ngoài hai bệnh của dự án — đó chính là ý nghĩa của log
+ * này: những gì bệnh nhân hỏi mà thư viện chưa trả lời được. `o_01HR22` là ngoại
+ * lệ có chủ đích: bệnh thì trong phạm vi, nhưng thư viện thiếu tài liệu về tình
+ * huống cụ thể ấy, và nó đã được tạo thành bản nháp `e_01HR13`.
+ *
+ * Số lượt hỏi khác nhau để thử được thứ tự ưu tiên, và có cả mục đã tạo bài lẫn
+ * chưa để thử được hai trạng thái của nút "Thêm bài".
+ *
+ * Không mục nào có `patient_id` — xem ràng buộc PII ở mục 8 hợp đồng.
+ */
+export const outOfScopeFixture: OutOfScopeLog[] = [
+  {
+    log_id: 'o_01HR20',
+    question: 'Chăm sóc vết mổ tại nhà thế nào cho đúng?',
+    ask_count: 8,
+    last_asked_at: '2026-08-13T07:50:00+07:00',
+    drafted: false,
+    drafted_item_id: null,
+  },
+  {
+    log_id: 'o_01HR21',
+    question: 'Chế độ ăn cho người suy thận nên như thế nào?',
+    ask_count: 6,
+    last_asked_at: '2026-08-12T18:20:00+07:00',
+    drafted: false,
+    drafted_item_id: null,
+  },
+  {
+    log_id: 'o_01HR22',
+    question: 'Người tiểu đường bị hạ đường huyết ban đêm thì xử lý thế nào?',
+    ask_count: 4,
+    last_asked_at: '2026-08-13T06:10:00+07:00',
+    drafted: true,
+    drafted_item_id: 'e_01HR13',
+  },
+  {
+    log_id: 'o_01HR23',
+    question: 'Tập luyện sau sinh bắt đầu được từ khi nào?',
+    ask_count: 2,
+    last_asked_at: '2026-08-11T20:35:00+07:00',
+    drafted: false,
+    drafted_item_id: null,
+  },
+]
+
+// ---------------------------------------------------------------------------
 // Tự kiểm khi nạp module
 // ---------------------------------------------------------------------------
 
@@ -275,6 +457,30 @@ for (const [status, fixture] of Object.entries(chatFixtures)) {
 assertFixture('patientProfile', patientProfileResponseSchema, patientProfileFixture)
 assertFixture('conversationList', conversationListSchema, conversationListFixture)
 assertFixture('conversationDetail', conversationDetailSchema, conversationDetailFixture)
+
+for (const item of editorQueueFixture) {
+  assertFixture(`editorQueue/${item.item_id}`, editorQueueItemDetailSchema, item)
+}
+for (const log of outOfScopeFixture) {
+  assertFixture(`outOfScope/${log.log_id}`, outOfScopeLogSchema, log)
+}
+
+/**
+ * `drafted_item_id` phải trỏ tới một mục có thật trong hàng đợi.
+ *
+ * Schema đã canh `drafted` khớp với `drafted_item_id`, nhưng nó không biết mục
+ * kia có tồn tại hay không — đó là ràng buộc GIỮA hai fixture, chỉ kiểm được ở
+ * đây. Trỏ hụt thì giao diện mở ra một mục trống mà không ai hiểu vì sao.
+ */
+for (const log of outOfScopeFixture) {
+  if (log.drafted_item_id === null) continue
+  const exists = editorQueueFixture.some((item) => item.item_id === log.drafted_item_id)
+  if (!exists) {
+    throw new Error(
+      `Fixture "outOfScope/${log.log_id}" trỏ tới mục "${log.drafted_item_id}" không có trong editorQueueFixture.`,
+    )
+  }
+}
 
 /** Kiểu tiện dụng khi test cần dựng thêm citation. */
 export type { Citation }

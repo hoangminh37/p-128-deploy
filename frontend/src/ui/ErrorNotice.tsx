@@ -63,6 +63,22 @@ const ADVICE: Record<ApiErrorKind, Advice> = {
 }
 
 /**
+ * Hai mã có câu chữ riêng sẵn ở `lib/api.ts`, không được gộp vào rọ 4xx chung.
+ *
+ * Bảng `HTTP_USER_MESSAGES` bên api client đã viết đúng cho từng mã: 403 nói về
+ * quyền truy cập, 409 nói về mục đã xử lý. Gộp chúng vào câu 4xx mặc định —
+ * "thử hỏi lại bằng câu ngắn gọn hơn" — là đưa cho biên tập viên một lời khuyên
+ * của màn hỏi đáp, chẳng liên quan gì tới việc họ vừa làm.
+ *
+ * Chỉ hai mã này. Các mã 4xx khác vẫn dùng câu chung, vì `userMessage` của
+ * chúng chỉ mô tả chuyện đã xảy ra chứ không nói được phải làm gì tiếp.
+ */
+const HEADING_BY_STATUS: Record<number, string> = {
+  403: 'Bạn không có quyền vào phần này',
+  409: 'Mục này đã được xử lý rồi',
+}
+
+/**
  * 4xx là lỗi phía người gửi — gửi lại y hệt sẽ hỏng y hệt, nên không mời thử lại.
  * 5xx là máy chủ trục trặc tạm thời nên vẫn đáng thử.
  */
@@ -70,6 +86,17 @@ function adviceFor(error: ApiError): Advice {
   const base = ADVICE[error.kind]
 
   if (error.kind === 'http' && typeof error.status === 'number') {
+    const heading = HEADING_BY_STATUS[error.status]
+    if (heading !== undefined) {
+      return {
+        heading,
+        action: error.userMessage,
+        // 409 thì tải lại là thấy trạng thái thật, nên nút thử lại có ích.
+        // 403 thì bấm mấy lần cũng vẫn thiếu quyền.
+        retryable: error.status === 409,
+      }
+    }
+
     if (error.status >= 400 && error.status < 500) {
       return {
         heading: 'Máy chủ không nhận câu hỏi này',

@@ -31,6 +31,14 @@ import { useFocusTrap, useMediaQuery, useScrollLock } from './shellHooks'
 /** Bằng đúng mốc `lg` của Tailwind (64rem tính trên cỡ chữ gốc 16px của media query). */
 const DESKTOP_QUERY = '(min-width: 1024px)'
 
+/** Tên bốn màn của khu vực biên tập, suy từ đường dẫn. */
+function editorTitle(pathname: string): string {
+  if (pathname.startsWith('/editor/queue/')) return 'Duyệt nội dung'
+  if (pathname.startsWith('/editor/queue')) return 'Hàng đợi duyệt'
+  if (pathname.startsWith('/editor/out-of-scope')) return 'Câu hỏi chưa trả lời được'
+  return 'Tổng quan'
+}
+
 /**
  * Thanh bên dạng ngăn kéo, chỉ dựng khi đang mở.
  *
@@ -107,13 +115,24 @@ export function RootLayout() {
    */
   function headerTitle(): string {
     if (pathname === '/profile') return 'Hồ sơ của bạn'
+    if (pathname.startsWith('/editor')) return editorTitle(pathname)
     if (!pathname.startsWith('/chat')) return APP_NAME
     if (activeConversationId === null) return 'Câu hỏi mới'
     return activeTitle ?? 'Hội thoại đã lưu'
   }
 
-  const conditionLabel =
-    profile !== null ? CONDITION_LABEL[profile.primary_condition] : APP_NAME
+  /**
+   * Tên màn ở khu vực biên tập.
+   *
+   * Bản hẹp không có thanh bên nên thanh tiêu đề là chỗ DUY NHẤT nói được đang
+   * đứng ở màn nào — với luồng bệnh nhân thì đó là tên bệnh chính, còn ở đây
+   * phải là tên màn.
+   */
+  const conditionLabel = pathname.startsWith('/editor')
+    ? editorTitle(pathname)
+    : profile !== null
+      ? CONDITION_LABEL[profile.primary_condition]
+      : APP_NAME
 
   // Kéo cửa sổ rộng ra thì thanh bên đã thường trực, ngăn kéo phải tự thu lại —
   // nếu không thì lần thu hẹp sau nó sẽ tự bật ra dù người dùng chưa bấm gì.
