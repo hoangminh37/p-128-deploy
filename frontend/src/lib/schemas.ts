@@ -296,6 +296,165 @@ export const conversationDetailSchema = z.object({
 })
 
 // ---------------------------------------------------------------------------
+// Mục 8: Quản trị nội dung
+//
+// Toàn bộ phần này chỉ dành cho vai trò `editor`. Gọi bằng vai trò khác thì
+// backend trả 403 — xem `HTTP_USER_MESSAGES` ở `lib/api.ts`.
+// ---------------------------------------------------------------------------
+
+/** Mục 8: vòng đời của một mục trong hàng đợi duyệt. */
+export const editorItemStatusSchema = z.enum([
+  'draft',
+  'pending',
+  'approved',
+  'rejected',
+])
+
+/**
+ * Mục 8: mục này từ đâu ra.
+ *
+ * `question_log` là sinh từ một câu hỏi mà bệnh nhân đã hỏi nhưng thư viện chưa
+ * trả lời được; `editor_upload` là biên tập viên tự thêm tài liệu. Bản vẽ Gate 1
+ * hiện nhãn này ngay dưới tiêu đề từng mục, nên nó phải có sẵn ở danh sách chứ
+ * không phải thứ chỉ tra được khi mở chi tiết.
+ */
+export const editorItemOriginSchema = z.enum(['question_log', 'editor_upload'])
+
+/** Mục 8 — response GET /editor/dashboard. */
+export const editorDashboardSchema = z.object({
+  pending_count: z.number().int().min(0),
+  out_of_scope_count: z.number().int().min(0),
+})
+
+/** Mục 8 — một dòng trong GET /editor/queue. `title` do backend cắt tối đa 120 ký tự. */
+export const editorQueueItemSchema = z.object({
+  item_id: z.string(),
+  title: z.string().max(120),
+  origin: editorItemOriginSchema,
+  topics: z.array(z.string()),
+  created_at: z.iso.datetime({ offset: true }),
+  status: editorItemStatusSchema,
+})
+
+/** Mục 8 — response GET /editor/queue, bọc danh sách mục. */
+export const editorQueueListSchema = z.object({
+  items: z.array(editorQueueItemSchema),
+})
+
+/**
+ * Hai trạng thái bắt buộc phải gắn bệnh.
+ *
+ * Hợp đồng mục 8: `conditions` được rỗng ở `draft`, nhưng phải có ít nhất một
+ * giá trị trước khi chuyển sang `pending`. `rejected` không bị ràng buộc — một
+ * mục hoàn toàn có thể bị từ chối vì chính lý do chưa gắn được bệnh nào.
+ */
+const STATUSES_NEEDING_CONDITIONS: ReadonlySet<
+  z.infer<typeof editorItemStatusSchema>
+> = new Set(['pending', 'approved'] as const)
+
+/**
+ * Mục 8 — chi tiết một mục, dùng cho GET chi tiết và cho response của cả
+ * `approve` lẫn `reject`.
+ *
+ * `source_url`, `issuer`, `doc_code` chính là ba trường `url`, `issuer`,
+ * `doc_code` của `Citation` ở mục 5: duyệt xong thì nội dung này thành nguồn mà
+ * bệnh nhân nhìn thấy ngay cạnh câu trả lời.
+ *
+ * Ràng buộc `conditions` không phải chuyện hình thức. Trợ lý chỉ tra tài liệu
+ * theo bệnh trong hồ sơ bệnh nhân, nên một mục đã duyệt mà không gắn bệnh nào sẽ
+ * nằm trong thư viện và KHÔNG BAO GIỜ được lấy ra — hỏng âm thầm, không ai biết.
+ * Thà chặn ngay ở tầng parse.
+ */
+export const editorQueueItemDetailSchema = editorQueueItemSchema
+  .extend({
+    content: z.string(),
+    source_url: z.string().nullable(),
+    issuer: z.string().nullable(),
+    doc_code: z.string().nullable(),
+    conditions: z.array(primaryConditionSchema),
+    review_note: z.string().nullable(),
+    reject_reason: z.string().nullable(),
+    reviewed_at: z.iso.datetime({ offset: true }).nullable(),
+    reviewed_by: z.string().nullable(),
+  })
+  .refine(
+    (value) =>
+      !STATUSES_NEEDING_CONDITIONS.has(value.status) || value.conditions.length > 0,
+    {
+      error: (issue) => {
+        const value = issue.input as { status: string }
+        return `Mục ở trạng thái ${value.status} bắt buộc phải gắn ít nhất một bệnh, nhưng conditions đang rỗng.`
+      },
+      path: ['conditions'],
+    },
+  )
+
+/** Mục 8 — body POST /editor/queue/{item_id}/approve. Cả hai trường đều tuỳ chọn. */
+export const editorApproveRequestSchema = z.object({
+  /** Nội dung đã chỉnh sửa. Bỏ trống thì giữ nguyên nội dung đang có. */
+  content: z.string().nullish(),
+  /** Ghi chú của người duyệt. */
+  note: z.string().nullish(),
+})
+
+/**
+ * Mục 8 — body POST /editor/queue/{item_id}/reject.
+ *
+ * Lý do là BẮT BUỘC: mục bị từ chối mà không ghi vì sao thì người sau lại soạn
+ * đúng nội dung ấy lần nữa, và cả vòng duyệt lặp lại từ đầu.
+ *
+ * Kiểm bằng `refine` trên chuỗi đã `trim` chứ không dùng `.trim().min(1)`: thứ
+ * tự áp dụng giữa transform và check tuỳ phiên bản Zod, mà ở đây sai một nhịp
+ * là một chuỗi toàn dấu cách lọt qua được. Viết thẳng điều kiện thì không phải
+ * đoán.
+ */
+export const editorRejectRequestSchema = z.object({
+  reason: z.string().refine((value) => value.trim().length > 0, {
+    error: 'Lý do từ chối không được để trống hoặc chỉ có khoảng trắng.',
+  }),
+})
+
+/**
+ * Mục 8 — body POST /editor/out-of-scope/{log_id}/draft.
+ *
+ * Hợp đồng ghi rõ endpoint này KHÔNG có body. Schema rỗng và `strict` để giữ
+ * chỗ: nếu sau này hợp đồng thêm trường thì sửa ở đây, còn bây giờ nó chặn việc
+ * vô tình gửi kèm dữ liệu thừa lên một endpoint không nhận gì.
+ */
+export const createDraftRequestSchema = z.strictObject({})
+
+/**
+ * Mục 8 — một dòng trong GET /editor/out-of-scope.
+ *
+ * KHÔNG có `patient_id`, và cố ý không có. Biên tập viên đọc log để biết thư
+ * viện thiếu chủ đề gì, không phải để biết ai đang hỏi. `question` cũng đã được
+ * backend làm sạch PII trước khi ghi.
+ *
+ * `refine` buộc `drafted` và `drafted_item_id` phải khớp nhau: lệch một chiều là
+ * giao diện hiện nút "Thêm bài" cho mục đã có nháp, lệch chiều kia là có nháp mà
+ * không có đường nào mở ra.
+ */
+export const outOfScopeLogSchema = z
+  .object({
+    log_id: z.string(),
+    question: z.string(),
+    ask_count: z.number().int().min(1),
+    last_asked_at: z.iso.datetime({ offset: true }),
+    drafted: z.boolean(),
+    drafted_item_id: z.string().nullable(),
+  })
+  .refine((value) => value.drafted === (value.drafted_item_id !== null), {
+    error:
+      'drafted và drafted_item_id không khớp: đã tạo bài thì phải có item_id, chưa tạo thì phải là null.',
+    path: ['drafted_item_id'],
+  })
+
+/** Mục 8 — response GET /editor/out-of-scope, bọc danh sách log. */
+export const outOfScopeListSchema = z.object({
+  logs: z.array(outOfScopeLogSchema),
+})
+
+// ---------------------------------------------------------------------------
 // Kiểu suy ra — component dùng những tên này, không cần biết tới Zod
 // ---------------------------------------------------------------------------
 
@@ -321,3 +480,15 @@ export type UserMessage = z.infer<typeof userMessageSchema>
 export type AssistantMessage = z.infer<typeof assistantMessageSchema>
 export type ConversationMessage = z.infer<typeof conversationMessageSchema>
 export type ConversationDetail = z.infer<typeof conversationDetailSchema>
+
+export type EditorItemStatus = z.infer<typeof editorItemStatusSchema>
+export type EditorItemOrigin = z.infer<typeof editorItemOriginSchema>
+export type EditorDashboard = z.infer<typeof editorDashboardSchema>
+export type EditorQueueItem = z.infer<typeof editorQueueItemSchema>
+export type EditorQueueList = z.infer<typeof editorQueueListSchema>
+export type EditorQueueItemDetail = z.infer<typeof editorQueueItemDetailSchema>
+export type EditorApproveRequest = z.infer<typeof editorApproveRequestSchema>
+export type EditorRejectRequest = z.infer<typeof editorRejectRequestSchema>
+export type CreateDraftRequest = z.infer<typeof createDraftRequestSchema>
+export type OutOfScopeLog = z.infer<typeof outOfScopeLogSchema>
+export type OutOfScopeList = z.infer<typeof outOfScopeListSchema>

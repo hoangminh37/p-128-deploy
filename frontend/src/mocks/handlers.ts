@@ -8,9 +8,15 @@ import { delay, http, HttpResponse } from 'msw'
 import { z } from 'zod'
 
 import {
+  editorApproveRequestSchema,
+  editorItemStatusSchema,
+  editorRejectRequestSchema,
   loginRequestSchema,
   patientProfileSchema,
   type ChatStatus,
+  type EditorItemStatus,
+  type EditorQueueItemDetail,
+  type OutOfScopeLog,
   type PatientProfileResponse,
   type UserInfo,
 } from '../lib/schemas'
@@ -19,6 +25,8 @@ import {
   chatFixtures,
   conversationDetailFixture,
   conversationListFixture,
+  editorQueueFixture,
+  outOfScopeFixture,
   patientProfileFixture,
 } from './fixtures'
 
@@ -76,6 +84,90 @@ const DEMO_USERS: Record<string, UserInfo> = {
     role: 'editor',
     patient_id: null,
   },
+}
+
+/**
+ * Hàng đợi duyệt và log ngoài phạm vi, giữ trong bộ nhớ theo vòng đời của tab.
+ *
+ * Phải có trạng thái thật chứ không trả fixture cố định: duyệt một mục xong mà
+ * lần gọi danh sách sau vẫn thấy nó nằm ở `pending` thì không ai thử được luồng
+ * duyệt, và cũng không phát hiện được lỗi ở chỗ frontend nạp lại danh sách.
+ */
+const editorQueue = new Map<string, EditorQueueItemDetail>(
+  editorQueueFixture.map((item) => [item.item_id, item]),
+)
+
+const outOfScopeLogs = new Map<string, OutOfScopeLog>(
+  outOfScopeFixture.map((log) => [log.log_id, log]),
+)
+
+/** Đếm lên cho `item_id` của bản nháp mới, để không đụng id đã gieo sẵn. */
+let draftCounter = 0
+
+/** `user_id` của biên tập viên mẫu, dùng điền vào `reviewed_by`. */
+const EDITOR_USER_ID = 'u_01HQZV'
+
+// ---------------------------------------------------------------------------
+// Quyền truy cập khu vực biên tập
+// ---------------------------------------------------------------------------
+
+/**
+ * Đọc tài khoản từ header `Authorization`.
+ *
+ * Token mẫu có dạng `mock.<user_id>.<timestamp>` do chính handler đăng nhập sinh
+ * ra, nên chỉ cần tách đoạn giữa là biết ai đang gọi. Backend thật sẽ giải mã
+ * JWT ở chỗ này.
+ */
+function readCaller(request: Request): UserInfo | null {
+  const header = request.headers.get('Authorization')
+  if (header === null || !header.startsWith('Bearer ')) return null
+
+  const userId = header.slice('Bearer '.length).split('.')[1]
+  if (userId === undefined) return null
+
+  return Object.values(DEMO_USERS).find((user) => user.user_id === userId) ?? null
+}
+
+/**
+ * Chặn mọi endpoint của mục 8 với tài khoản không phải `editor`.
+ *
+ * Trả về response lỗi nếu phải chặn, `null` nếu cho đi tiếp. Mock cũng phải kiểm
+ * đúng như backend thật: nếu ở đây cho qua hết thì frontend sẽ được dựng trên
+ * giả định là không bao giờ gặp 403, rồi vỡ đúng lúc gắn backend thật vào.
+ */
+function denyIfNotEditor(request: Request): HttpResponse<{ detail: string }> | null {
+  const caller = readCaller(request)
+
+  if (caller === null) {
+    return HttpResponse.json(
+      { detail: 'Chưa đăng nhập hoặc token không hợp lệ' },
+      { status: 401 },
+    )
+  }
+  if (caller.role !== 'editor') {
+    return HttpResponse.json(
+      { detail: 'Tài khoản này không có quyền truy cập khu vực biên tập' },
+      { status: 403 },
+    )
+  }
+  return null
+}
+
+/** Bỏ các trường chỉ có ở bản chi tiết, để danh sách trả đúng hình dạng hợp đồng. */
+function toQueueRow(item: EditorQueueItemDetail) {
+  return {
+    item_id: item.item_id,
+    title: item.title,
+    origin: item.origin,
+    topics: item.topics,
+    created_at: item.created_at,
+    status: item.status,
+  }
+}
+
+/** Hai trạng thái đã chốt. Duyệt hay từ chối lần nữa đều trả 409. */
+function isSettled(item: EditorQueueItemDetail): boolean {
+  return item.status === 'approved' || item.status === 'rejected'
 }
 
 // ---------------------------------------------------------------------------
@@ -248,5 +340,220 @@ export const handlers = [
     }
 
     return HttpResponse.json(conversationDetailFixture)
+  }),
+
+  // -------------------------------------------------------------------------
+  // Mục 8 — Quản trị nội dung. Mọi handler dưới đây kiểm quyền trước tiên.
+  // -------------------------------------------------------------------------
+
+  /** Mục 8 — hai con số ở màn tổng quan, tính từ kho hiện tại chứ không cứng. */
+  http.get(url('/editor/dashboard'), async ({ request }) => {
+    await delay(QUICK_DELAY_MS)
+    const denied = denyIfNotEditor(request)
+    if (denied !== null) return denied
+
+    const pendingCount = [...editorQueue.values()].filter(
+      (item) => item.status === 'pending',
+    ).length
+    const outOfScopeCount = [...outOfScopeLogs.values()].filter(
+      (log) => !log.drafted,
+    ).length
+
+    return HttpResponse.json({
+      pending_count: pendingCount,
+      out_of_scope_count: outOfScopeCount,
+    })
+  }),
+
+  /** Mục 8 — hàng đợi. `status` không truyền thì mặc định `pending`. */
+  http.get(url('/editor/queue'), async ({ request }) => {
+    await delay(QUICK_DELAY_MS)
+    const denied = denyIfNotEditor(request)
+    if (denied !== null) return denied
+
+    const raw = new URL(request.url).searchParams.get('status')
+    const parsed = editorItemStatusSchema.safeParse(raw ?? 'pending')
+    if (!parsed.success) {
+      return HttpResponse.json(
+        { detail: `Giá trị status không hợp lệ: ${raw}` },
+        { status: 422 },
+      )
+    }
+    const status: EditorItemStatus = parsed.data
+
+    const items = [...editorQueue.values()]
+      .filter((item) => item.status === status)
+      // Mới nhất lên đầu, đúng thứ tự hợp đồng quy định.
+      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+      .map(toQueueRow)
+
+    return HttpResponse.json({ items })
+  }),
+
+  /** Mục 8 — chi tiết một mục. */
+  http.get(url('/editor/queue/:itemId'), async ({ request, params }) => {
+    await delay(QUICK_DELAY_MS)
+    const denied = denyIfNotEditor(request)
+    if (denied !== null) return denied
+
+    const item = editorQueue.get(String(params.itemId))
+    if (item === undefined) {
+      return HttpResponse.json(
+        { detail: `Không tìm thấy mục ${String(params.itemId)}` },
+        { status: 404 },
+      )
+    }
+
+    return HttpResponse.json(item)
+  }),
+
+  /** Mục 8 — duyệt. Mục đã chốt rồi thì trả 409, không ghi vào thư viện lần hai. */
+  http.post(url('/editor/queue/:itemId/approve'), async ({ request, params }) => {
+    await delay(QUICK_DELAY_MS)
+    const denied = denyIfNotEditor(request)
+    if (denied !== null) return denied
+
+    const item = editorQueue.get(String(params.itemId))
+    if (item === undefined) {
+      return HttpResponse.json(
+        { detail: `Không tìm thấy mục ${String(params.itemId)}` },
+        { status: 404 },
+      )
+    }
+    if (isSettled(item)) {
+      return HttpResponse.json(
+        { detail: `Mục ${item.item_id} đã ở trạng thái ${item.status}` },
+        { status: 409 },
+      )
+    }
+
+    const parsed = editorApproveRequestSchema.safeParse(
+      await request.json().catch(() => ({})),
+    )
+    if (!parsed.success) {
+      return HttpResponse.json({ detail: z.prettifyError(parsed.error) }, { status: 422 })
+    }
+
+    const approved: EditorQueueItemDetail = {
+      ...item,
+      status: 'approved',
+      content: parsed.data.content ?? item.content,
+      review_note: parsed.data.note ?? null,
+      reject_reason: null,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: EDITOR_USER_ID,
+    }
+    editorQueue.set(approved.item_id, approved)
+
+    return HttpResponse.json(approved)
+  }),
+
+  /** Mục 8 — từ chối. `reason` bắt buộc, rỗng hoặc toàn khoảng trắng thì 422. */
+  http.post(url('/editor/queue/:itemId/reject'), async ({ request, params }) => {
+    await delay(QUICK_DELAY_MS)
+    const denied = denyIfNotEditor(request)
+    if (denied !== null) return denied
+
+    const item = editorQueue.get(String(params.itemId))
+    if (item === undefined) {
+      return HttpResponse.json(
+        { detail: `Không tìm thấy mục ${String(params.itemId)}` },
+        { status: 404 },
+      )
+    }
+    if (isSettled(item)) {
+      return HttpResponse.json(
+        { detail: `Mục ${item.item_id} đã ở trạng thái ${item.status}` },
+        { status: 409 },
+      )
+    }
+
+    const parsed = editorRejectRequestSchema.safeParse(
+      await request.json().catch(() => null),
+    )
+    if (!parsed.success) {
+      return HttpResponse.json({ detail: z.prettifyError(parsed.error) }, { status: 422 })
+    }
+
+    const rejected: EditorQueueItemDetail = {
+      ...item,
+      status: 'rejected',
+      review_note: null,
+      reject_reason: parsed.data.reason,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: EDITOR_USER_ID,
+    }
+    editorQueue.set(rejected.item_id, rejected)
+
+    return HttpResponse.json(rejected)
+  }),
+
+  /** Mục 8 — log ngoài phạm vi, xếp theo số lượt hỏi giảm dần. */
+  http.get(url('/editor/out-of-scope'), async ({ request }) => {
+    await delay(QUICK_DELAY_MS)
+    const denied = denyIfNotEditor(request)
+    if (denied !== null) return denied
+
+    const logs = [...outOfScopeLogs.values()].sort(
+      (a, b) => b.ask_count - a.ask_count,
+    )
+
+    return HttpResponse.json({ logs })
+  }),
+
+  /**
+   * Mục 8 — tạo bản nháp từ một câu hỏi ngoài phạm vi.
+   *
+   * Log đã có nháp thì trả 200 kèm chính bản nháp đang có, KHÔNG tạo cái thứ
+   * hai. Bấm nhầm hai lần là chuyện thường, mà hai bản nháp trùng nhau trong
+   * hàng đợi thì người duyệt phải tự đoán nên xoá cái nào.
+   */
+  http.post(url('/editor/out-of-scope/:logId/draft'), async ({ request, params }) => {
+    await delay(QUICK_DELAY_MS)
+    const denied = denyIfNotEditor(request)
+    if (denied !== null) return denied
+
+    const logId = String(params.logId)
+    const log = outOfScopeLogs.get(logId)
+    if (log === undefined) {
+      return HttpResponse.json(
+        { detail: `Không tìm thấy câu hỏi ${logId}` },
+        { status: 404 },
+      )
+    }
+
+    if (log.drafted && log.drafted_item_id !== null) {
+      const existing = editorQueue.get(log.drafted_item_id)
+      if (existing !== undefined) return HttpResponse.json(existing)
+    }
+
+    draftCounter += 1
+    const draft: EditorQueueItemDetail = {
+      item_id: `e_draft_${draftCounter}`,
+      // Hợp đồng: tiêu đề lấy từ câu hỏi, cắt còn tối đa 120 ký tự.
+      title: log.question.slice(0, 120),
+      origin: 'question_log',
+      topics: [],
+      created_at: new Date().toISOString(),
+      status: 'draft',
+      content: '',
+      source_url: null,
+      issuer: null,
+      doc_code: null,
+      conditions: [],
+      review_note: null,
+      reject_reason: null,
+      reviewed_at: null,
+      reviewed_by: null,
+    }
+
+    editorQueue.set(draft.item_id, draft)
+    outOfScopeLogs.set(logId, {
+      ...log,
+      drafted: true,
+      drafted_item_id: draft.item_id,
+    })
+
+    return HttpResponse.json(draft, { status: 201 })
   }),
 ]
