@@ -1,53 +1,39 @@
-"""FastAPI application factory — Medical AI Agent."""
-from __future__ import annotations
-
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.router import router
-from src.core.config import get_settings
-from src.core.logging import get_logger
-
-logger = get_logger(__name__)
+from src.api.routes import router
+from src.config import get_settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    logger.info("Starting %s in %s mode", settings.app_name, settings.app_env)
-    logger.info("LLM provider: %s | model: %s", settings.llm_provider, settings.model_name)
-    logger.info("Qdrant: %s | collection: %s", settings.qdrant_url, settings.qdrant_collection)
+    print(f"Starting {settings.app_name} in {settings.app_env} mode")
     yield
-    logger.info("Shutting down %s", settings.app_name)
+    print("Shutting down...")
 
 
-def create_app() -> FastAPI:
-    settings = get_settings()
+app = FastAPI(
+    title="AI20K Agent",
+    description="AI Agent built with LangGraph",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
-    app = FastAPI(
-        title=settings.app_name,
-        description="Medical AI Agent — FastAPI + LangGraph | RAG Pipeline với Safety Guardrails",
-        version="2.0.0",
-        lifespan=lifespan,
-        docs_url="/docs",
-        redoc_url="/redoc",
-    )
+settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins.split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    # CORS
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins.split(","),
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    # Routes
-    app.include_router(router, prefix="/api")
-
-    return app
+app.include_router(router, prefix="/api/v1")
 
 
-app = create_app()
+@app.get("/health")
+async def health():
+    return {"status": "ok", "env": settings.app_env}
