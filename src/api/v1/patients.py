@@ -4,12 +4,13 @@ from sqlalchemy.future import select
 
 from src.core.database import get_db
 from src.models.domain import Patient
-from src.schemas.patient import PatientProfile, PatientProfileResponse
+from src.api.v1.auth import get_current_user
+from src.schemas.patient import PatientProfile, PatientProfileResponse, UserInfo
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 @router.post("/profile", response_model=PatientProfileResponse)
-async def update_profile(profile_data: PatientProfile, db: AsyncSession = Depends(get_db)):
+async def update_profile(profile_data: PatientProfile, db: AsyncSession = Depends(get_db), current_user: UserInfo = Depends(get_current_user)):
     result = await db.execute(select(Patient).filter(Patient.id == profile_data.patient_id))
     patient = result.scalars().first()
     

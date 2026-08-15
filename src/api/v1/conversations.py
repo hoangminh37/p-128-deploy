@@ -7,10 +7,13 @@ from src.core.database import get_db
 from src.models.domain import Conversation, Message
 from src.schemas.chat import ConversationSummary, ConversationList, ConversationMessage, ConversationDetail
 
+from src.api.v1.auth import get_current_user
+from src.schemas.patient import UserInfo
+
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 @router.get("/{patient_id}", response_model=ConversationList)
-async def get_conversations(patient_id: str, db: AsyncSession = Depends(get_db)):
+async def get_conversations(patient_id: str, db: AsyncSession = Depends(get_db), current_user: UserInfo = Depends(get_current_user)):
     result = await db.execute(
         select(Conversation)
         .filter(Conversation.patient_id == patient_id)
@@ -30,7 +33,7 @@ async def get_conversations(patient_id: str, db: AsyncSession = Depends(get_db))
     return ConversationList(conversations=summary_list)
 
 @router.get("/{patient_id}/{conversation_id}", response_model=ConversationDetail)
-async def get_conversation_detail(patient_id: str, conversation_id: str, db: AsyncSession = Depends(get_db)):
+async def get_conversation_detail(patient_id: str, conversation_id: str, db: AsyncSession = Depends(get_db), current_user: UserInfo = Depends(get_current_user)):
     result = await db.execute(
         select(Conversation)
         .options(selectinload(Conversation.messages))
