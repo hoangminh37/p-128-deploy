@@ -26,6 +26,7 @@
  * đoạn trích trong thẻ là bằng chứng cho ĐOẠN VĂN NẰM CẠNH NÓ, mà một dòng tên
  * tài liệu cụt lủn thì không chứng minh được gì cho đoạn đó.
  */
+import { splitParagraphs } from '../lib/paragraphs'
 import type { Citation } from '../lib/schemas'
 
 /** Marker trích dẫn trong `answer`, dạng `[1]`, `[2]`... Khớp mục 4 hợp đồng. */
@@ -50,39 +51,35 @@ type Paragraph = {
 function parseAnswer(answer: string, citations: Citation[]): Paragraph[] {
   const byId = new Map(citations.map((citation) => [citation.id, citation]))
 
-  return answer
-    .split(/\n\s*\n/)
-    .map((block) => block.trim())
-    .filter((block) => block !== '')
-    .map((block) => {
-      const segments: Segment[] = []
-      const citedIds: number[] = []
-      let cursor = 0
+  return splitParagraphs(answer).map((block) => {
+    const segments: Segment[] = []
+    const citedIds: number[] = []
+    let cursor = 0
 
-      for (const match of block.matchAll(new RegExp(CITATION_MARKER))) {
-        const start = match.index
-        if (start > cursor) {
-          // `trimEnd` chính là chỗ khử khoảng trắng trước marker.
-          const text = block.slice(cursor, start).trimEnd()
-          if (text !== '') segments.push({ kind: 'text', value: text })
-        }
-        const id = Number(match[1])
-        segments.push({ kind: 'marker', id })
-        if (!citedIds.includes(id)) citedIds.push(id)
-        cursor = start + match[0].length
+    for (const match of block.matchAll(new RegExp(CITATION_MARKER))) {
+      const start = match.index
+      if (start > cursor) {
+        // `trimEnd` chính là chỗ khử khoảng trắng trước marker.
+        const text = block.slice(cursor, start).trimEnd()
+        if (text !== '') segments.push({ kind: 'text', value: text })
       }
+      const id = Number(match[1])
+      segments.push({ kind: 'marker', id })
+      if (!citedIds.includes(id)) citedIds.push(id)
+      cursor = start + match[0].length
+    }
 
-      if (cursor < block.length) {
-        segments.push({ kind: 'text', value: block.slice(cursor) })
-      }
+    if (cursor < block.length) {
+      segments.push({ kind: 'text', value: block.slice(cursor) })
+    }
 
-      const paragraphCitations = citedIds
-        .sort((a, b) => a - b)
-        .map((id) => byId.get(id))
-        .filter((citation): citation is Citation => citation !== undefined)
+    const paragraphCitations = citedIds
+      .sort((a, b) => a - b)
+      .map((id) => byId.get(id))
+      .filter((citation): citation is Citation => citation !== undefined)
 
-      return { segments, citations: paragraphCitations }
-    })
+    return { segments, citations: paragraphCitations }
+  })
 }
 
 /**

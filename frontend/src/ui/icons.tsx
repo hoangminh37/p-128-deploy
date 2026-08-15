@@ -95,6 +95,46 @@ export function SaveIcon({ className }: IconProps) {
   )
 }
 
+/** Dấu hiệu cấp cứu: tam giác cảnh báo. */
+export function AlertIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M12 3.5 2.5 20.5h19L12 3.5Z" />
+      <path d="M12 10v4.2" />
+      <path d="M12 17.4h.01" />
+    </StrokeIcon>
+  )
+}
+
+/** Gọi cấp cứu: ống nghe điện thoại. */
+export function PhoneIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M6.6 3.5h2.9l1.5 3.9-2 1.5a12.2 12.2 0 0 0 6.1 6.1l1.5-2 3.9 1.5v2.9a2 2 0 0 1-2.2 2A16.6 16.6 0 0 1 4.6 5.7a2 2 0 0 1 2-2.2Z" />
+    </StrokeIcon>
+  )
+}
+
+/** Câu hỏi để dành cho bác sĩ: tờ giấy ghi chú. */
+export function NoteIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <rect x="4.5" y="3.5" width="15" height="17" rx="2" />
+      <path d="M8.5 9h7M8.5 13h7M8.5 17h4" />
+    </StrokeIcon>
+  )
+}
+
+/** Thư viện tài liệu: mấy quyển sách đứng trên giá. */
+export function LibraryIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M5 4.5h3.5v14H5zM11 4.5h3.5v14H11zM17 8h3.5v10.5H17z" />
+      <path d="M3 21h18" />
+    </StrokeIcon>
+  )
+}
+
 /** Kính lúp ở đầu thanh nhập — dấu hiệu quen thuộc của một ô để tra cứu. */
 export function SearchIcon({ className }: IconProps) {
   return (

@@ -1,14 +1,22 @@
 /**
- * Hiển thị lỗi cho bệnh nhân.
+ * Lỗi kỹ thuật, trình bày bằng đúng ngôn ngữ của ba khối trạng thái kia.
+ *
+ * Dùng chung `StateBlock` với giọng `fault`: nét dọc màu `alert` nhưng KHÔNG có
+ * nền đặc. Đây là chủ ý — chỉ `red_flag` mới được phép là một khối đỏ kín màn
+ * hình. Một máy chủ hỏng không bao giờ được trông ngang hàng với một cơn đau
+ * ngực.
  *
  * `ApiError.userMessage` đã có sẵn câu tiếng Việt, nhưng nó mô tả CHUYỆN GÌ ĐÃ
  * XẢY RA. Người 45–70 tuổi đang lo lắng cần biết BÂY GIỜ PHẢI LÀM GÌ, nên ở đây
  * mỗi loại lỗi được gắn thêm một câu hành động cụ thể, và chỉ hiện nút thử lại
  * ở những loại mà thử lại thực sự có cơ may thành công.
  *
- * Phủ đủ cả năm giá trị của `ApiErrorKind`.
+ * Phủ đủ cả năm giá trị của `ApiErrorKind`, và tách thêm 4xx với 5xx bên trong
+ * `http` vì hai nửa đó đòi hai hành động ngược nhau.
  */
 import { ApiError, type ApiErrorKind } from '../lib/api'
+import { AlertIcon } from './icons'
+import { StateBlock } from './ResponseStates'
 
 type Advice = {
   heading: string
@@ -21,30 +29,35 @@ const ADVICE: Record<ApiErrorKind, Advice> = {
   network: {
     heading: 'Không kết nối được tới máy chủ',
     action:
-      'Bạn hãy kiểm tra xem điện thoại còn wifi hoặc còn mạng 4G không, rồi bấm nút thử lại bên dưới.',
+      'Máy của bạn đang không vào được mạng, nên câu hỏi chưa gửi đi được. Bạn hãy ' +
+      'kiểm tra xem còn wifi hoặc còn 4G không, rồi bấm nút thử lại bên dưới.',
     retryable: true,
   },
   timeout: {
     heading: 'Máy chủ trả lời quá lâu',
     action:
-      'Đã gửi đi nhưng chưa có trả lời sau 30 giây. Bạn hãy bấm nút thử lại bên dưới. Nếu vẫn vậy, bạn thử lại sau ít phút.',
+      'Câu hỏi đã gửi đi nhưng sau 30 giây vẫn chưa có trả lời. Bạn hãy bấm nút thử ' +
+      'lại bên dưới. Nếu vẫn vậy, bạn chờ ít phút rồi hỏi lại.',
     retryable: true,
   },
   http: {
     heading: 'Máy chủ báo lỗi',
-    action: 'Bạn hãy thử lại sau ít phút.',
+    action: 'Bạn hãy chờ ít phút rồi hỏi lại.',
     retryable: true,
   },
   validation: {
-    heading: 'Máy chủ trả về dữ liệu không đúng định dạng',
+    heading: 'Máy chủ trả về dữ liệu không đọc được',
     action:
-      'Hệ thống không hiển thị kết quả này để tránh đưa thông tin y tế sai. Đây là lỗi kỹ thuật, không phải do bạn hỏi sai. Bạn hãy thử lại sau, hoặc hỏi trực tiếp bác sĩ nếu cần gấp.',
+      'Hệ thống cố ý KHÔNG hiển thị kết quả lần này, để tránh đưa cho bạn thông tin ' +
+      'y tế sai. Đây là trục trặc kỹ thuật, không phải do bạn hỏi sai. Bạn hãy thử ' +
+      'lại sau, hoặc hỏi thẳng bác sĩ nếu cần gấp.',
     retryable: false,
   },
   request: {
     heading: 'Thông tin chưa gửi đi được',
     action:
-      'Dữ liệu gửi đi chưa đúng định dạng máy chủ yêu cầu. Bạn hãy kiểm tra lại những ô vừa nhập rồi gửi lại.',
+      'Dữ liệu chưa đúng định dạng máy chủ yêu cầu nên ứng dụng chưa gửi đi. Bạn hãy ' +
+      'kiểm tra lại những ô vừa nhập rồi gửi lại.',
     retryable: false,
   },
 }
@@ -61,14 +74,16 @@ function adviceFor(error: ApiError): Advice {
       return {
         heading: 'Máy chủ không nhận câu hỏi này',
         action:
-          'Bạn hãy thử hỏi lại bằng câu khác ngắn gọn hơn. Nếu vẫn không được, bạn hãy hỏi trực tiếp bác sĩ.',
+          'Bạn hãy thử hỏi lại bằng một câu ngắn gọn hơn, mỗi lần hỏi một ý thôi. ' +
+          'Nếu vẫn không được, bạn hãy hỏi trực tiếp bác sĩ điều trị của mình.',
         retryable: false,
       }
     }
     return {
       heading: 'Máy chủ đang gặp sự cố',
       action:
-        'Đây là lỗi phía hệ thống, không phải do bạn. Bạn hãy bấm "Gửi lại câu hỏi", hoặc chờ ít phút rồi hỏi lại.',
+        'Đây là trục trặc phía hệ thống, không phải do bạn. Bạn hãy bấm nút thử lại ' +
+        'bên dưới, hoặc chờ ít phút rồi hỏi lại.',
       retryable: true,
     }
   }
@@ -92,16 +107,20 @@ export function ErrorNotice({
       ? adviceFor(error)
       : {
           heading: 'Đã xảy ra lỗi không xác định',
-          action: 'Bạn hãy thử gửi lại câu hỏi. Nếu vẫn vậy, bạn hãy hỏi bác sĩ.',
+          action:
+            'Ứng dụng gặp một trục trặc chưa lường trước. Bạn hãy bấm nút thử lại ' +
+            'bên dưới. Nếu vẫn vậy, bạn hãy hỏi thẳng bác sĩ điều trị của mình.',
           retryable: true,
         }
 
   return (
-    <div role="alert" className="max-w-answer border-l-4 border-alert pl-cozy">
-      <p className="font-display text-question font-bold text-alert">
-        {advice.heading}
-      </p>
-      <p className="font-display mt-tight text-question">{advice.action}</p>
+    <StateBlock
+      tone="fault"
+      role="alert"
+      heading={advice.heading}
+      icon={<AlertIcon className="h-7 w-7" />}
+    >
+      <p className="font-display text-notice text-ink">{advice.action}</p>
 
       {advice.retryable && (
         <button
@@ -112,6 +131,6 @@ export function ErrorNotice({
           {retryLabel}
         </button>
       )}
-    </div>
+    </StateBlock>
   )
 }
