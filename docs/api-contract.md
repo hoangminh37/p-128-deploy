@@ -57,11 +57,13 @@ Dùng định dạng lỗi mặc định của FastAPI:
 | POST | `/api/v1/patients/profile` | Tạo hoặc cập nhật hồ sơ bệnh nhân |
 | GET | `/api/v1/patients/{patient_id}/profile` | Đọc hồ sơ |
 | POST | `/api/v1/chat` | Gửi câu hỏi, nhận câu trả lời |
+| POST | `/api/v1/chat/stream` | Cùng câu hỏi, nhận dần bằng SSE. Xem mục 10 |
 | GET | `/api/v1/conversations/{patient_id}` | Danh sách phiên hội thoại |
 | GET | `/api/v1/conversations/{patient_id}/{conversation_id}` | Chi tiết một phiên |
 | GET | `/api/v1/editor/dashboard` | Số liệu tổng quan của biên tập viên |
 | GET | `/api/v1/editor/queue` | Danh sách mục chờ duyệt |
 | GET | `/api/v1/editor/queue/{item_id}` | Chi tiết một mục chờ duyệt |
+| POST | `/api/v1/editor/queue/upload` | Tải tài liệu lên, đưa vào hàng chờ duyệt. **Form data**, không phải JSON |
 | POST | `/api/v1/editor/queue/{item_id}/approve` | Duyệt, đưa vào thư viện chính thức |
 | POST | `/api/v1/editor/queue/{item_id}/reject` | Từ chối, bắt buộc kèm lý do |
 | GET | `/api/v1/editor/out-of-scope` | Câu hỏi thư viện chưa trả lời được |
@@ -539,6 +541,46 @@ trong hồ sơ; nội dung không gắn bệnh nào sẽ không bao giờ đư�
 
 404 nếu `item_id` không tồn tại.
 
+### POST /api/v1/editor/queue/upload
+
+Biên tập viên tự thêm tài liệu, tức FR4.1. Tài liệu tải lên KHÔNG tự vào thư viện: nó nằm ở
+hàng đợi chờ duyệt, và chỉ vào thư viện sau khi có người bấm duyệt ở endpoint bên dưới.
+
+**Endpoint DUY NHẤT của hợp đồng này không dùng JSON.** Body là `multipart/form-data`, vì có
+file đính kèm. Đừng đặt `Content-Type` bằng tay — để trình duyệt tự sinh kèm `boundary`.
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| :-- | :-- | :-- | :-- |
+| `file` | file | có | Tài liệu gốc. Xem danh sách định dạng bên dưới |
+| `title` | string | có | Tên tài liệu, sẽ thành `title` của mục trong hàng đợi |
+| `issuer` | string | có | Cơ quan ban hành. Thành `issuer` của `Citation` sau khi duyệt |
+| `published` | string | có | Năm hoặc ngày ban hành, ví dụ `2026` hoặc `2025-09-16` |
+| `diseases` | string | có | Danh sách id bệnh, **ngăn nhau bằng dấu phẩy**, ví dụ `type2_diabetes,hypertension`. Không được rỗng |
+| `doc_code` | string | không | Số hiệu văn bản, ví dụ `5481/QĐ-BYT` |
+| `url` | string | không | Link tài liệu gốc |
+| `notes` | string | không | Ghi chú của người tải lên, không hiển thị cho bệnh nhân |
+
+Định dạng file được chấp nhận, lấy từ `SUPPORTED_SUFFIXES` trong `src/rag/ingest.py`:
+`.pdf`, `.pptx`, `.docx`, `.md`, `.html`, `.htm`, `.xlsx`. Đây là những định dạng Docling đọc
+được và đã kiểm chứng trên corpus của dự án.
+
+Giá trị hợp lệ của `diseases` là id bệnh trong `data/registry.yaml`, hiện đúng bằng tập giá trị
+của `primary_condition` ở mục 4: `type2_diabetes` và `hypertension`. Gửi id lạ thì trả 400 kèm
+danh sách id đang hỗ trợ — **không** phải tên tiếng Việt như "Tiểu đường".
+
+Response 201, trả về đúng object của `GET /editor/queue/{item_id}`, với `status` bằng `pending`,
+`content` rỗng, còn `source_url`, `issuer`, `doc_code`, `conditions` lấy từ chính form vừa gửi.
+
+| Mã | Khi nào |
+| :-- | :-- |
+| 400 | File rỗng, định dạng không hỗ trợ, `diseases` rỗng, hoặc id bệnh không có trong phạm vi |
+| 401 | Chưa đăng nhập |
+| 403 | Tài khoản không phải `editor` |
+| 422 | Thiếu một trong năm trường bắt buộc |
+
+Tài liệu ở bước này mới chỉ được lưu lại và ghi vào hàng chờ — **chưa parse, chưa cắt chunk,
+chưa embed**. Toàn bộ phần nặng đó chạy khi duyệt, xem điểm 7 của mục 12.
+
 ### POST /api/v1/editor/queue/{item_id}/approve
 
 Duyệt và đưa vào thư viện chính thức. Cả hai trường trong body đều không bắt buộc.
@@ -663,35 +705,131 @@ cũng không báo lỗi. Bấm nhầm hai lần là chuyện thường, mà hai 
 
 ## 9. Ngoài phạm vi Gate 2
 
-Các mục sau có trong `ARCHITECTURE.md` nhưng không thuộc hợp đồng v1:
+Hai mục sau có trong `ARCHITECTURE.md` nhưng không thuộc hợp đồng v1, và tới nay vẫn chưa có
+dòng mã nào ở cả hai phía:
 
-- SSE streaming. Gate 2 dùng response một lần. Xem mục 10 để biết hướng mở rộng
-- Kiểm tra token thật ở backend. Frontend đã có luồng đăng nhập đầy đủ theo mục 3 nhưng đang
-  chạy trên mock; backend chưa implement `/auth/login`, `/auth/logout`, và chưa kiểm tra
-  header `Authorization` ở bất kỳ endpoint nào. Việc xác thực và phân quyền thật làm sau
-- Toàn bộ luồng biên tập viên
 - Lộ trình học và theo dõi tiến độ
 - Quiz
 
+### Ba mục từng nằm ngoài phạm vi, nay đã có
+
+Giữ lại danh sách này thay vì xoá đi, để ai đọc bản cũ của tài liệu không hiểu nhầm rằng chúng
+vẫn còn nằm ngoài.
+
+- **SSE streaming.** Backend đã implement `POST /api/v1/chat/stream`, xem mục 10. Luồng chính
+  của Gate 2 vẫn dùng response một lần qua `POST /chat`
+- **Xác thực và phân quyền.** Đã hoạt động thật, không còn chạy trên mock. Backend có
+  `POST /auth/login` trả JWT ký HS256 hạn 7 ngày, `POST /auth/logout` trả 204, và kiểm header
+  `Authorization` ở gần như mọi endpoint; riêng khu vực biên tập còn chặn thêm theo vai trò
+  `editor` đúng như mục 8 quy định. **Nhưng chưa xong hẳn:** vẫn còn endpoint không kiểm token,
+  và những endpoint có kiểm token thì không kiểm quyền sở hữu `patient_id` — tài khoản này đọc
+  và ghi đè được dữ liệu của tài khoản kia. Hai lỗ hổng đó nêu chi tiết ở điểm 11 mục 12, cần
+  backend chốt trước khi coi phần này là hoàn tất
+- **Luồng biên tập viên.** Đã đặc tả đầy đủ ở mục 8 của chính tài liệu này, backend đã implement
+  đủ tám endpoint của mục đó, frontend đã có bốn màn hình tương ứng
+
 ---
 
-## 10. Hướng mở rộng SSE
+## 10. SSE streaming — POST /api/v1/chat/stream
 
-Khi backend làm SSE, giữ nguyên endpoint `/api/v1/chat` và thêm query param `stream=true`.
-Frontend đã tách riêng lớp api client nên chỉ cần đổi ở một chỗ.
+Backend đã implement. Mục này mô tả **những gì endpoint đang thật sự phát ra**, không phải
+thiết kế dự kiến. Ba chỗ còn lệch được đánh dấu rõ ở cuối mục.
 
-Event dự kiến:
+Thiết kế ban đầu định giữ nguyên `/api/v1/chat` và thêm query param `stream=true`. Backend chọn
+một endpoint riêng. Giữ nguyên như vậy, nhưng frontend phải viết một hàm client riêng chứ không
+chỉ đổi một tham số.
 
-| event | data | Ý nghĩa |
+### Giao thức và request
+
+`Content-Type` của response là `text/event-stream`, khung theo đúng chuẩn SSE:
+`event: <tên>\ndata: <json>\n\n`. Payload dùng `ensure_ascii=False` nên tiếng Việt giữ nguyên dấu.
+
+Request nhận **đúng `ChatRequest` của mục 5**: `query`, `patient_id`, `conversation_id`. Không có
+query param nào.
+
+**Không dùng được `EventSource` của trình duyệt.** Đây là POST, có body JSON và cần header
+`Authorization`, mà `EventSource` chỉ làm được GET và không gắn được header. Client phải đọc bằng
+`fetch` cộng `response.body.getReader()` rồi tự tách khung SSE.
+
+Endpoint có kiểm token: thiếu hoặc sai `Authorization` thì trả **401 bình thường**, trước khi
+stream mở. Kiểm `response.status` trước khi bắt đầu đọc body.
+
+### Bốn loại event
+
+| event | data | Khi nào |
 | :-- | :-- | :-- |
-| `status` | `{ "node": "hybrid_retrieval" }` | Tên node LangGraph đang chạy |
-| `token` | `{ "text": "..." }` | Một mẩu câu trả lời |
-| `citation` | Citation | Một nguồn được thêm vào |
-| `done` | ChatResponse đầy đủ | Kết thúc, gửi lại toàn bộ để client đối chiếu |
-| `error` | `{ "detail": "..." }` | Lỗi giữa chừng |
+| `step` | `{ "node": "hybrid_retrieval", "message": "📚 Đang tìm kiếm tài liệu y tế...", "icon": "📚" }` | Mỗi lần một node của LangGraph bắt đầu chạy |
+| `token` | `{ "text": "Người " }` | Một từ của câu trả lời, đã kèm dấu cách ở cuối |
+| `done` | `{ "citations": [...], "support_level": "fully", "intent": "education", "disclaimer": "" }` | Đúng một lần, sau chuỗi `token` |
+| `error` | `{ "error": "Không tìm thấy hồ sơ bệnh nhân" }` | Hồ sơ không tồn tại, hoặc bất kỳ exception nào |
 
-Event `status` chỉ được phát khi phản ánh node thật đang chạy.
-Không dựng chuỗi trạng thái giả để làm đẹp giao diện.
+Không có `id:`, không có `retry:`, không có event kết thúc kiểu `[DONE]` — stream đóng ngay sau
+`done`.
+
+### Node phát ra ở event `step`
+
+Đủ cả 14 node của graph, tên khớp `src/agent/graph.py`:
+
+`intent_router`, `emergency_handler`, `refuse_handler`, `out_of_domain_handler`,
+`coref_resolution`, `query_rewrite`, `hybrid_retrieval`, `crag_evaluator`, `doctor_referral`,
+`llm_generate`, `selfrag_verifier`, `partial_rewrite`, `safety_disclaimer`, `memory_checkpoint`.
+
+Luôn mở đầu bằng `intent_router` rồi rẽ nhánh. `partial_rewrite` có vòng lặp quay lại
+`hybrid_retrieval` tối đa 2 lần, nên **cùng một node phát `step` nhiều lần là chuyện bình thường**
+— giao diện không được giả định mỗi node xuất hiện đúng một lần.
+
+Event `step` chỉ được phát khi phản ánh node thật đang chạy. Không dựng chuỗi trạng thái giả để
+làm đẹp giao diện. Backend hiện tuân thủ đúng điều này: `step` bắt từ `on_chain_start` thật của
+LangGraph.
+
+### Ba điểm CHƯA KHỚP HỢP ĐỒNG
+
+Ba điểm dưới đây là việc backend cần sửa, không phải mô tả trạng thái mong muốn.
+
+**1. Event `done` thiếu bốn trường.** Hiện chỉ có `citations`, `support_level`, `intent`,
+`disclaimer`.
+
+CẦN ĐẠT: `done` mang **nguyên vẹn body của `POST /chat`** như mục 5 định nghĩa, tức thêm
+`conversation_id`, `message_id`, `status`, `answer`. Backend đã có sẵn toàn bộ đoạn dựng
+`ChatResponse` ở nhánh đồng bộ, dùng lại là đủ.
+
+Vì sao bắt buộc, không phải cho gọn:
+
+- Thiếu `status` thì frontend **không phân biệt được năm trạng thái ở mục 6**. Nó buộc phải tự
+  dựng lại phép map từ `intent` và `support_level`, tức nhân bản logic nghiệp vụ sang client.
+- Tệ hơn, phép map đó vẫn không đủ: nhánh `red_flag` được quyết bởi cờ `is_red_flag` chứ không
+  phải `intent`, mà cờ đó **không có trong `done`**. Nghĩa là nhánh nguy hiểm nhất — cái duy nhất
+  cần banner đỏ và nút gọi 115 — không phát hiện được từ stream.
+- Thiếu `conversation_id` thì client không biết vừa nói chuyện trong phiên nào: không nối được
+  lượt sau, không mở lại được từ lịch sử ở mục 7. Backend có sinh id và có lưu vào DB, chỉ là
+  không gửi ra.
+
+Hai điểm phụ cùng nhóm: `citations` trong `done` là dữ liệu thô của agent, **chưa qua chuẩn hoá**
+như nhánh đồng bộ (đánh số `id` từ 1, cắt `snippet` còn 300 ký tự, đổi marker `[doc_x]` thành
+`[n]`), nên chưa khớp cấu trúc `Citation` ở mục 5. Và `support_level` mặc định về `"fully"` khi
+agent không đặt, khiến ba nhánh không chạy qua Self-RAG bị báo sai — mục 5 quy định `null`. Kéo
+theo `disclaimer` thành chuỗi rỗng ở đúng những nhánh từ chối, trong khi mục 5 ghi disclaimer
+"luôn có, kể cả khi từ chối" theo ràng buộc brief mục 7.5.
+
+**2. Event `token` không phải stream thật.** Backend chờ agent chạy xong hoàn toàn, rồi mới lấy
+câu trả lời cuối cùng, cắt theo dấu cách và phát từng từ cách nhau 25ms. Người dùng vẫn chờ đủ
+thời gian của agent, sau đó còn chờ thêm phần phát lại — một câu trả lời 300 từ tốn thêm khoảng
+7,5 giây sau khi nội dung đã sẵn sàng.
+
+CẦN ĐẠT: `token` phát ra trong lúc LLM đang sinh chữ, tức nối vào `on_chat_model_stream` của
+LangGraph. Chỗ nối đã có sẵn trong mã nhưng đang bỏ trống. Nếu chưa làm được thì thà bỏ hẳn
+`token` và để client hiện câu trả lời một lần ở `done`, còn hơn thêm độ trễ giả rồi gọi nó là
+streaming.
+
+**3. Event `error` dùng sai tên trường.** Backend gửi `{ "error": "..." }`.
+
+CẦN ĐẠT: `{ "detail": "..." }`, khớp định dạng lỗi chung ở mục 1 và khớp mặc định của FastAPI.
+Một tên trường cho mọi lỗi thì client mới có một đường xử lý lỗi duy nhất.
+
+Kèm theo: mã HTTP của stream **luôn là 200**, kể cả khi không tìm thấy hồ sơ bệnh nhân — SSE đã mở
+thì không đổi status được nữa, nên lỗi đó tới dưới dạng một event. Và nhánh bắt exception chung
+đang đưa nguyên văn `str(exc)` của Python ra client; cần thay bằng câu tiếng Việt như mọi endpoint
+khác.
 
 ---
 
@@ -889,3 +1027,30 @@ cho khớp `AgentState.query` trong `ARCHITECTURE.md`.
    lọc tài liệu theo thể trạng, hay có đưa thẳng vào prompt của agent. Và cần xác nhận rằng
    chúng không dẫn tới việc sinh chỉ tiêu cân nặng, mục tiêu giảm cân hay số calo cụ thể trong
    câu trả lời, vì đó là tư vấn dinh dưỡng cá nhân hoá nằm ngoài phạm vi giáo dục của sản phẩm
+
+Ba điểm dưới đây phát hiện khi ghép frontend với backend thật, không phải câu hỏi thiết kế mà là
+lệch đã đo được.
+
+9. **`height_cm` và `weight_kg` chưa được implement.** Hai trường này có trong mục 4 và trong
+   khối Pydantic ở mục 11, nhưng backend chưa nhận, chưa lưu, chưa trả: model `PatientProfile`
+   không khai chúng và bảng `patients` không có cột tương ứng. Pydantic bỏ qua field lạ nên POST
+   vẫn trả 200 — hai số bị nuốt lặng lẽ, người dùng khai xong mở lại thấy ô trống. Frontend vẫn
+   gửi đúng hợp đồng và để hai trường ở dạng không bắt buộc, nên khi backend bổ sung thì không
+   phải sửa gì phía client. Cần backend xác nhận có làm ở Gate này không, hay bỏ hai trường khỏi
+   hợp đồng
+
+10. **Marker `[n]` sót lại khi `citations` rỗng.** Với `status` là `red_flag`, `refused` hoặc
+    `referral`, backend xoá sạch `citations` nhưng không gỡ marker `[1]`, `[2]` đã chèn vào
+    `answer` trước đó. Điều này vi phạm quy tắc hai chiều ở cuối mục 5, và frontend chặn ngay tại
+    tầng parse: người dùng thấy khối lỗi thay vì câu trả lời. Ba trạng thái đó lại là ba nhánh dễ
+    gặp nhất khi thử tay. Frontend đang có một biện pháp tạm gỡ marker trước khi validate, ghi rõ
+    trong `lib/api.ts`; nó sẽ được xoá ngay khi backend sửa. CẦN ĐẠT: gỡ marker khỏi `answer`
+    cùng lúc với việc xoá `citations`, để hai trường luôn nhất quán với nhau
+
+11. **Endpoint nào bắt buộc xác thực.** Mục 1 nói 401 khi chưa đăng nhập, mục 3 nói mọi kiểm tra
+    quyền nằm ở backend, nhưng hiện `GET /patients/{patient_id}/profile` không kiểm token — ai
+    cũng đọc được hồ sơ bất kỳ nếu biết `patient_id`. Các endpoint còn lại đều có kiểm. Ngoài ra
+    những endpoint có kiểm token vẫn **không kiểm quyền sở hữu**: `patient_id` lấy thẳng từ path
+    hoặc body mà không đối chiếu với tài khoản đang đăng nhập, nên tài khoản A đọc và ghi đè được
+    hồ sơ lẫn lịch sử hội thoại của tài khoản B. Cần backend chốt danh sách endpoint bắt buộc xác
+    thực, và chốt luôn rằng `patient_id` trong request phải khớp tài khoản trong token
