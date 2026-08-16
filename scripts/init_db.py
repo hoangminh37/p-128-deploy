@@ -31,12 +31,27 @@ async def init_db():
             id="p_01HQZX",
             user_id="u_01HQZW",
             age=30,
-            primary_condition="hypertension",
+            primary_condition="diabetes type 2",
             comorbidities=[],
             diagnosed_at="2025-01",
             asking_as="self"
         )
         session.add(patient_profile)
+        
+        # User benhnhan2@demo.vn (p_02HQZX) - Older patient
+        patient_user2 = User(id="u_02HQZW", email="nguoicaotuoi@demo.vn", password="demo1234", role="patient")
+        session.add(patient_user2)
+        
+        patient_profile2 = Patient(
+            id="p_02HQZX",
+            user_id="u_02HQZW",
+            age=75,
+            primary_condition="diabetes type 2",
+            comorbidities=["hypertension"],
+            diagnosed_at="2020-01",
+            asking_as="self"
+        )
+        session.add(patient_profile2)
         
         # User bientap@demo.vn
         editor_user = User(id="u_01HQZV", email="bientap@demo.vn", password="demo1234", role="editor")

@@ -31,10 +31,14 @@ _ANSWER_RE = re.compile(r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)"?', re.DOTALL)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 def _make_token_event(content: str, node: str = "llm_generate") -> dict:
     """Tạo event on_chat_model_stream giả."""
+
     class _Chunk:
-        def __init__(self, c): self.content = c
+        def __init__(self, c):
+            self.content = c
+
     return {
         "event": "on_chat_model_stream",
         "name": "ChatGroq",
@@ -96,10 +100,11 @@ async def _run_buffer(events: list[dict]) -> tuple[list[str], float | None]:
 
 def _tokenize(text: str, size: int = 3) -> list[str]:
     """Chia chuỗi thành tokens nhỏ kích thước `size` ký tự."""
-    return [text[i:i+size] for i in range(0, len(text), size)]
+    return [text[i : i + size] for i in range(0, len(text), size)]
 
 
 # ── TestAnswerRegex ──────────────────────────────────────────────────────────
+
 
 class TestAnswerRegex:
     """Kiểm tra _ANSWER_RE hoạt động đúng với nhiều dạng JSON."""
@@ -159,6 +164,7 @@ class TestAnswerRegex:
 
 # ── TestBufferLogic ──────────────────────────────────────────────────────────
 
+
 class TestBufferLogic:
     """Kiểm tra logic tích lũy buffer và yield incremental."""
 
@@ -187,11 +193,7 @@ class TestBufferLogic:
     @pytest.mark.asyncio
     async def test_ttft_xuat_hien_truoc_khi_xong_toan_bo(self):
         """TTFT phải nhỏ hơn nhiều so với tổng thời gian chạy."""
-        llm_output = (
-            '{"analysis": "suy luận", '
-            '"answer": "Câu trả lời dài cần nhiều thời gian nhả.", '
-            '"claims": []}'
-        )
+        llm_output = '{"analysis": "suy luận", "answer": "Câu trả lời dài cần nhiều thời gian nhả.", "claims": []}'
 
         async def _gen():
             for tok in _tokenize(llm_output, 3):
@@ -256,14 +258,11 @@ class TestBufferLogic:
         tokens, _ = await _run_buffer(events)
 
         full = "".join(tokens)
-        assert full == expected, (
-            f"Newline chưa được decode đúng.\n"
-            f"Mong đợi: {repr(expected)}\n"
-            f"Nhận được: {repr(full)}"
-        )
+        assert full == expected, f"Newline chưa được decode đúng.\nMong đợi: {repr(expected)}\nNhận được: {repr(full)}"
 
 
 # ── TestTokenContent ─────────────────────────────────────────────────────────
+
 
 class TestTokenContent:
     """Kiểm tra token stream không bị lẫn JSON artifacts."""
@@ -283,9 +282,7 @@ class TestTokenContent:
 
         forbidden = ['"analysis"', '"claims"', '"cited_doc_id"', '"sentence"']
         for word in forbidden:
-            assert word not in full, (
-                f"Chuỗi JSON '{word}' bị lọt vào token stream gửi về Frontend!"
-            )
+            assert word not in full, f"Chuỗi JSON '{word}' bị lọt vào token stream gửi về Frontend!"
 
     @pytest.mark.asyncio
     async def test_khong_co_dau_ngoac_mo_json_trong_token(self):
@@ -295,9 +292,7 @@ class TestTokenContent:
         full = "".join(tokens)
 
         # Nội dung answer hợp lệ không bắt đầu bằng dấu ngoặc nhọn JSON
-        assert not full.startswith("{"), (
-            "Token đầu tiên không được là dấu ngoặc JSON"
-        )
+        assert not full.startswith("{"), "Token đầu tiên không được là dấu ngoặc JSON"
 
     @pytest.mark.asyncio
     async def test_noi_dung_khop_answer_trong_json(self):
@@ -307,11 +302,7 @@ class TestTokenContent:
         tokens, _ = await _run_buffer(events)
         full = "".join(tokens)
 
-        assert full == expected, (
-            f"Nội dung token stream sai.\n"
-            f"Mong đợi: {repr(expected)}\n"
-            f"Nhận được: {repr(full)}"
-        )
+        assert full == expected, f"Nội dung token stream sai.\nMong đợi: {repr(expected)}\nNhận được: {repr(full)}"
 
     @pytest.mark.asyncio
     async def test_citation_marker_duoc_giu_lai(self):
@@ -324,6 +315,7 @@ class TestTokenContent:
 
 
 # ── TestNodeFilter ───────────────────────────────────────────────────────────
+
 
 class TestNodeFilter:
     """Kiểm tra bộ lọc node_name == 'llm_generate'."""
@@ -342,12 +334,8 @@ class TestNodeFilter:
         tokens, _ = await _run_buffer(crag_events + main_events)
         full = "".join(tokens)
 
-        assert "CÂU TRẢ LỜI CRAG" not in full, (
-            "Token từ crag_evaluator bị lọt vào stream gửi về Frontend!"
-        )
-        assert "Câu trả lời thật" in full, (
-            "Token từ llm_generate phải được yield"
-        )
+        assert "CÂU TRẢ LỜI CRAG" not in full, "Token từ crag_evaluator bị lọt vào stream gửi về Frontend!"
+        assert "Câu trả lời thật" in full, "Token từ llm_generate phải được yield"
 
     @pytest.mark.asyncio
     async def test_bo_qua_token_tu_selfrag_verifier(self):
@@ -377,6 +365,7 @@ class TestNodeFilter:
 
 # ── TestEdgeCases ─────────────────────────────────────────────────────────────
 
+
 class TestEdgeCases:
     """Các trường hợp biên và dữ liệu bất thường."""
 
@@ -403,18 +392,20 @@ class TestEdgeCases:
         class EmptyChunk:
             content = ""
 
-        events = [{"event": "on_chat_model_stream", "data": {"chunk": EmptyChunk()}, "metadata": {"langgraph_node": "llm_generate"}}]
+        events = [
+            {
+                "event": "on_chat_model_stream",
+                "data": {"chunk": EmptyChunk()},
+                "metadata": {"langgraph_node": "llm_generate"},
+            }
+        ]
         tokens, ttft = await _run_buffer(events)
         assert tokens == []
 
     @pytest.mark.asyncio
     async def test_answer_nhieu_doan_chia_boi_newline(self):
         """answer nhiều đoạn với \\n\\n phải decode đúng."""
-        llm_output = (
-            '{"analysis":"x",'
-            '"answer":"Đoạn 1.\\n\\nĐoạn 2.\\n\\nĐoạn 3.",'
-            '"claims":[]}'
-        )
+        llm_output = '{"analysis":"x","answer":"Đoạn 1.\\n\\nĐoạn 2.\\n\\nĐoạn 3.","claims":[]}'
         expected = json.loads(llm_output)["answer"]
         events = [_make_token_event(tok) for tok in _tokenize(llm_output, 3)]
         tokens, _ = await _run_buffer(events)
@@ -422,18 +413,12 @@ class TestEdgeCases:
 
         assert full == expected
         # Phải có đúng hai cặp newline
-        assert full.count("\n\n") == 2, (
-            f"Mong đợi 2 cặp \\n\\n, nhận được {full.count(chr(10)+chr(10))}"
-        )
+        assert full.count("\n\n") == 2, f"Mong đợi 2 cặp \\n\\n, nhận được {full.count(chr(10) + chr(10))}"
 
     @pytest.mark.asyncio
     async def test_answer_co_ky_tu_dac_biet(self):
         """answer có dấu ngoặc vuông, ngoặc tròn, %, ≥ phải giữ nguyên."""
-        llm_output = (
-            '{"analysis":"x",'
-            '"answer":"HbA1c ≥ 7% [doc_0]. Tỷ lệ (50%) giảm.",'
-            '"claims":[]}'
-        )
+        llm_output = '{"analysis":"x","answer":"HbA1c ≥ 7% [doc_0]. Tỷ lệ (50%) giảm.","claims":[]}'
         expected = json.loads(llm_output)["answer"]
         events = [_make_token_event(tok) for tok in _tokenize(llm_output, 4)]
         tokens, _ = await _run_buffer(events)

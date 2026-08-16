@@ -11,9 +11,9 @@ REFERRAL_RESPONSE = """Thư viện tài liệu của tôi chưa có đủ thông
 
 Tôi chỉ trả lời dựa trên các tài liệu y khoa đã được biên tập viên duyệt, và tôi không đoán khi tài liệu chưa nói rõ — với chuyện sức khoẻ thì một câu trả lời chắp vá còn nguy hiểm hơn là không trả lời.
 
-**Bạn nên làm gì tiếp:**
+Bạn nên làm gì tiếp:
 - 👨‍⚕️ Hỏi trực tiếp bác sĩ hoặc dược sĩ có chuyên môn — họ nắm được tình trạng cụ thể của bạn
-- 📞 Đường dây tư vấn sức khoẻ: **1800 599 920** (miễn phí, 24/7)
+- 📞 Đường dây tư vấn sức khoẻ: 1800 599 920 (miễn phí, 24/7)
 - 🏥 Hoặc đến phòng khám / bệnh viện gần nhất nếu bạn thấy lo lắng
 
 Bạn cũng có thể thử hỏi lại theo cách khác, hoặc hỏi tôi một câu về chủ đề gần với vấn đề của bạn — biết đâu thư viện có tài liệu nói về phần đó."""

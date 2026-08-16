@@ -19,6 +19,7 @@ from src.agent.nodes.safety.emergency_handler import emergency_handler_node
 from src.agent.nodes.safety.intent_router import intent_router_node
 from src.agent.nodes.safety.out_of_domain_handler import out_of_domain_handler_node
 from src.agent.nodes.safety.refuse_handler import refuse_handler_node
+from src.agent.nodes.generation.profile_handler import profile_handler_node
 from src.agent.state import AgentState
 
 MAX_RETRIES = 2
@@ -36,6 +37,8 @@ def route_intent(state: AgentState) -> str:
         return "refuse_handler"
     if intent in ("greeting", "out_of_domain"):
         return "out_of_domain_handler"
+    if intent == "profile":
+        return "profile_handler"
     return "coref_resolution"
 
 
@@ -63,7 +66,7 @@ def route_selfrag(state: AgentState) -> str:
     if level == "fully":
         return "memory_checkpoint"
     if level == "partially":
-        return "partial_rewrite"
+        return "safety_disclaimer"
     return "doctor_referral"  # no_support
 
 
@@ -90,6 +93,7 @@ def build_graph() -> CompiledStateGraph:
     g.add_node("emergency_handler", emergency_handler_node)
     g.add_node("refuse_handler", refuse_handler_node)
     g.add_node("out_of_domain_handler", out_of_domain_handler_node)
+    g.add_node("profile_handler", profile_handler_node)
 
     # ── Stage 2: Preprocessing ────────────────────────────────────────────
     g.add_node("coref_resolution", coref_resolution_node)
@@ -118,6 +122,7 @@ def build_graph() -> CompiledStateGraph:
             "emergency_handler": "emergency_handler",
             "refuse_handler": "refuse_handler",
             "out_of_domain_handler": "out_of_domain_handler",
+            "profile_handler": "profile_handler",
             "coref_resolution": "coref_resolution",
         },
     )
@@ -136,7 +141,7 @@ def build_graph() -> CompiledStateGraph:
         route_selfrag,
         {
             "memory_checkpoint": "memory_checkpoint",
-            "partial_rewrite": "partial_rewrite",
+            "safety_disclaimer": "safety_disclaimer",
             "doctor_referral": "doctor_referral",
         },
     )
@@ -161,6 +166,7 @@ def build_graph() -> CompiledStateGraph:
     g.add_edge("emergency_handler", END)
     g.add_edge("refuse_handler", END)
     g.add_edge("out_of_domain_handler", END)
+    g.add_edge("profile_handler", END)
     g.add_edge("doctor_referral", END)
     g.add_edge("memory_checkpoint", END)
 

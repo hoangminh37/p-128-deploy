@@ -26,6 +26,7 @@ from src.agent.nodes.retrieval.crag_evaluator import (
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 def _make_doc(doc_id: str, content: str = "nội dung tài liệu y tế") -> dict:
     """Tạo dict tài liệu mẫu."""
     return {"doc_id": doc_id, "content": content, "title": f"Tài liệu {doc_id}"}
@@ -53,6 +54,7 @@ def _make_state(docs: list[dict], query: str = "bệnh tiểu đường") -> dic
 
 
 # ── TestEvaluateSingleDoc ────────────────────────────────────────────────────
+
 
 class TestEvaluateSingleDoc:
     """Kiểm tra hàm helper _evaluate_single_doc."""
@@ -120,10 +122,11 @@ class TestEvaluateSingleDoc:
 
 # ── TestCragParallelism ──────────────────────────────────────────────────────
 
+
 class TestCragParallelism:
     """Kiểm tra tính song song thực sự qua timing."""
 
-    DELAY_PER_DOC = 0.2   # 200ms mỗi doc — đủ nhỏ để test nhanh
+    DELAY_PER_DOC = 0.2  # 200ms mỗi doc — đủ nhỏ để test nhanh
     NUM_DOCS = 5
     # Nếu song song: ~0.2s. Nếu tuần tự: ~1.0s
     # Ngưỡng: nhanh hơn tuần tự ít nhất 3× (tức < 0.35s với 5 docs × 200ms)
@@ -139,18 +142,22 @@ class TestCragParallelism:
         state = _make_state(docs)
         # Patch chain thực tế bằng cách mock get_fast_llm
         from unittest.mock import patch, MagicMock
+
         mock_llm = MagicMock()
 
         # Build mock chain pipe: crag_prompt | llm phải tạo ra mock_chain
         # Cách đơn giản nhất: mock toàn bộ get_fast_llm và kết quả pipe
         patched_chain = _make_chain("relevant", delay_s=self.DELAY_PER_DOC)
 
-        with patch(
-            "src.agent.nodes.retrieval.crag_evaluator.get_fast_llm",
-            return_value=mock_llm,
-        ), patch(
-            "src.agent.nodes.retrieval.crag_evaluator.crag_prompt",
-        ) as mock_prompt:
+        with (
+            patch(
+                "src.agent.nodes.retrieval.crag_evaluator.get_fast_llm",
+                return_value=mock_llm,
+            ),
+            patch(
+                "src.agent.nodes.retrieval.crag_evaluator.crag_prompt",
+            ) as mock_prompt,
+        ):
             # crag_prompt | llm → trả về patched_chain
             mock_prompt.__or__ = lambda self_inner, other: patched_chain
 
@@ -159,8 +166,8 @@ class TestCragParallelism:
         elapsed = time.perf_counter() - t0
 
         assert elapsed < self.PARALLEL_THRESHOLD_S, (
-            f"Song song phải chạy xong trong {self.PARALLEL_THRESHOLD_S*1000:.0f}ms, "
-            f"nhưng mất {elapsed*1000:.0f}ms — có thể đang chạy tuần tự!"
+            f"Song song phải chạy xong trong {self.PARALLEL_THRESHOLD_S * 1000:.0f}ms, "
+            f"nhưng mất {elapsed * 1000:.0f}ms — có thể đang chạy tuần tự!"
         )
         assert "relevant_strips" in result_state
 
@@ -171,16 +178,20 @@ class TestCragParallelism:
         chain = _make_chain("relevant")
 
         from unittest.mock import patch, MagicMock
+
         mock_llm = MagicMock()
         mock_prompt_instance = MagicMock()
         mock_prompt_instance.__or__ = lambda self_inner, other: chain
 
-        with patch(
-            "src.agent.nodes.retrieval.crag_evaluator.get_fast_llm",
-            return_value=mock_llm,
-        ), patch(
-            "src.agent.nodes.retrieval.crag_evaluator.crag_prompt",
-            mock_prompt_instance,
+        with (
+            patch(
+                "src.agent.nodes.retrieval.crag_evaluator.get_fast_llm",
+                return_value=mock_llm,
+            ),
+            patch(
+                "src.agent.nodes.retrieval.crag_evaluator.crag_prompt",
+                mock_prompt_instance,
+            ),
         ):
             result = await crag_evaluator_node(_make_state(docs))
 
@@ -189,6 +200,7 @@ class TestCragParallelism:
 
 
 # ── TestCragEvaluatorNode ────────────────────────────────────────────────────
+
 
 class TestCragEvaluatorNode:
     """Kiểm tra hành vi node tổng thể với các trường hợp biên."""
@@ -235,12 +247,15 @@ class TestCragEvaluatorNode:
         mock_prompt_instance = MagicMock()
         mock_prompt_instance.__or__ = lambda self_inner, other: chain
 
-        with patch(
-            "src.agent.nodes.retrieval.crag_evaluator.get_fast_llm",
-            return_value=mock_llm,
-        ), patch(
-            "src.agent.nodes.retrieval.crag_evaluator.crag_prompt",
-            mock_prompt_instance,
+        with (
+            patch(
+                "src.agent.nodes.retrieval.crag_evaluator.get_fast_llm",
+                return_value=mock_llm,
+            ),
+            patch(
+                "src.agent.nodes.retrieval.crag_evaluator.crag_prompt",
+                mock_prompt_instance,
+            ),
         ):
             await crag_evaluator_node(state)
 
@@ -269,24 +284,27 @@ class TestCragEvaluatorNode:
         chain.ainvoke = _selective_fail
 
         from unittest.mock import patch, MagicMock
+
         mock_llm = MagicMock()
         mock_prompt_instance = MagicMock()
         mock_prompt_instance.__or__ = lambda self_inner, other: chain
 
-        with patch(
-            "src.agent.nodes.retrieval.crag_evaluator.get_fast_llm",
-            return_value=mock_llm,
-        ), patch(
-            "src.agent.nodes.retrieval.crag_evaluator.crag_prompt",
-            mock_prompt_instance,
+        with (
+            patch(
+                "src.agent.nodes.retrieval.crag_evaluator.get_fast_llm",
+                return_value=mock_llm,
+            ),
+            patch(
+                "src.agent.nodes.retrieval.crag_evaluator.crag_prompt",
+                mock_prompt_instance,
+            ),
         ):
             result = await crag_evaluator_node(_make_state(docs))
 
         # Phải có ≥ 2 docs: doc_0 và doc_2 relevant, doc_1 lỗi nhưng được giữ lại
         strips = result["relevant_strips"]
         assert len(strips) >= 2, (
-            f"Lỗi 1 doc không được ảnh hưởng {len(docs)-1} doc còn lại. "
-            f"Nhận được {len(strips)} docs."
+            f"Lỗi 1 doc không được ảnh hưởng {len(docs) - 1} doc còn lại. Nhận được {len(strips)} docs."
         )
 
     @pytest.mark.asyncio
@@ -296,7 +314,7 @@ class TestCragEvaluatorNode:
 
         # Nhúng doc_id vào content để _selective_verdict có thể phân biệt hai doc
         docs = [
-            _make_doc("doc_ok",  content="doc_ok: nội dung phù hợp với câu hỏi"),
+            _make_doc("doc_ok", content="doc_ok: nội dung phù hợp với câu hỏi"),
             _make_doc("doc_bad", content="doc_bad: nội dung không liên quan"),
         ]
 
@@ -312,15 +330,18 @@ class TestCragEvaluatorNode:
         mock_prompt_instance = MagicMock()
         mock_prompt_instance.__or__ = lambda self_inner, other: chain
 
-        with patch(
-            "src.agent.nodes.retrieval.crag_evaluator.get_fast_llm",
-            return_value=mock_llm,
-        ), patch(
-            "src.agent.nodes.retrieval.crag_evaluator.crag_prompt",
-            mock_prompt_instance,
+        with (
+            patch(
+                "src.agent.nodes.retrieval.crag_evaluator.get_fast_llm",
+                return_value=mock_llm,
+            ),
+            patch(
+                "src.agent.nodes.retrieval.crag_evaluator.crag_prompt",
+                mock_prompt_instance,
+            ),
         ):
             result = await crag_evaluator_node(_make_state(docs))
 
         ids = [d["doc_id"] for d in result["relevant_strips"]]
-        assert "doc_ok" in ids,  "doc_ok phải được giữ lại"
+        assert "doc_ok" in ids, "doc_ok phải được giữ lại"
         assert "doc_bad" not in ids, "doc_bad phải bị lọc ra"

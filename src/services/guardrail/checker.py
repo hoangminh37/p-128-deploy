@@ -8,6 +8,7 @@ from src.services.guardrail.keywords import (
     DIAGNOSIS_KEYWORDS,
     EMERGENCY_KEYWORDS,
     GREETING_PATTERNS,
+    PROMPT_INJECTION_KEYWORDS,
     SMALLTALK_PATTERNS,
 )
 
@@ -46,6 +47,12 @@ def check_diagnosis_request(query: str) -> bool:
     """
     q = query.lower()
     return any(kw in q for kw in DIAGNOSIS_KEYWORDS)
+
+
+def check_prompt_injection(query: str) -> bool:
+    """Trả về True nếu query chứa dấu hiệu Prompt Injection."""
+    q = query.lower()
+    return any(kw in q for kw in PROMPT_INJECTION_KEYWORDS)
 
 
 def check_smalltalk(query: str) -> bool:

@@ -186,25 +186,29 @@ class AgentState(TypedDict, total=False):
     metadata: dict
 ```
 
-- **Nodes:**
+- **Nodes & Pipeline Execution (Chi tiết luồng xử lý):**
 
-| Node                | Vai trò                                            |
-| :------------------ | :------------------------------------------------- |
-| `intent_router`     | Phân loại intent bằng LLM nhỏ / rule-based         |
-| `emergency_handler` | Cảnh báo khẩn cấp — FR3.2, không lưu PII           |
-| `refuse_handler`    | Từ chối 100% câu hỏi chẩn đoán / kê toa — FR3.4    |
-| `coref_resolution`  | Giải quyết đại từ tham chiếu → thực thể cụ thể     |
-| `query_rewrite`     | Ghép hồ sơ bệnh nhân + lịch sử hội thoại           |
-| `hybrid_retrieval`  | BM25 + Dense Vector Search + metadata filter       |
-| `reranker`          | Cross-encoder scoring, MedRAG top-k scaling        |
-| `crag_evaluator`    | Đánh giá từng strip: relevant / irrelevant         |
-| `crag_recompose`    | Sắp xếp strips — chống Lost-in-the-Middle          |
-| `doctor_referral`   | Fallback khi strips = 0                            |
-| `llm_generate`      | CoT + JSON schema `{answer, claims[cited_doc_id]}` |
-| `selfrag_verifier`  | ISUF per-sentence: fully / partially / no_support  |
-| `partial_rewrite`   | Đánh dấu câu thiếu nguồn, retry tối đa 2 lần       |
-| `safety_disclaimer` | Gắn cảnh báo y tế FR#4 khi no_support              |
-| `memory_checkpoint` | Lưu Q&A vào Redis + PostgreSQL                     |
+Quá trình suy luận của AI Agent không diễn ra trong một bước duy nhất mà được chia thành 4 giai đoạn cụ thể thông qua 13 node của LangGraph:
+
+**Giai đoạn 1: Phân loại Ý định & Safety Guardrails (Intent Routing)**
+- `intent_router`: Đóng vai trò là "lễ tân", đánh giá câu hỏi bằng rule-based (chạy cực nhanh) kết hợp LLM nhỏ để xác định đúng intent.
+- `emergency_handler`: Node cướp quyền điều khiển nếu phát hiện dấu hiệu nguy hiểm tính mạng (khó thở, đau tim). Node này trả về cảnh báo gọi cấp cứu 115 ngay lập tức và **đảm bảo không lưu bất kỳ PII (thông tin định danh) nào vào Database**.
+- `refuse_handler`: Chặn đứng mọi câu hỏi có tính chất nhờ chẩn đoán bệnh hoặc kê đơn thuốc (tuân thủ nguyên tắc FR3.4 về an toàn y khoa).
+
+**Giai đoạn 2: Tiền xử lý & Cá nhân hóa (Preprocessing & Personalization)**
+- `coref_resolution`: Giải quyết vấn đề mất ngữ cảnh bằng cách thay thế đại từ ("bệnh này", "thuốc đó") bằng thực thể cụ thể từ lịch sử chat.
+- `query_rewrite`: Điểm nhấn của **Cá nhân hóa sâu (Deep Personalization)**. Node này tự động "tiêm" (inject) thông tin từ hồ sơ bệnh nhân (tuổi, bệnh nền, thuốc đang dùng) vào câu hỏi gốc để định hướng việc tìm kiếm và sinh câu trả lời cho phù hợp với thể trạng riêng biệt của từng người.
+
+**Giai đoạn 3: Truy xuất & Đánh giá tài liệu (Retrieval & CRAG)**
+- `hybrid_retrieval`: Kết hợp tìm kiếm theo từ khóa (BM25 - tốt cho tên thuốc) và tìm kiếm theo ngữ nghĩa (Dense Vector - tốt cho mô tả triệu chứng) trên Qdrant.
+- `reranker`: Chấm điểm lại (Cross-encoder scoring) để đưa các tài liệu liên quan nhất lên đầu.
+- `crag_evaluator` & `crag_recompose`: Thực thi luồng **Corrective RAG (CRAG)**. Đánh giá từng đoạn tài liệu xem có thật sự trả lời được câu hỏi không. Nếu toàn bộ tài liệu là irrelevant (không liên quan), hệ thống sẽ rơi vào node `doctor_referral` (từ chối trả lời vì ngoài vùng kiến thức) thay vì ép LLM bịa chuyện.
+
+**Giai đoạn 4: Sinh văn bản & Xác thực (Generation & Self-RAG)**
+- `llm_generate`: Sử dụng kĩ thuật Chain-of-Thought (CoT) để tạo ra câu trả lời dựa trên các tài liệu đã lọc.
+- `selfrag_verifier`: Thực thi luồng **Self-RAG**. Đóng vai trò "người chấm thi", rà soát từng câu văn do `llm_generate` tạo ra. Nếu câu nào không có dẫn chứng gốc, node sẽ gắn cờ `partially supported`.
+- `partial_rewrite` & `safety_disclaimer`: Nếu bị gắn cờ, hệ thống sẽ cảnh báo an toàn y tế (Safety Disclaimer) xuống cuối câu trả lời để nhắc nhở bệnh nhân tham khảo ý kiến bác sĩ.
+- `memory_checkpoint`: Lưu trữ phiên hội thoại vào Redis (để truy xuất nhanh) và PostgreSQL (lưu trữ lâu dài).
 
 - **Flow:**
 
@@ -425,6 +429,40 @@ data: {"citations": [{"title": "Hướng dẫn ĐTĐ - Bộ Y tế 2020", "url":
 ```
 
 > **Lưu ý thiết kế:** `token` events chỉ được phát sau khi `selfrag_verifier` hoàn thành và response đã được xác thực toàn bộ. Không có token nào của câu trả lời chưa kiểm chứng xuất hiện trên FE. `step` events phát realtime trong suốt pipeline để người dùng thấy Agent đang hoạt động thay vì màn hình trắng.
+
+## Content Management & Human-in-the-Loop (HITL)
+
+Để đảm bảo chất lượng thư viện y khoa và xử lý các câu hỏi mà AI Agent không thể trả lời (out-of-scope), hệ thống cung cấp một phân hệ quản trị nội dung dành riêng cho Biên tập viên (Editor) theo mô hình Human-in-the-Loop (HITL).
+
+```mermaid
+flowchart TD
+    subgraph AGENT ["AI Agent"]
+        OOS["Out-of-scope Queries\n(Doctor Referral)"]
+    end
+
+    subgraph EDITOR ["Editor Dashboard (HITL)"]
+        UPLOAD["Tải lên tài liệu mới"]
+        DRAFT["Tạo bản nháp\ntừ Out-of-scope"]
+        QUEUE["Hàng chờ duyệt\n(Pending Queue)"]
+        
+        UPLOAD -->|"origin: editor_upload"| QUEUE
+        OOS -->|"origin: question_log"| DRAFT
+        DRAFT --> QUEUE
+        
+        QUEUE --> APPROVE["Approve"]
+        QUEUE --> REJECT["Reject\n(Kèm lý do)"]
+    end
+
+    subgraph VDB ["Vector DB (Qdrant)"]
+        KB[("Knowledge Base\n(medical_docs)")]
+    end
+
+    APPROVE -->|"Vectorize & Store"| KB
+```
+
+- **Out-of-Scope Logging:** Khi người bệnh hỏi một câu nằm ngoài phạm vi tài liệu (RAG không tìm thấy thông tin hoặc CRAG đánh giá tài liệu không liên quan), hệ thống sẽ từ chối trả lời và tự động ghi nhận câu hỏi này vào danh sách `out-of-scope`.
+- **Editor Queue:** Biên tập viên có thể lọc các câu hỏi `out-of-scope` để tạo tài liệu giải đáp nháp, hoặc chủ động tải lên các hướng dẫn điều trị mới. Tất cả các tài liệu này sẽ đi vào hàng chờ kiểm duyệt (`Pending Queue`).
+- **Approval Workflow:** Chỉ những tài liệu được Duyệt (`Approve`) mới được đi qua quá trình Embedding và đưa vào Vector DB (Qdrant) chính thức. Điều này giúp thư viện kiến thức của AI luôn mở rộng theo nhu cầu thực tế của bệnh nhân nhưng vẫn được con người kiểm soát chất lượng tuyệt đối.
 
 ## Deployment Architecture
 
