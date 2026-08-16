@@ -7,16 +7,16 @@ from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-EMERGENCY_RESPONSE = """🚨 **CẢNH BÁO KHẨN CẤP**
+EMERGENCY_RESPONSE = """🚨 CẢNH BÁO KHẨN CẤP
 
-Dựa trên mô tả của bạn, đây có thể là tình trạng **nguy hiểm tính mạng** cần được xử lý ngay lập tức.
+Dựa trên mô tả của bạn, đây có thể là tình trạng nguy hiểm tính mạng cần được xử lý ngay lập tức.
 
-**Hành động ngay:**
-- 📞 Gọi **115** (Cấp cứu) ngay lập tức
-- 📞 Hoặc nhờ người đưa đến cơ sở y tế gần nhất
-- ❗ Không tự điều trị tại nhà
+Hành động ngay:
+- 📞 Gọi 115 (Cấp cứu) ngay lập tức
+- 🏥 Hoặc đến ngay phòng cấp cứu bệnh viện gần nhất
+- 🛑 Ngừng mọi hoạt động đang làm và nghỉ ngơi
 
-Tôi là AI và **không thể** thay thế sự chăm sóc y tế khẩn cấp. Hãy liên hệ bác sĩ ngay."""
+Tôi là AI và không thể thay thế sự chăm sóc y tế khẩn cấp. Hãy liên hệ bác sĩ ngay."""
 
 
 async def emergency_handler_node(state: AgentState) -> AgentState:

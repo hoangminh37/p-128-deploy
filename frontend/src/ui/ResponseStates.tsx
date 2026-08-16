@@ -122,7 +122,7 @@ function AnswerText({ answer }: { answer: string }) {
       {paragraphs.map((paragraph, index) => (
         <p
           key={index}
-          className={`text-notice ${index < paragraphs.length - 1 ? 'mb-para' : ''}`}
+          className={`text-notice whitespace-pre-wrap ${index < paragraphs.length - 1 ? 'mb-para' : ''}`}
         >
           {paragraph}
         </p>

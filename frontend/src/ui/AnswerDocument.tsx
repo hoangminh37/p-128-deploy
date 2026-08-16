@@ -417,7 +417,7 @@ export function AnswerDocument({
           // ngoài luồng ở bản rộng nên không kéo giãn được chỗ này.
           className={index < paragraphs.length - 1 ? 'mb-para' : ''}
         >
-          <p className="text-answer">
+          <p className="text-answer whitespace-pre-wrap">
             {paragraph.segments.map((segment, segmentIndex) =>
               segment.kind === 'text' ? (
                 <span key={segmentIndex}>{segment.value}</span>

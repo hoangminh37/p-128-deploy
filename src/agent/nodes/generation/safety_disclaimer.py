@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 
 DISCLAIMER = (
     "\n\n---\n"
-    "⚠️ **Lưu ý quan trọng:** Thông tin trên mang tính giáo dục và chưa được xác minh "
+    "⚠️ Lưu ý quan trọng: Thông tin trên mang tính giáo dục và chưa được xác minh "
     "đầy đủ từ tài liệu y tế đáng tin cậy. Vui lòng tham khảo ý kiến bác sĩ hoặc "
     "chuyên gia y tế trước khi áp dụng bất kỳ thông tin nào."
 )

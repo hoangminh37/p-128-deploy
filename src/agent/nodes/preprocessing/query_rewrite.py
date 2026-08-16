@@ -27,8 +27,10 @@ async def query_rewrite_node(state: AgentState) -> AgentState:
         profile_parts.append(f"Tuổi: {patient_profile['age']}")
     if patient_profile.get("gender"):
         profile_parts.append(f"Giới tính: {patient_profile['gender']}")
-    if patient_profile.get("conditions"):
-        profile_parts.append(f"Bệnh nền: {', '.join(patient_profile['conditions'])}")
+    if patient_profile.get("primary_condition"):
+        profile_parts.append(f"Bệnh chính: {patient_profile['primary_condition']}")
+    if patient_profile.get("comorbidities"):
+        profile_parts.append(f"Bệnh đồng mắc: {patient_profile['comorbidities']}")
     if patient_profile.get("medications"):
         profile_parts.append(f"Thuốc đang dùng: {', '.join(patient_profile['medications'])}")
 

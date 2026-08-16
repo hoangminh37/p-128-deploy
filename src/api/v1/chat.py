@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -23,20 +22,21 @@ logger = get_logger(__name__)
 
 # Step event messages — hiển thị trên FE khi mỗi node bắt đầu
 NODE_MESSAGES: dict[str, dict] = {
-    "intent_router": {"message": "🔍 Đang phân tích câu hỏi...", "icon": "🔍"},
-    "coref_resolution": {"message": "🔗 Đang xử lý ngữ cảnh hội thoại...", "icon": "🔗"},
-    "query_rewrite": {"message": "✏️ Đang tối ưu câu hỏi...", "icon": "✏️"},
-    "hybrid_retrieval": {"message": "📚 Đang tìm kiếm tài liệu y tế...", "icon": "📚"},
-    "crag_evaluator": {"message": "🔬 Đang đánh giá độ liên quan...", "icon": "🔬"},
-    "llm_generate": {"message": "✍️ Đang tổng hợp câu trả lời...", "icon": "✍️"},
-    "selfrag_verifier": {"message": "✅ Đang kiểm tra độ tin cậy...", "icon": "✅"},
-    "partial_rewrite": {"message": "🔄 Đang tìm kiếm bổ sung...", "icon": "🔄"},
-    "safety_disclaimer": {"message": "⚠️ Đang thêm cảnh báo y tế...", "icon": "⚠️"},
-    "memory_checkpoint": {"message": "💾 Đang lưu kết quả...", "icon": "💾"},
-    "refuse_handler": {"message": "🛑 Đang xử lý yêu cầu...", "icon": "🛑"},
-    "out_of_domain_handler": {"message": "👋 Đang phản hồi...", "icon": "👋"},
-    "emergency_handler": {"message": "🚨 Đang xử lý khẩn cấp...", "icon": "🚨"},
-    "doctor_referral": {"message": "👨‍⚕️ Đang chuyển hướng chuyên gia...", "icon": "👨‍⚕️"},
+    "intent_router": {"message": "Đang phân tích câu hỏi...", "icon": "🔍"},
+    "coref_resolution": {"message": "Đang xử lý ngữ cảnh hội thoại...", "icon": "🔗"},
+    "query_rewrite": {"message": "Đang tối ưu câu hỏi...", "icon": "✏️"},
+    "hybrid_retrieval": {"message": "Đang tìm kiếm tài liệu y tế...", "icon": "📚"},
+    "crag_evaluator": {"message": "Đang đánh giá độ liên quan...", "icon": "🔬"},
+    "llm_generate": {"message": "Đang tổng hợp câu trả lời...", "icon": "✍️"},
+    "selfrag_verifier": {"message": "Đang kiểm tra độ tin cậy...", "icon": "✅"},
+    "partial_rewrite": {"message": "Đang tìm kiếm bổ sung...", "icon": "🔄"},
+    "safety_disclaimer": {"message": "Đang thêm cảnh báo y tế...", "icon": "⚠️"},
+    "memory_checkpoint": {"message": "Đang lưu kết quả...", "icon": "💾"},
+    "refuse_handler": {"message": "Đang xử lý yêu cầu...", "icon": "🛑"},
+    "out_of_domain_handler": {"message": "Đang phản hồi...", "icon": "👋"},
+    "emergency_handler": {"message": "Đang xử lý khẩn cấp...", "icon": "🚨"},
+    "doctor_referral": {"message": "Đang chuyển hướng chuyên gia...", "icon": "👨‍⚕️"},
+    "profile_handler": {"message": "Đang kiểm tra hồ sơ bệnh án...", "icon": "👤"},
 }
 
 
@@ -113,7 +113,7 @@ async def chat(
             status = "refused"
         elif intent == "doctor_referral":
             status = "referral"
-        elif intent in ["greeting", "out_of_domain"]:
+        elif intent in ["greeting", "out_of_domain", "profile", "prompt_injection"]:
             # Lời chào KHÔNG phải lời từ chối. Map sang "refused" khiến frontend
             # dựng khối màu từ chối cho một câu "Xin chào" — xem ResponseStates.
             status = "answered"
@@ -254,14 +254,13 @@ async def chat_stream(
         state = request.to_agent_state(patient_profile_dict)
         final_state: dict = {}
 
-        # ── Bộ đệm JSON raw từ LLM ─────────────────────────────────────
-        # LLM nhả JSON có dạng: {"analysis":"...", "answer":"...", "claims":[...]}
-        # Chiến lược: tích lũy toàn bộ JSON raw, dùng regex extract phần answer
-        # dần dần theo thời gian thực, yield phần mới tăng thêm mỗi lần.
+        # ── Bộ đệm XML raw từ LLM ──────────────────────────────────────
+        # LLM nhả output có dạng: <analysis>...</analysis><answer>...</answer>
+        # Chiến lược: tìm chuỗi "<answer>", stream nội dung sau nó.
         import re
-        _raw_buffer: str = ""    # Tích lũy toàn bộ JSON thô từ LLM
+        _raw_buffer: str = ""    # Tích lũy toàn bộ text thô từ LLM
         _streamed_len: int = 0   # Số ký tụ answer đã yield
-        _ANSWER_RE = re.compile(r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)"?', re.DOTALL)
+        _ANSWER_OPEN_RE = re.compile(r"<\s*answer\s*>(.*)", re.DOTALL | re.IGNORECASE)
 
         try:
             # ── Step events (realtime per node) ──────────────────────────
@@ -293,22 +292,17 @@ async def chat_stream(
                         if chunk and hasattr(chunk, "content") and chunk.content:
                             _raw_buffer += chunk.content
 
-                            # Dùng regex tìm phần answer trong JSON buffer
-                            m = _ANSWER_RE.search(_raw_buffer)
+                            # Dùng regex tìm phần sau thẻ <answer>
+                            m = _ANSWER_OPEN_RE.search(_raw_buffer)
                             if m:
-                                # Group 1: nội dung trong "answer":"..." (có thể chưa đóng)
                                 raw_answer = m.group(1)
-                                # Decode ký tự thoát JSON an toàn qua json.loads
-                                try:
-                                    decoded = json.loads(f'"{ raw_answer}"')
-                                except json.JSONDecodeError:
-                                    # Buffer chưa đủ — escape sequence bị cắt giữa chường
-                                    decoded = raw_answer.replace("\\n", "\n").replace('\\"', '"')
-
+                                # Lọc bỏ thẻ đóng </answer> nếu LLM đã sinh xong
+                                raw_answer = re.sub(r"<\s*/\s*answer\s*>", "", raw_answer, flags=re.IGNORECASE)
+                                
                                 # Chỉ yield phần mới tăng thêm
-                                new_text = decoded[_streamed_len:]
+                                new_text = raw_answer[_streamed_len:]
                                 if new_text:
-                                    _streamed_len = len(decoded)
+                                    _streamed_len = len(raw_answer)
                                     payload = json.dumps({"text": new_text}, ensure_ascii=False)
                                     yield f"event: token\ndata: {payload}\n\n"
 
@@ -354,12 +348,19 @@ async def chat_stream(
                 )
             )
 
-            # Format citations
+            # Format citations and replace markers
             citations_db = []
-            for c in final_state.get("citations", []):
+            final_answer = final_state.get("response", "")
+            for i, c in enumerate(final_state.get("citations", [])):
+                cid = i + 1
+                doc_id = c.get("doc_id")
+                
+                if doc_id and f"[{doc_id}]" in final_answer:
+                    final_answer = final_answer.replace(f"[{doc_id}]", f"[{cid}]")
+                    
                 citations_db.append(
                     {
-                        "id": c.get("id"),
+                        "id": cid,
                         "title": c.get("title"),
                         "issuer": c.get("issuer"),
                         "doc_code": c.get("doc_code"),
@@ -372,22 +373,23 @@ async def chat_stream(
             intent = final_state.get("intent", "")
             support_level = final_state.get("support_level", "fully")
             is_red_flag = final_state.get("is_red_flag", False)
+            answer = final_answer
 
             if is_red_flag:
                 status = "red_flag"
-            elif intent in ["diagnosis", "refusal", "prompt_injection", "out_of_domain"]:
+            elif intent in ["diagnosis", "refusal"]:
                 status = "refused"
             elif intent == "doctor_referral":
                 status = "referral"
-            elif intent in ["greeting", "out_of_domain"]:
-                status = "answered"  # lời chào không phải lời từ chối
+            elif intent in ["greeting", "out_of_domain", "profile", "prompt_injection"]:
+                status = "answered"
             elif support_level == "partially":
                 status = "partial"
 
-            final_citations = citations_list if status not in ["red_flag", "refused", "referral"] else []
+            final_citations = citations_db if status not in ["red_flag", "refused", "referral"] else []
             final_support_level = support_level if status in ["answered", "partial"] else None
             disclaimer = "⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng." if support_level != "fully" else ""
-                
+
             db.add(Message(
                 id=message_id,
                 conversation_id=conversation_id,
@@ -398,7 +400,7 @@ async def chat_stream(
                 support_level=final_support_level,
                 disclaimer=disclaimer
             ))
-            
+
             await db.commit()
 
             # ── Done event ────────────────────────────────────────────────
