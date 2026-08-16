@@ -18,9 +18,7 @@ class AgentState(TypedDict, total=False):
     messages: list[dict]  # lịch sử hội thoại [{role, content}]
 
     # ── Routing ─────────────────────────────────────────────────────────────
-    intent: Literal[
-        "education", "red_flag", "diagnosis", "greeting", "out_of_domain", "doctor_referral"
-    ]
+    intent: Literal["education", "red_flag", "diagnosis", "greeting", "out_of_domain", "doctor_referral"]
     is_red_flag: bool
     ood_kind: Literal["greeting", "off_topic"]  # phân nhánh trong out_of_domain_handler
 

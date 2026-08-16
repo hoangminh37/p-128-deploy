@@ -92,9 +92,7 @@ async def selfrag_verifier_node(state: AgentState) -> AgentState:
 
     # Build context từ relevant strips — nhãn doc_N phải trùng với nhãn
     # llm_generate đã dán, nếu không verifier sẽ tưởng mọi trích dẫn đều sai nguồn.
-    context = "\n---\n".join(
-        f"[doc_{i}] {d['content'][:500]}" for i, d in enumerate(relevant_strips[:5])
-    )
+    context = "\n---\n".join(f"[doc_{i}] {d['content'][:500]}" for i, d in enumerate(relevant_strips[:5]))
 
     logger.info("[selfrag_verifier] verifying response...")
 
