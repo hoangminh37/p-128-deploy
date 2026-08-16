@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from src.api.v1.chat import router as chat_router
-from src.api.v1.health import router as health_router
 from src.api.v1.auth import router as auth_router
-from src.api.v1.patients import router as patients_router
+from src.api.v1.chat import router as chat_router
 from src.api.v1.conversations import router as conversations_router
 from src.api.v1.editor import router as editor_router
+from src.api.v1.health import router as health_router
+from src.api.v1.patients import router as patients_router
 
 router = APIRouter(prefix="/v1")
 

@@ -35,6 +35,10 @@ async def intent_router_node(state: AgentState) -> AgentState:
         logger.warning("[intent_router] DIAGNOSIS request detected (rule-based)")
         return {**state, "intent": "diagnosis", "is_red_flag": False}
 
+    if guardrail_result == "greeting":
+        logger.info("[intent_router] GREETING detected (rule-based, không gọi LLM)")
+        return {**state, "intent": "greeting", "is_red_flag": False, "ood_kind": "greeting"}
+
     # ── Step 2: LLM classify (chỉ khi rule-based pass) ──────────────────
     try:
         llm = get_fast_llm()
@@ -42,13 +46,18 @@ async def intent_router_node(state: AgentState) -> AgentState:
         result = await chain.ainvoke({"query": query})
         raw = result.content.strip().lower()
 
-        # Parse LLM output — chỉ chấp nhận 4 giá trị hợp lệ
-        valid_intents = {"education", "red_flag", "diagnosis", "out_of_domain"}
+        # Parse LLM output — chỉ chấp nhận 5 giá trị hợp lệ
+        valid_intents = {"education", "red_flag", "diagnosis", "greeting", "out_of_domain"}
         intent = raw if raw in valid_intents else "education"
         is_red_flag = intent == "red_flag"
 
         logger.info("[intent_router] LLM intent=%s", intent)
-        return {**state, "intent": intent, "is_red_flag": is_red_flag}
+        return {
+            **state,
+            "intent": intent,
+            "is_red_flag": is_red_flag,
+            "ood_kind": "greeting" if intent == "greeting" else "off_topic",
+        }
 
     except Exception as exc:
         logger.error("[intent_router] LLM failed, defaulting to education: %s", exc)

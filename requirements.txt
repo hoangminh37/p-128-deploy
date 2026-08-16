@@ -6,6 +6,8 @@ email-validator>=2.1.0
 pydantic-settings>=2.7.0
 python-dotenv>=1.0.0
 PyJWT>=2.8.0
+# Bắt buộc cho UploadFile/Form ở /editor/upload — thiếu là FastAPI crash lúc import
+python-multipart>=0.0.9
 
 # AI / LangChain
 langchain>=0.3.0

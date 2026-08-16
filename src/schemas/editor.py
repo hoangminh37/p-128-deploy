@@ -1,4 +1,5 @@
-from typing import Literal, Optional
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 EditorItemStatus = Literal["draft", "pending", "approved", "rejected"]
@@ -8,12 +9,14 @@ PatientCondition = Literal["type2_diabetes", "hypertension"]
 
 class EditorDashboard(BaseModel):
     """Response GET /editor/dashboard."""
+
     pending_count: int = Field(..., ge=0)
     out_of_scope_count: int = Field(..., ge=0)
 
 
 class EditorQueueItem(BaseModel):
     """Một dòng trong GET /editor/queue."""
+
     item_id: str
     title: str = Field(..., max_length=120)
     origin: EditorItemOrigin
@@ -28,20 +31,21 @@ class EditorQueueList(BaseModel):
 
 class EditorQueueItemDetail(EditorQueueItem):
     """Chi tiết một mục trong hàng đợi."""
+
     content: str
-    source_url: Optional[str] = None
-    issuer: Optional[str] = None
-    doc_code: Optional[str] = None
+    source_url: str | None = None
+    issuer: str | None = None
+    doc_code: str | None = None
     conditions: list[PatientCondition] = Field(default_factory=list)
-    review_note: Optional[str] = None
-    reject_reason: Optional[str] = None
-    reviewed_at: Optional[str] = None
-    reviewed_by: Optional[str] = None
+    review_note: str | None = None
+    reject_reason: str | None = None
+    reviewed_at: str | None = None
+    reviewed_by: str | None = None
 
 
 class EditorApproveRequest(BaseModel):
-    content: Optional[str] = None
-    note: Optional[str] = None
+    content: str | None = None
+    note: str | None = None
 
 
 class EditorRejectRequest(BaseModel):
@@ -54,7 +58,7 @@ class OutOfScopeLogSchema(BaseModel):
     ask_count: int
     last_asked_at: str
     drafted: bool
-    drafted_item_id: Optional[str] = None
+    drafted_item_id: str | None = None
 
 
 class OutOfScopeLogList(BaseModel):

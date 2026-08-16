@@ -91,7 +91,7 @@ class ConversationMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     created_at: str
-    
+
     # Optional fields for assistant
     message_id: str | None = None
     status: Literal["answered", "partial", "red_flag", "refused", "referral"] | None = None
@@ -102,4 +102,3 @@ class ConversationMessage(BaseModel):
 class ConversationDetail(BaseModel):
     conversation_id: str
     messages: list[ConversationMessage] = Field(default_factory=list)
-

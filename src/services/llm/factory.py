@@ -54,9 +54,18 @@ def get_fast_llm() -> BaseChatModel:
 
 
 def get_quality_llm() -> BaseChatModel:
-    """Convenience: dùng OpenAI gpt-4o-mini cho generation/verification."""
+    """Convenience: LLM cho generation/verification, theo LLM_PROVIDER trong .env.
+
+    Bản trước luôn chọn OpenAI khi OPENAI_API_KEY có mặt, BỎ QUA LLM_PROVIDER.
+    Một key hết hạn mức vẫn là một chuỗi khác rỗng, nên toàn bộ node sinh câu trả
+    lời chết với lỗi 429 trong khi .env đã ghi rõ LLM_PROVIDER=groq. Nay tôn trọng
+    cấu hình, chỉ đổi provider khi provider được chọn thiếu key.
+    """
     settings = get_settings()
-    # Fallback về groq nếu openai key không có
-    if settings.openai_api_key:
+    provider = settings.llm_provider
+
+    if provider == "openai" and not settings.openai_api_key:
+        return get_llm("groq")
+    if provider == "groq" and not settings.groq_api_key:
         return get_llm("openai")
-    return get_llm("groq")
+    return get_llm(provider)

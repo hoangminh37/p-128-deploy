@@ -19,12 +19,14 @@ class UserInfo(BaseModel):
 
 class LoginRequest(BaseModel):
     """Dùng cho request POST /auth/login."""
+
     email: EmailStr
     password: str = Field(..., min_length=1)
 
 
 class LoginResponse(BaseModel):
     """Dùng cho response 200 của POST /auth/login."""
+
     access_token: str
     token_type: Literal["bearer"] = "bearer"
     user: UserInfo

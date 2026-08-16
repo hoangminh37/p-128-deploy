@@ -18,8 +18,9 @@ class AgentState(TypedDict, total=False):
     messages: list[dict]  # lịch sử hội thoại [{role, content}]
 
     # ── Routing ─────────────────────────────────────────────────────────────
-    intent: Literal["education", "red_flag", "diagnosis"]
+    intent: Literal["education", "red_flag", "diagnosis", "greeting", "out_of_domain", "doctor_referral"]
     is_red_flag: bool
+    ood_kind: Literal["greeting", "off_topic"]  # phân nhánh trong out_of_domain_handler
 
     # ── Preprocessing ────────────────────────────────────────────────────────
     resolved_query: str  # sau coref_resolution
@@ -37,6 +38,7 @@ class AgentState(TypedDict, total=False):
     # ── Verification (Self-RAG) ─────────────────────────────────────────────
     support_level: Literal["fully", "partially", "no_support"]
     unsupported_sentences: list[str]  # câu chưa có nguồn
+    answers_question: bool  # câu trả lời có đúng trọng tâm câu hỏi không
 
     # ── Control flow ─────────────────────────────────────────────────────────
     retry_count: int  # số lần partial_rewrite đã thực hiện

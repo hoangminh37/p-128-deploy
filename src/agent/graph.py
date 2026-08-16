@@ -34,7 +34,7 @@ def route_intent(state: AgentState) -> str:
     intent = state.get("intent", "education")
     if intent in ("diagnosis", "prompt_injection"):
         return "refuse_handler"
-    if intent == "out_of_domain":
+    if intent in ("greeting", "out_of_domain"):
         return "out_of_domain_handler"
     return "coref_resolution"
 
@@ -47,20 +47,35 @@ def route_crag(state: AgentState) -> str:
 
 
 def route_selfrag(state: AgentState) -> str:
-    """Route sau selfrag_verifier."""
+    """Route sau selfrag_verifier.
+
+    Hai đường dẫn tới doctor_referral — đều là "kho tài liệu không đủ để trả lời":
+    - answers_question = False: có tài liệu, có nguồn, nhưng nói sang chuyện khác.
+      Thà nhận là không biết còn hơn đưa người bệnh một câu trả lời lạc đề.
+    - no_support: câu trả lời không dựa được vào tài liệu nào.
+    Trước đây no_support chỉ bị gắn thêm disclaimer rồi vẫn gửi đi, nghĩa là
+    người bệnh vẫn đọc phải nội dung y khoa không có nguồn.
+    """
+    if not state.get("answers_question", True):
+        return "doctor_referral"
+
     level = state.get("support_level", "fully")
     if level == "fully":
         return "memory_checkpoint"
     if level == "partially":
         return "partial_rewrite"
-    return "safety_disclaimer"  # no_support
+    return "doctor_referral"  # no_support
 
 
 def route_partial(state: AgentState) -> str:
-    """Route sau partial_rewrite — retry loop hoặc give up."""
+    """Route sau partial_rewrite — retry loop hoặc give up.
+
+    Hết lượt retry mà vẫn "partially" thì đi qua safety_disclaimer: câu trả lời
+    còn phần chưa có nguồn nên bắt buộc phải kèm cảnh báo trước khi gửi đi.
+    """
     if state.get("retry_count", 0) <= MAX_RETRIES:
         return "hybrid_retrieval"
-    return "memory_checkpoint"
+    return "safety_disclaimer"
 
 
 # ── Graph builder ─────────────────────────────────────────────────────────────
@@ -122,7 +137,7 @@ def build_graph() -> CompiledStateGraph:
         {
             "memory_checkpoint": "memory_checkpoint",
             "partial_rewrite": "partial_rewrite",
-            "safety_disclaimer": "safety_disclaimer",
+            "doctor_referral": "doctor_referral",
         },
     )
 
@@ -131,7 +146,7 @@ def build_graph() -> CompiledStateGraph:
         route_partial,
         {
             "hybrid_retrieval": "hybrid_retrieval",
-            "memory_checkpoint": "memory_checkpoint",
+            "safety_disclaimer": "safety_disclaimer",
         },
     )
 
