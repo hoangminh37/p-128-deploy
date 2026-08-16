@@ -185,7 +185,7 @@ export const chatRequestSchema = z.object({
  * trong `docs/api-contract.md` mục 5 và mục 11, rồi hằng số này biến mất, luật
  * quay về nằm một chỗ duy nhất trong schema.
  */
-export const MIN_QUERY_LENGTH = 10
+export const MIN_QUERY_LENGTH = 1
 
 /**
  * Mục 5 — phần cấu trúc của response POST /chat, chưa gắn ràng buộc trích dẫn.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -230,18 +230,27 @@ async def chat_stream(req: Request, request: ChatRequest, db: AsyncSession = Dep
             error_payload = json.dumps({"error": "Không tìm thấy hồ sơ bệnh nhân"}, ensure_ascii=False)
             yield f"event: error\ndata: {error_payload}\n\n"
             return
-            
+
         patient_profile_dict = {
             "patient_id": patient.id,
             "age": patient.age,
             "primary_condition": patient.primary_condition,
             "comorbidities": patient.comorbidities,
             "diagnosed_at": patient.diagnosed_at,
-            "asking_as": patient.asking_as
+            "asking_as": patient.asking_as,
         }
-        
+
         state = request.to_agent_state(patient_profile_dict)
         final_state: dict = {}
+
+        # ── Bộ đệm JSON raw từ LLM ─────────────────────────────────────
+        # LLM nhả JSON có dạng: {"analysis":"...", "answer":"...", "claims":[...]}
+        # Chiến lược: tích lũy toàn bộ JSON raw, dùng regex extract phần answer
+        # dần dần theo thời gian thực, yield phần mới tăng thêm mỗi lần.
+        import re
+        _raw_buffer: str = ""    # Tích lũy toàn bộ JSON thô từ LLM
+        _streamed_len: int = 0   # Số ký tụ answer đã yield
+        _ANSWER_RE = re.compile(r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)"?', re.DOTALL)
 
         try:
             # ── Step events (realtime per node) ──────────────────────────
@@ -261,39 +270,42 @@ async def chat_stream(req: Request, request: ChatRequest, db: AsyncSession = Dep
                     )
                     yield f"event: step\ndata: {payload}\n\n"
 
-                # Emit token events for streaming
+                # ── True Streaming: bắt token trực tiếp từ node llm_generate ──
                 if event_type == "on_chat_model_stream":
-                    chunk = event.get("data", {}).get("chunk")
-                    # (Tùy chọn: Dùng nếu LLM trực tiếp stream text ra ngoài)
-                    pass
+                    # Chỉ xử lý token từ node tạo câu trả lời chính
+                    # tránh nhầm token từ crag_evaluator, selfrag_verifier, v.v.
+                    node_name = event.get("metadata", {}).get("langgraph_node", "")
+                    if node_name != "llm_generate":
+                        pass  # Bỏ qua token từ các node LLM khác
+                    else:
+                        chunk = event.get("data", {}).get("chunk")
+                        if chunk and hasattr(chunk, "content") and chunk.content:
+                            _raw_buffer += chunk.content
+
+                            # Dùng regex tìm phần answer trong JSON buffer
+                            m = _ANSWER_RE.search(_raw_buffer)
+                            if m:
+                                # Group 1: nội dung trong "answer":"..." (có thể chưa đóng)
+                                raw_answer = m.group(1)
+                                # Decode ký tự thoát JSON an toàn qua json.loads
+                                try:
+                                    decoded = json.loads(f'"{ raw_answer}"')
+                                except json.JSONDecodeError:
+                                    # Buffer chưa đủ — escape sequence bị cắt giữa chường
+                                    decoded = raw_answer.replace("\\n", "\n").replace('\\"', '"')
+
+                                # Chỉ yield phần mới tăng thêm
+                                new_text = decoded[_streamed_len:]
+                                if new_text:
+                                    _streamed_len = len(decoded)
+                                    payload = json.dumps({"text": new_text}, ensure_ascii=False)
+                                    yield f"event: token\ndata: {payload}\n\n"
 
                 # Trích xuất state từ bất kỳ node nào kết thúc
                 if event_type == "on_chain_end":
                     output = event.get("data", {}).get("output", {})
                     if isinstance(output, dict) and "response" in output:
                         final_state.update(output)
-
-            # ── Token events (word-by-word) ───────────────────────────────
-            response_text = final_state.get("response", "")
-            for word in response_text.split(" "):
-                if word:
-                    payload = json.dumps({"text": word + " "}, ensure_ascii=False)
-                    yield f"event: token\ndata: {payload}\n\n"
-                    await asyncio.sleep(0.025)  # ~40 words/sec
-
-            # ── Done event ────────────────────────────────────────────────
-            done_payload = json.dumps(
-                {
-                    "citations": final_state.get("citations", []),
-                    "support_level": final_state.get("support_level", "fully"),
-                    "intent": final_state.get("intent", ""),
-                    "disclaimer": "⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng."
-                    if final_state.get("support_level") != "fully"
-                    else "",
-                },
-                ensure_ascii=False,
-            )
-            yield f"event: done\ndata: {done_payload}\n\n"
 
             # Save to DB at the end
             from src.models.domain import Conversation, Message
@@ -328,16 +340,22 @@ async def chat_stream(req: Request, request: ChatRequest, db: AsyncSession = Dep
                 content=request.query,
             ))
             
-            # Format citations
-            citations_db = []
-            for c in final_state.get("citations", []):
-                citations_db.append({
-                    "id": c.get("id"),
-                    "title": c.get("title"),
-                    "issuer": c.get("issuer"),
+            # Format citations and clean answer markers
+            raw_citations = final_state.get("citations", [])
+            citations_list = []
+            answer = final_state.get("response", "")
+            for i, c in enumerate(raw_citations):
+                cid = i + 1
+                doc_id = c.get("doc_id")
+                if doc_id and f"[{doc_id}]" in answer:
+                    answer = answer.replace(f"[{doc_id}]", f"[{cid}]")
+                citations_list.append({
+                    "id": cid,
+                    "title": c.get("title", f"Tài liệu {cid}"),
+                    "issuer": c.get("issuer", "Cơ sở y tế"),
                     "doc_code": c.get("doc_code"),
                     "url": c.get("url"),
-                    "snippet": c.get("snippet")
+                    "snippet": (c.get("snippet") or c.get("content", ""))[:300]
                 })
                 
             status = "answered"
@@ -347,25 +365,45 @@ async def chat_stream(req: Request, request: ChatRequest, db: AsyncSession = Dep
             
             if is_red_flag:
                 status = "red_flag"
-            elif intent in ["diagnosis", "refusal", "out_of_domain"]:
+            elif intent in ["diagnosis", "refusal", "prompt_injection", "out_of_domain"]:
                 status = "refused"
             elif intent == "doctor_referral":
                 status = "referral"
             elif support_level == "partially":
                 status = "partial"
+
+            final_citations = citations_list if status not in ["red_flag", "refused", "referral"] else []
+            final_support_level = support_level if status in ["answered", "partial"] else None
+            disclaimer = "⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng." if support_level != "fully" else ""
                 
             db.add(Message(
                 id=message_id,
                 conversation_id=conversation_id,
                 role="assistant",
                 status=status,
-                content=final_state.get("response", ""),
-                citations=citations_db if status not in ["red_flag", "refused", "referral"] else [],
-                support_level=support_level if status in ["answered", "partial"] else None,
-                disclaimer="⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng." if support_level != "fully" else ""
+                content=answer,
+                citations=final_citations,
+                support_level=final_support_level,
+                disclaimer=disclaimer
             ))
             
             await db.commit()
+
+            # ── Done event ────────────────────────────────────────────────
+            done_payload = json.dumps(
+                {
+                    "conversation_id": conversation_id,
+                    "message_id": message_id,
+                    "status": status,
+                    "answer": answer,
+                    "citations": final_citations,
+                    "support_level": final_support_level,
+                    "intent": intent,
+                    "disclaimer": disclaimer,
+                },
+                ensure_ascii=False,
+            )
+            yield f"event: done\ndata: {done_payload}\n\n"
 
         except Exception as exc:
             logger.error("[chat_stream] error: %s", exc)

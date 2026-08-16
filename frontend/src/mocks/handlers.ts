@@ -13,7 +13,6 @@ import {
   editorRejectRequestSchema,
   loginRequestSchema,
   patientProfileSchema,
-  type ChatStatus,
   type EditorItemStatus,
   type EditorQueueItemDetail,
   type OutOfScopeLog,
@@ -22,7 +21,6 @@ import {
 } from '../lib/schemas'
 import { DEMO_ACCOUNTS } from './demoAccounts'
 import {
-  chatFixtures,
   conversationDetailFixture,
   conversationListFixture,
   editorQueueFixture,
@@ -37,9 +35,6 @@ import {
 /** Khớp cách `lib/api.ts` dựng URL, để mock ăn cả khi đặt `VITE_API_URL`. */
 const BASE_URL: string = import.meta.env.VITE_API_URL ?? ''
 const url = (path: string) => `${BASE_URL}/api/v1${path}`
-
-/** Trả lời của LLM thật mất vài giây, giả lập để thấy được trạng thái đang chờ. */
-const CHAT_DELAY_MS = 1500
 
 /** Các endpoint còn lại chỉ đọc ghi dữ liệu, cho trễ ngắn thôi. */
 const QUICK_DELAY_MS = 300
@@ -168,54 +163,6 @@ function toQueueRow(item: EditorQueueItemDetail) {
 /** Hai trạng thái đã chốt. Duyệt hay từ chối lần nữa đều trả 409. */
 function isSettled(item: EditorQueueItemDetail): boolean {
   return item.status === 'approved' || item.status === 'rejected'
-}
-
-// ---------------------------------------------------------------------------
-// Chọn kịch bản theo từ khóa trong câu hỏi
-// ---------------------------------------------------------------------------
-
-/**
- * Thứ tự có ý nghĩa: dấu hiệu cấp cứu phải được xét trước, vì một câu vừa hỏi
- * liều thuốc vừa kể triệu chứng nguy hiểm thì phải ra `red_flag`.
- */
-const KEYWORD_RULES: ReadonlyArray<{
-  status: ChatStatus
-  keywords: readonly string[]
-}> = [
-  {
-    status: 'red_flag',
-    keywords: [
-      'đau ngực', 'tức ngực', 'khó thở', 'méo miệng', 'yếu tay',
-      'tê nửa người', 'nói khó', 'ngất', 'cấp cứu', 'mờ mắt đột ngột',
-    ],
-  },
-  {
-    status: 'refused',
-    keywords: [
-      'liều', 'mấy viên', 'tăng thuốc', 'giảm thuốc', 'đổi thuốc',
-      'bỏ thuốc', 'kê đơn', 'đơn thuốc', 'uống thêm',
-    ],
-  },
-  {
-    status: 'referral',
-    keywords: [
-      'tế bào gốc', 'ghép tụy', 'thuốc nam', 'đông y', 'chữa khỏi hẳn',
-      'khỏi hẳn', 'thực phẩm chức năng',
-    ],
-  },
-  {
-    status: 'partial',
-    keywords: ['tập thể dục', 'tập luyện', 'vận động', 'đi bộ', 'thể thao'],
-  },
-]
-
-/** Không khớp từ khóa nào thì trả kịch bản `answered`. */
-function pickFixture(query: string) {
-  const normalized = query.toLowerCase()
-  const rule = KEYWORD_RULES.find((candidate) =>
-    candidate.keywords.some((keyword) => normalized.includes(keyword)),
-  )
-  return chatFixtures[rule?.status ?? 'answered']
 }
 
 // ---------------------------------------------------------------------------
