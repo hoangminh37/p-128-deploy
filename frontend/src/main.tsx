@@ -19,16 +19,39 @@ import './index.css'
 import App from './App.tsx'
 
 /**
- * Bật MSW khi chạy dev, theo đúng hướng dẫn trong `mocks/browser.ts`.
+ * Quyết định có bật MSW hay không, dựa trên biến `VITE_ENABLE_MSW`.
+ *
+ * Vite luôn đưa biến môi trường vào mã dưới dạng chuỗi, nên chỉ hai chuỗi
+ * `'true'` và `'false'` được coi là lựa chọn tường minh. Mọi giá trị khác, kể cả
+ * khi biến không được đặt, rơi về mặc định theo chế độ chạy: bật ở dev, tắt ở
+ * production. Mặc định này để người mới clone repo chạy được ngay bằng
+ * `npm run dev` mà chưa cần dựng backend.
+ *
+ * Cố ý viết thành một biểu thức phẳng chứ không tách ra hàm. Lúc build
+ * production, Vite thay `import.meta.env` bằng hằng số rồi rút gọn cả biểu thức
+ * này về `false`, nên nhánh `import('./mocks/browser')` bị cắt khỏi đồ thị
+ * module và dữ liệu y khoa giả không lọt vào `dist/`. Bọc nó trong một lời gọi
+ * hàm thì bundler không rút gọn được nữa, và chunk mock ~436 kB quay lại nằm
+ * trong bản phát hành dù mock vẫn tắt.
+ */
+const MOCKING_ENABLED =
+  import.meta.env.VITE_ENABLE_MSW === 'true' ||
+  (import.meta.env.VITE_ENABLE_MSW !== 'false' && import.meta.env.DEV)
+
+/**
+ * Bật MSW theo đúng hướng dẫn trong `mocks/browser.ts`.
  *
  * Phải `await` xong worker rồi mới render: nếu render trước, request đầu tiên
  * của ứng dụng có thể bay ra ngoài trước khi worker kịp chặn.
  */
 async function enableMocking(): Promise<void> {
-  // if (!import.meta.env.DEV) return
-  // const { worker } = await import('./mocks/browser')
-  // await worker.start({ onUnhandledRequest: 'bypass' })
-  return
+  if (!MOCKING_ENABLED) return
+  const { worker } = await import('./mocks/browser')
+  await worker.start({ onUnhandledRequest: 'bypass' })
+  // In ra để không ai nhầm dữ liệu giả của mock với dữ liệu của backend thật.
+  console.info(
+    '[MSW] Lớp mock đang BẬT — mọi phản hồi /api/v1/... là dữ liệu giả, không phải backend thật. Đặt VITE_ENABLE_MSW=false trong frontend/.env.local để tắt.',
+  )
 }
 
 void enableMocking().then(() => {

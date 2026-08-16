@@ -165,7 +165,9 @@ Request:
   "primary_condition": "hypertension",
   "comorbidities": ["type2_diabetes"],
   "diagnosed_at": "2026-03",
-  "asking_as": "self"
+  "asking_as": "self",
+  "height_cm": 165,
+  "weight_kg": 68.5
 }
 ```
 
@@ -177,7 +179,13 @@ Request:
 | `comorbidities` | enum[] | không | Cùng tập giá trị với `primary_condition`, mặc định rỗng |
 | `diagnosed_at` | string | không | Định dạng `YYYY-MM` |
 | `asking_as` | enum | không | `self` hoặc `caregiver`, mặc định `self`. Người hỏi là chính bệnh nhân hay người chăm sóc. Chỉ ảnh hưởng cách xưng hô trong câu trả lời, không đổi nội dung y khoa |
+| `height_cm` | int | không | 100 đến 250. Dùng để agent chọn đúng tài liệu phù hợp thể trạng |
+| `weight_kg` | number | không | 25 đến 300. Nên nhập tới một chữ số thập phân — đây là khuyến nghị, không phải ràng buộc validate. Dùng để agent chọn đúng tài liệu phù hợp thể trạng |
 | `updated_at` | string | chỉ có trong response | Định dạng ISO 8601 có offset múi giờ |
+
+Hai trường `height_cm` và `weight_kg` chỉ dùng để chọn tài liệu phù hợp thể trạng. Agent KHÔNG
+được đưa ra chỉ tiêu cân nặng, mục tiêu giảm cân, hay số calo cụ thể dựa trên hai trường này,
+vì đó là tư vấn dinh dưỡng cá nhân hoá — nằm ngoài phạm vi giáo dục của sản phẩm.
 
 Không nhận tên, số điện thoại, số căn cước. Ràng buộc PII trong brief mục 7.4.
 
@@ -730,6 +738,10 @@ class PatientProfile(BaseModel):
     comorbidities: list[Literal["type2_diabetes", "hypertension"]] = Field(default_factory=list)
     diagnosed_at: Optional[str] = None
     asking_as: Literal["self", "caregiver"] = "self"
+    # Chỉ dùng để chọn tài liệu phù hợp thể trạng. Không được dùng để sinh chỉ
+    # tiêu cân nặng, mục tiêu giảm cân hay số calo cụ thể — xem mục 4.
+    height_cm: Optional[int] = Field(None, ge=100, le=250)
+    weight_kg: Optional[float] = Field(None, ge=25, le=300)
 
 
 class PatientProfileResponse(PatientProfile):
@@ -873,3 +885,7 @@ cho khớp `AgentState.query` trong `ARCHITECTURE.md`.
    thư viện" là đúng. Nếu chạy nền thì phải báo "đang xử lý, vài phút nữa trợ lý mới dùng
    được" — nói sai chỗ này thì biên tập viên tưởng nội dung đã sống, đi kiểm tra bằng cách hỏi
    trợ lý, thấy vẫn trả `referral`, và kết luận là hệ thống hỏng
+8. Hai trường `height_cm` và `weight_kg` mới thêm ở mục 4. Backend dùng chúng thế nào — chỉ để
+   lọc tài liệu theo thể trạng, hay có đưa thẳng vào prompt của agent. Và cần xác nhận rằng
+   chúng không dẫn tới việc sinh chỉ tiêu cân nặng, mục tiêu giảm cân hay số calo cụ thể trong
+   câu trả lời, vì đó là tư vấn dinh dưỡng cá nhân hoá nằm ngoài phạm vi giáo dục của sản phẩm
