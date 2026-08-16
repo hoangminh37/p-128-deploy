@@ -73,10 +73,17 @@ export function OutOfScopeScreen() {
         </div>
       )}
 
+      {/* Chỉ nói đúng điều màn này biết: danh sách trả về không có mục nào.
+          Bản trước viết "Thư viện đang phủ hết những gì bệnh nhân hỏi" — một
+          khẳng định mà giao diện không có cơ sở nào để đưa ra, và là khẳng định
+          nguy hiểm: biên tập viên đọc xong sẽ kết luận không cần bổ sung tài
+          liệu, trong khi danh sách rỗng có thể chỉ vì chưa ai hỏi, hoặc vì phần
+          ghi log chưa chạy. Câu thứ hai chỉ mô tả phạm vi của danh sách, không
+          suy ra điều gì từ việc nó rỗng. */}
       {!isPending && !isError && logs.length === 0 && (
         <p className="font-display mt-block text-notice text-moss">
-          Chưa có câu hỏi nào ngoài phạm vi. Thư viện đang phủ hết những gì bệnh
-          nhân hỏi.
+          Danh sách hiện không có mục nào. Chỗ này chỉ hiện những câu hỏi mà trợ
+          lý đã phải trả lời rằng chưa có tài liệu để trích dẫn.
         </p>
       )}
 
