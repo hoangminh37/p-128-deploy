@@ -104,13 +104,12 @@
   /* Chữ mà người dùng KHÔNG ĐƯỢC PHÉP đọc lướt.
    *
    * Bốn khối trạng thái (red_flag, refused, referral, lỗi kỹ thuật), chữ trên
-   * nút gọi cấp cứu 115, ba điều cần nói ở đầu màn hồ sơ, và nhãn trên các thẻ
-   * lựa chọn lớn của form.
+   * nút gọi cấp cứu 115, và nhãn trên các thẻ lựa chọn lớn của form.
    *
    * LỚN HƠN câu trả lời thường đúng một bậc, và đó là chủ ý: những chỗ này ngắn
    * và phải đọc hết ngay lần đầu — bỏ sót một câu là bỏ qua dấu hiệu cấp cứu,
-   * là tự chỉnh liều thuốc, là tưởng máy chủ đã trả lời trong khi nó vừa hỏng,
-   * hoặc là chọn nhầm ô "tôi hỏi giúp người nhà" rồi khai tuổi của chính mình.
+   * là tự chỉnh liều thuốc, hoặc là tưởng máy chủ đã trả lời trong khi nó vừa
+   * hỏng.
    * Câu trả lời thì dài, người đọc lướt rồi quay lại được; những chỗ này không. */
   --text-notice: 19px;
   --text-notice--line-height: 1.75;
@@ -135,8 +134,12 @@
   --text-source--line-height: 1.4;
 
   /* Chữ chạy dòng ở mọi vai trò phụ trợ: đoạn trích trong thẻ nguồn, cơ quan
-   * ban hành, số hiệu văn bản, dòng miễn trừ, nhãn số tài liệu, câu dẫn và
-   * thông báo trạng thái.
+   * ban hành, số hiệu văn bản, dòng miễn trừ, nhãn số tài liệu, câu dẫn, thông
+   * báo trạng thái, và ba điều cần nói ở đầu màn hồ sơ.
+   *
+   * Ba điều đó NHỎ HƠN nội dung câu trả lời là có chủ ý: chúng là lời dặn đọc
+   * một lần trước khi khai hồ sơ, không phải nội dung y khoa để đọc kỹ rồi quay
+   * lại tra. Xem đầu `ui/ProfileIntro.tsx`.
    *
    * Tên `question` là dấu vết của bản trước, khi bậc này dùng cho câu hỏi của
    * người dùng. Giữ nguyên tên vì đổi tên là sửa 82 chỗ ở 12 file, mà class
@@ -145,7 +148,8 @@
   --text-question: 16px;
   --text-question--line-height: 1.5;
 
-  /* Nhãn phụ nhỏ nhất: câu dẫn "Câu hỏi của bạn", nhãn nhóm trên thanh bên. */
+  /* Nhãn phụ nhỏ nhất: câu dẫn "Câu hỏi của bạn", nhãn nhóm trên thanh bên, và
+   * dòng trấn an về giấy tờ ở đầu màn hồ sơ. */
   --text-note: 15px;
   --text-note--line-height: 1.5;
 

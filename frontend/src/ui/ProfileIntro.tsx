@@ -1,11 +1,11 @@
 /**
  * Ba điều phải hiểu trước khi khai hồ sơ, cộng lời trấn an về giấy tờ.
  *
- * BẢN NGẮN TRƯỚC, BẢN ĐẦY ĐỦ SAU MỘT CÚ BẤM. Trước kia phần này là ba đoạn dài
- * cộng một khối về giấy tờ, chiếm gần hết màn hình đầu tiên — người dùng phải
- * cuộn qua một bức tường chữ mới tới được ô đầu tiên của form, và phần lớn sẽ
- * cuộn chứ không đọc. Nay mỗi điều còn đúng một câu; ai muốn biết đủ thì mở
- * "Xem chi tiết", và ở đó nội dung giữ nguyên từng ý, không cắt bớt.
+ * MỘT BẢN DUY NHẤT, không có bản ngắn kèm bản đầy đủ. Bản trước hiện ba dòng
+ * ngắn rồi thêm một khối "Xem chi tiết" chứa lại đúng ba điều đó ở dạng dài:
+ * cùng một nội dung nằm hai chỗ, cộng lại còn dài hơn cả bản gốc, và người dùng
+ * đọc xong ba dòng ngắn vẫn phải đoán xem bên trong có gì khác không. Nay mỗi
+ * điều là một tới hai câu, đủ ý và hết.
  *
  * Cố ý viết bằng CÂU THẬT, không phải thẻ tính năng: không tiêu đề in đậm cộng
  * một dòng quảng cáo bên dưới. Ba điều này không phải điểm mạnh của sản phẩm,
@@ -15,23 +15,29 @@
  * Điểm thứ ba nói thẳng chuyện trợ lý sẽ TỪ CHỐI câu hỏi về liều thuốc. Biết
  * trước thì lúc bị từ chối người dùng hiểu đó là thiết kế, không phải hỏng —
  * còn không biết trước thì họ đi hỏi chỗ khác, mà chỗ khác không có ai kiểm
- * duyệt nội dung y khoa. Vì vậy câu ngắn của điểm này vẫn phải nói được chữ
- * "không kê đơn, không chỉnh liều", chứ không rút thành "trợ lý có giới hạn".
+ * duyệt nội dung y khoa. Vì vậy rút gọn đến đâu thì câu này vẫn phải giữ được
+ * chữ "không kê đơn, không chỉnh liều", chứ không thành "trợ lý có giới hạn".
  *
- * Cỡ `notice` 19px như nội dung chính, ở cả bản ngắn lẫn bản đầy đủ. Đây là
- * phần chữ mà người dùng thực sự phải đọc, không phải phần trang trí dẫn vào
- * form.
+ * CỠ CHỮ: `question` 16px cho ba đoạn, `note` 15px cho dòng về giấy tờ. Cả hai
+ * đều NHỎ HƠN nội dung câu trả lời (`answer` 18px), và đó là chủ ý chứ không
+ * phải quên áp thang.
  *
- * AI THẤY GÌ: bản ba dòng ngắn hiện cho tất cả, kể cả người quay lại sửa hồ sơ.
- * Ba điều này là giới hạn của công cụ chứ không phải màn chào lần đầu, và người
- * sửa hồ sơ sau vài tuần cũng cần được nhắc lại. Chỉ phần "Xem chi tiết" là
- * khác nhau: mở sẵn với người khai lần đầu, thu gọn với người quay lại — xem
- * prop `defaultExpanded`.
+ * Lý do được phép nhỏ hơn: đây là lời dặn đọc MỘT LẦN trước khi khai hồ sơ, không
+ * phải nội dung y khoa để đọc kỹ và quay lại tra. Người dùng đọc nó đúng một lượt
+ * rồi đi tiếp vào form, và nó không mang khẳng định y khoa nào để ai phải dò lại
+ * từng câu. Cái phải giữ cỡ lớn là thứ người bệnh thực sự đọc để hành động: câu
+ * trả lời `answer` 18px, và các khối trạng thái `notice` 19px — bậc đó vẫn dành
+ * riêng cho chữ không được phép đọc lướt, đừng kéo phần này lên đó nữa.
  *
- * Dùng `details`/`summary` chứ không tự dựng nút đóng mở: trình duyệt cho sẵn
- * hành vi bàn phím, trạng thái đóng mở mà trình đọc màn hình đọc được, và cả
- * chức năng tìm trong trang mở đúng phần đang ẩn. `summary` cũng đã có sàn chạm
- * 44px từ `index.css`.
+ * Đổi lại, phần này đứng ngay đầu màn hồ sơ và đẩy ô nhập đầu tiên xuống dưới
+ * màn hình đầu trên điện thoại. Ở 16px thì cả lời dặn lẫn bước đầu của form cùng
+ * nhìn thấy được.
+ *
+ * `note` 15px là SÀN cỡ chữ của dự án. Không hạ thêm bậc nào nữa ở cả hai chỗ.
+ *
+ * AI THẤY GÌ: tất cả, kể cả người quay lại sửa hồ sơ. Ba điều này là giới hạn
+ * của công cụ chứ không phải màn chào lần đầu, nên không có prop nào để bật tắt
+ * hay thu gọn chúng.
  */
 import type { ComponentType } from 'react'
 
@@ -40,111 +46,52 @@ import { LibraryIcon, NoteIcon, PillIcon } from './icons'
 type IntroPoint = {
   id: string
   Icon: ComponentType<{ className?: string }>
-  /** Một câu, đọc hết trong một nhịp. Đây là thứ hiện ra ngay. */
-  short: string
-  /** Nguyên văn bản đầy đủ, chỉ hiện khi người dùng mở "Xem chi tiết". */
-  full: string
+  /** Một tới hai câu. Đọc hết trong một nhịp, và không có bản dài nào khác. */
+  body: string
 }
 
 const POINTS: readonly IntroPoint[] = [
   {
     id: 'diagnosed',
     Icon: NoteIcon,
-    short: 'Nơi này dành cho người đã đi khám và có kết luận của bác sĩ.',
-    full:
+    body:
       'Nơi này dành cho người đã đi khám và có kết luận của bác sĩ. Nếu bạn đang ' +
-      'thấy khó chịu trong người và muốn biết mình bị bệnh gì, chỗ này không trả ' +
-      'lời được — bạn cần đi khám.',
+      'thấy khó chịu trong người và muốn biết mình bị bệnh gì, bạn cần đi khám.',
   },
   {
     id: 'sources',
     Icon: LibraryIcon,
-    short: 'Mỗi câu trả lời đều kèm tên tài liệu của Bộ Y tế.',
-    full:
+    body:
       'Mỗi câu trả lời đều kèm tên tài liệu của Bộ Y tế, để bạn tự kiểm tra được ' +
       'hoặc đưa cho bác sĩ xem.',
   },
   {
     id: 'no-prescription',
     Icon: PillIcon,
-    short: 'Trợ lý không kê đơn và không chỉnh liều thuốc.',
-    full:
-      'Trợ lý không kê đơn và không chỉnh liều thuốc. Nếu bạn hỏi nên uống mấy ' +
-      'viên, hay có nên tăng giảm liều, trợ lý sẽ từ chối và mời bạn hỏi bác sĩ ' +
-      'điều trị. Đó là điều đã định sẵn, không phải máy hỏng.',
+    body:
+      'Trợ lý không kê đơn và không chỉnh liều thuốc. Bạn hỏi nên uống mấy viên ' +
+      'hay có nên tăng giảm liều thì trợ lý sẽ mời bạn hỏi bác sĩ điều trị — đó ' +
+      'là điều đã định sẵn, không phải máy hỏng.',
   },
 ]
 
-/** Một dòng của danh sách, dùng chung cho cả bản ngắn lẫn bản đầy đủ. */
-function IntroLine({
-  Icon,
-  body,
-}: {
-  Icon: ComponentType<{ className?: string }>
-  body: string
-}) {
-  return (
-    <li className="flex items-start gap-snug">
-      <Icon className="mt-tight h-7 w-7 shrink-0 text-medical" />
-      <p className="text-notice text-ink">{body}</p>
-    </li>
-  )
-}
-
-export function ProfileIntro({
-  /**
-   * Phần "Xem chi tiết" có mở sẵn hay không.
-   *
-   * Người khai lần đầu chưa biết gì về công cụ nên mở sẵn; người quay lại sửa
-   * hồ sơ đã đọc một lần rồi nên để thu gọn. Bản ba dòng ngắn thì cả hai đều
-   * thấy — đó là ba giới hạn của công cụ, không phải lời chào một lần rồi thôi.
-   *
-   * Truyền vào thuộc tính `open` của `details` chứ không giữ state riêng: React
-   * chỉ ghi lại thuộc tính này khi GIÁ TRỊ PROP đổi, mà ở đây nó đứng yên suốt
-   * vòng đời của màn hình. Nên người dùng đóng mở thoải mái, không có lần vẽ
-   * lại nào kéo nó về trạng thái ban đầu.
-   */
-  defaultExpanded = false,
-}: {
-  defaultExpanded?: boolean
-}) {
+export function ProfileIntro() {
   return (
     <div className="max-w-answer">
-      <ul className="space-y-snug">
-        {POINTS.map(({ id, Icon, short }) => (
-          <IntroLine key={id} Icon={Icon} body={short} />
+      <ul className="space-y-cozy">
+        {POINTS.map(({ id, Icon, body }) => (
+          <li key={id} className="flex items-start gap-snug">
+            <Icon className="mt-tight h-7 w-7 shrink-0 text-medical" />
+            <p className="text-question text-ink">{body}</p>
+          </li>
         ))}
       </ul>
 
-      {/* Ràng buộc PII của brief, rút còn một dòng. Người sắp phải điền thông
-          tin sức khỏe cần được trấn an TRƯỚC khi điền, nhưng một câu là đủ để
-          trấn an — phần liệt kê đủ bốn loại giấy tờ nằm ở bản đầy đủ. */}
-      <p className="font-display mt-snug text-question text-moss">
+      {/* Ràng buộc PII của brief, gói trong một câu. Người sắp phải điền thông
+          tin sức khỏe cần được trấn an TRƯỚC khi điền, và một câu là đủ. */}
+      <p className="font-display mt-snug text-note text-moss">
         Ứng dụng không hỏi và không lưu tên, số điện thoại hay giấy tờ của bạn.
       </p>
-
-      <details open={defaultExpanded} className="mt-snug">
-        <summary className="font-display flex min-h-touch items-center text-input font-semibold text-medical underline underline-offset-4">
-          Xem chi tiết
-        </summary>
-
-        <ul className="mt-snug space-y-cozy">
-          {POINTS.map(({ id, Icon, full }) => (
-            <IntroLine key={id} Icon={Icon} body={full} />
-          ))}
-        </ul>
-
-        <div className="mt-block border-l-4 border-medical pl-cozy">
-          <p className="font-display text-input font-semibold">
-            Bạn không cần khai tên hay giấy tờ
-          </p>
-          <p className="font-display mt-hair text-question text-moss">
-            Ứng dụng không hỏi và không lưu tên, số điện thoại, số căn cước hay số
-            thẻ bảo hiểm. Chỉ những thông tin dưới đây được lưu, và chỉ để trợ lý
-            tra đúng tài liệu cho bệnh của bạn.
-          </p>
-        </div>
-      </details>
     </div>
   )
 }

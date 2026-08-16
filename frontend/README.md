@@ -22,7 +22,7 @@ Công nghệ chính:
 | MSW | 2 | Giả lập backend ở tầng mạng |
 
 Ngoài ra còn dùng React Router 7 (điều hướng), React Hook Form cùng Zod resolver
-(form hồ sơ), và Zod 4 (kiểm tra dữ liệu API).
+(form hồ sơ và form đăng nhập), và Zod 4 (kiểm tra dữ liệu API).
 
 ## 2. Yêu cầu
 
@@ -143,10 +143,12 @@ gì liên quan tới gọi API.
 
 ### Vì sao có mock
 
-Backend chưa sẵn sàng, nhưng giao diện vẫn phải dựng được và phải kiểm được đủ
-năm nhánh trạng thái phản hồi. Có những nhánh gần như không thể tạo ra bằng
-backend thật một cách chủ động, ví dụ nhánh dấu hiệu cấp cứu: không ai muốn phải
-chờ hệ thống thật nhận diện một ca nguy hiểm mới biết banner đỏ hiển thị ra sao.
+Giao diện phải dựng được và phải kiểm được đủ năm nhánh trạng thái phản hồi kể cả
+khi chưa có backend trong tay. Và ngay cả khi đã có backend thật, vẫn có những
+nhánh gần như không thể tạo ra một cách chủ động, ví dụ nhánh dấu hiệu cấp cứu:
+không ai muốn phải chờ hệ thống thật nhận diện một ca nguy hiểm mới biết banner
+đỏ hiển thị ra sao. Vì vậy lớp mock không phải giàn giáo tạm — nó là cách duy
+nhất để thử đủ năm nhánh và các mã lỗi 401, 403, 404, 409, 422.
 
 MSW chặn request ở **tầng mạng**, bằng một Service Worker, chứ không thay thế
 module hay ghi đè `fetch` trong mã nguồn. Hệ quả quan trọng: `src/lib/api.ts` và
@@ -267,17 +269,29 @@ ràng buộc do schema Zod bắt buộc, không phải quy ước lỏng lẻo.
 
 | Endpoint | Hành vi của mock |
 | --- | --- |
-| `POST /api/v1/patients/profile` | Kiểm dữ liệu bằng Zod. Sai thì trả 422 kèm `detail`, giống lỗi của Pydantic. Đúng thì trả lại chính object vừa lưu, thêm `updated_at`. |
-| `GET /api/v1/patients/{id}/profile` | Luôn trả 200 cho **mọi** id, lấy hồ sơ mẫu rồi thay `patient_id` bằng id trong đường dẫn. Không bao giờ trả 404. |
+| `POST /api/v1/auth/login` | Đối chiếu với hai tài khoản mẫu trong `src/mocks/demoAccounts.ts`. Sai thì trả **một** thông báo 401 duy nhất cho cả ba trường hợp (email lạ, sai mật khẩu, payload không khớp) — phân biệt chúng cho phép người ngoài dò xem một địa chỉ có tài khoản hay không. Đúng thì trả `access_token` dạng `mock.<user_id>.<timestamp>` kèm `user`. |
+| `POST /api/v1/auth/logout` | Trả 204, không có body. |
+| `POST /api/v1/patients/profile` | Kiểm dữ liệu bằng Zod. Sai thì trả 422 kèm `detail`, giống lỗi của Pydantic. Đúng thì lưu vào kho trong bộ nhớ và trả lại chính object vừa lưu, thêm `updated_at`. |
+| `GET /api/v1/patients/{id}/profile` | Đọc từ kho trong bộ nhớ. Chưa khai thì trả **404** kèm `detail`, đúng như hợp đồng mục 4. Kho được gieo sẵn đúng hồ sơ mẫu, tức `patient_id` của tài khoản bệnh nhân mẫu. |
 | `GET /api/v1/conversations/{id}` | Luôn trả 200 với danh sách phiên cố định, bỏ qua id. |
 | `GET /api/v1/conversations/{id}/{conversationId}` | Trả 404 nếu `conversationId` khác `c_mock_answered`, để kiểm được nhánh lỗi. |
+
+Bảy endpoint của mục 8 (khu vực biên tập) cũng có mock đầy đủ: `GET /editor/dashboard`,
+`GET /editor/queue`, `GET /editor/queue/{itemId}`, `POST /editor/queue/{itemId}/approve`,
+`POST /editor/queue/{itemId}/reject`, `GET /editor/out-of-scope`, và
+`POST /editor/out-of-scope/{logId}/draft`. Cả bảy đều kiểm quyền trước tiên: chưa
+đăng nhập thì 401, đăng nhập bằng tài khoản không phải `editor` thì 403 — mock cố
+ý kiểm đúng như backend thật, vì nếu ở đây cho qua hết thì giao diện sẽ được dựng
+trên giả định là không bao giờ gặp 403. Hàng đợi duyệt và log ngoài phạm vi giữ
+trạng thái thật trong bộ nhớ, nên duyệt một mục xong thì lần gọi danh sách sau
+không còn thấy nó ở `pending` nữa; duyệt hoặc từ chối lần hai thì trả 409.
 
 Độ trễ giả lập: 1500 ms cho `POST /chat` (để thấy được trạng thái đang chờ), 300
 ms cho các endpoint còn lại.
 
-Lưu ý khi thử màn hồ sơ: vì `GET profile` luôn trả hồ sơ mẫu, màn sửa hồ sơ sẽ
-luôn hiện dữ liệu mẫu (58 tuổi, tăng huyết áp) chứ không phải thứ bạn vừa lưu.
-Đó là giới hạn của mock, không phải lỗi của form.
+Kho hồ sơ, hàng đợi duyệt và log ngoài phạm vi đều sống theo **vòng đời của
+tab**: tải lại trang là mọi thay đổi bạn vừa tạo biến mất, chỉ còn dữ liệu gieo
+sẵn. Đó là giới hạn của mock, không phải lỗi của form.
 
 ### Tự kiểm khi nạp module
 
@@ -289,12 +303,13 @@ mô tả chỗ sai, thay vì hiển thị sai lặng lẽ.
 
 | Thư mục | Vai trò |
 | --- | --- |
-| `src/app/` | Cấu hình cấp ứng dụng: `queryClient.ts` (mặc định của TanStack Query), `guards.tsx` (hai guard điều hướng). |
+| `src/app/` | Cấu hình cấp ứng dụng: `queryClient.ts` (mặc định của TanStack Query), `guards.tsx` (bốn guard điều hướng: `RequireAuth`, `RequireRole`, `RedirectIfAuthenticated`, `LandingRedirect`), `conversations.ts` và `editor.ts` (hook query dùng chung). |
 | `src/lib/` | Tầng dữ liệu thuần, không dính React. `schemas.ts` là nguồn sự thật duy nhất về kiểu dữ liệu API, `api.ts` là lớp gọi HTTP. |
-| `src/mocks/` | Lớp giả lập backend: `browser.ts` (worker), `handlers.ts` (định tuyến), `fixtures.ts` (dữ liệu mẫu). |
-| `src/patient/` | Context giữ `patient_id` ẩn danh và hồ sơ bệnh nhân. |
-| `src/screens/` | Ba màn hình: chọn vai trò, khai hồ sơ, hỏi đáp. |
-| `src/ui/` | Component dùng lại được: khung ngoài, dải nguồn, ô nhập, khối trạng thái, khối lỗi. |
+| `src/mocks/` | Lớp giả lập backend: `browser.ts` (worker), `handlers.ts` (định tuyến), `fixtures.ts` (dữ liệu mẫu), `demoAccounts.ts` (hai tài khoản mẫu, cố ý không kéo theo MSW để màn đăng nhập đọc được). |
+| `src/session/` | Context giữ phiên đăng nhập: token, tài khoản, vai trò. Đồng bộ token sang `lib/api.ts` qua `setAuthToken`. |
+| `src/patient/` | Context giữ hồ sơ bệnh nhân của tài khoản đang đăng nhập. `patient_id` lấy từ response đăng nhập, không sinh ở client. |
+| `src/screens/` | Bảy màn hình: đăng nhập, khai hồ sơ, hỏi đáp, và bốn màn của khu vực biên tập (tổng quan, hàng đợi, chi tiết một mục, câu hỏi ngoài phạm vi). |
+| `src/ui/` | Component dùng lại được: khung ngoài, thanh bên, dải nguồn, ô nhập, khối trạng thái, khối lỗi. |
 | `src/assets/` | Ảnh và icon nhập trực tiếp vào mã. |
 | `public/` | File tĩnh sao chép nguyên trạng sang `dist/`, gồm `mockServiceWorker.js` do MSW sinh ra. |
 
@@ -386,9 +401,9 @@ npx tsc -p tsconfig.app.json --noEmit   # chỉ định thẳng project
 npm run lint
 ```
 
-Hiện trạng: 0 lỗi, 3 cảnh báo. Các cảnh báo đến từ React Compiler và quy tắc
-`react-hooks/exhaustive-deps` khi gặp `watch()` của React Hook Form, cộng một
-directive thừa trong file `public/mockServiceWorker.js` do MSW sinh ra.
+Hiện trạng: 0 lỗi, 2 cảnh báo. Một đến từ React Compiler khi gặp `watch()` của
+React Hook Form trong `ProfileScreen.tsx`, một là directive thừa trong file
+`public/mockServiceWorker.js` do MSW sinh ra.
 
 ### Build
 
@@ -403,21 +418,30 @@ cách. Kết quả nằm trong `dist/`. Xem thử bằng `npm run preview`.
 
 Ghi trung thực để người mới không mất thời gian tìm thứ chưa tồn tại.
 
-- **Chưa ghép API thật.** Toàn bộ dữ liệu khi chạy dev đến từ MSW. Chưa có lần nào
-  chạy đối chiếu với backend thật, nên những chỗ hợp đồng API mô tả chưa rõ vẫn
-  có thể lệch.
-- **Chưa có xác thực.** `src/lib/api.ts` đã có sẵn chỗ gắn header `Authorization`
-  nhưng `AUTH_TOKEN` đang để `null`. Chưa có đăng nhập, chưa có phiên người dùng.
-- **Chưa có luồng biên tập viên y khoa.** Màn chọn vai trò có hiện lựa chọn này
-  nhưng để ở trạng thái chưa mở, kèm ghi chú. Chưa có màn hình nào phía sau nó.
+- **Mặc định vẫn chạy trên dữ liệu giả.** Khi chạy dev mà không đặt biến thì mọi
+  dữ liệu đến từ MSW. Chuyển sang backend thật bằng `VITE_ENABLE_MSW=false` (mục
+  5), nhưng hợp đồng API chưa được đối chiếu đầy đủ với backend, nên những chỗ
+  hợp đồng mô tả chưa rõ vẫn có thể lệch.
+- **Xác thực mới có ở phía giao diện.** Đã có màn đăng nhập, `SessionProvider`
+  giữ phiên, `setAuthToken` gắn header `Authorization`, và bốn guard điều hướng
+  chặn theo phiên lẫn theo vai trò. Nhưng token mà mock phát ra chỉ là chuỗi
+  `mock.<user_id>.<timestamp>`, không phải JWT thật, và mật khẩu hai tài khoản
+  mẫu nằm nguyên văn trong `src/mocks/demoAccounts.ts`. Chặn thật vẫn phải nằm ở
+  backend: guard ở đây chỉ giữ cho giao diện không dẫn người dùng vào chỗ không
+  phải của họ.
+- **Luồng biên tập viên y khoa đã có, nhưng chưa nối backend.** Bốn màn hình
+  (tổng quan, hàng đợi duyệt, chi tiết một mục, câu hỏi ngoài phạm vi) chạy đầy
+  đủ trên mock. Chưa có màn chọn vai trò nào cả — vai trò đến từ tài khoản đăng
+  nhập, không phải từ việc người dùng tự khai.
 - **Nội dung y khoa trong mock là dữ liệu giả.** Các đoạn văn trong
   `src/mocks/fixtures.ts` do người viết diễn đạt lại cho dễ hiểu, không phải trích
   nguyên văn tài liệu gốc. **Không được dùng làm nguồn tham khảo lâm sàng** và
   không được đem đi trình bày như nội dung thật.
-- **`patient_id` sinh ở client và lưu trong localStorage.** Xóa dữ liệu trình
-  duyệt là mất hồ sơ. Chưa có cách khôi phục hay chuyển hồ sơ sang máy khác.
+- **Phiên đăng nhập nằm trong localStorage.** `patient_id` nay đi theo tài khoản
+  chứ không sinh ở client nữa, nên đăng nhập ở máy khác vẫn thấy đúng hồ sơ và
+  đúng lịch sử. Nhưng token và tài khoản được cất trong localStorage dưới tiền tố
+  `tro-ly-suc-khoe:`, tức người dùng sửa được bằng devtools — vì vậy phần `user`
+  đọc lên luôn được parse lại qua schema hợp đồng, và mọi quyết định về quyền
+  thật sự vẫn phải do backend ra.
 - **Chưa có test tự động.** Chưa cài test runner. Việc kiểm tra hiện dựa vào
   `tsc -b`, ESLint, và thử tay trên dev server.
-- **Lịch sử hội thoại chưa dùng tới.** `src/lib/api.ts` đã có sẵn hai hàm
-  `listConversations` và `getConversationDetail`, mock cũng đã có handler, nhưng
-  chưa màn hình nào gọi tới.
