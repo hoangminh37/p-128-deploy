@@ -109,10 +109,14 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db), current
 
         if is_red_flag:
             status = "red_flag"
-        elif intent in ["diagnosis", "refusal", "out_of_domain"]:
+        elif intent in ["diagnosis", "refusal"]:
             status = "refused"
         elif intent == "doctor_referral":
             status = "referral"
+        elif intent in ["greeting", "out_of_domain"]:
+            # Lời chào KHÔNG phải lời từ chối. Map sang "refused" khiến frontend
+            # dựng khối màu từ chối cho một câu "Xin chào" — xem ResponseStates.
+            status = "answered"
         elif support_level == "partially":
             status = "partial"
         else:
@@ -347,10 +351,12 @@ async def chat_stream(req: Request, request: ChatRequest, db: AsyncSession = Dep
             
             if is_red_flag:
                 status = "red_flag"
-            elif intent in ["diagnosis", "refusal", "out_of_domain"]:
+            elif intent in ["diagnosis", "refusal"]:
                 status = "refused"
             elif intent == "doctor_referral":
                 status = "referral"
+            elif intent in ["greeting", "out_of_domain"]:
+                status = "answered"  # lời chào không phải lời từ chối
             elif support_level == "partially":
                 status = "partial"
                 

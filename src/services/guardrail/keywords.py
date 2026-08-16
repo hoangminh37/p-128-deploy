@@ -57,3 +57,34 @@ DIAGNOSIS_KEYWORDS: list[str] = [
     "đổi thuốc",
     "dừng thuốc",
 ]
+
+# ── Smalltalk / chào hỏi ─────────────────────────────────────────────────────
+# Regex (không phải substring) vì chúng phải khớp TRỌN câu hỏi: chữ "chào" nằm
+# trong một câu hỏi y tế thật thì không được tính là lời chào. Xem check_smalltalk.
+#
+# Tách hai nhóm để ghép được với nhau: "Hi bạn là ai?" là lời chào GHÉP câu hỏi
+# danh tính, gộp chung một danh sách thì không khớp được ca đó.
+
+# Nhóm 1 — lời chào thuần.
+GREETING_PATTERNS: list[str] = [
+    r"(?:xin\s+)?ch[aà]o(?:\s+buổi\s+(?:sáng|trưa|chiều|tối))?"
+    r"(?:\s+(?:bạn|em|anh|chị|bác\s*sĩ|trợ\s*lý|ad|shop|mọi\s*người))?",
+    r"h(?:i+|e+y+|ello+|allo+|ullo)",
+    r"alo+",
+    r"yo",
+]
+
+# Nhóm 2 — hỏi về chính trợ lý, cảm ơn, tạm biệt.
+SMALLTALK_PATTERNS: list[str] = [
+    # Danh tính / năng lực
+    r"(?:bạn|em|mày|trợ\s*lý|ai)\s*(?:là\s*ai|tên\s*(?:là\s*)?gì|là\s*(?:cái\s*)?gì)",
+    r"(?:bạn|em|trợ\s*lý)\s*(?:có\s*thể\s*)?(?:làm|giúp)\s*(?:được\s*)?(?:gì|những\s*gì)[^?]*",
+    r"(?:đây|này|trang\s*này|app\s*này)\s*là\s*(?:trang|app|web|hệ\s*thống|cái)?\s*gì",
+    r"(?:tôi|mình)\s*(?:có\s*thể\s*)?hỏi\s*(?:được\s*)?(?:gì|những\s*gì)[^?]*",
+    r"giới\s*thiệu(?:\s*(?:về\s*)?(?:bản\s*thân|bạn|hệ\s*thống))?",
+    # Cảm ơn / tạm biệt / xác nhận
+    r"(?:xin\s+)?c[aả]m\s*[oơ]n(?:\s+(?:bạn|em|nhé|nha|ạ))*",
+    r"thank(?:s|\s*you)?(?:\s+(?:bạn|nhé))?",
+    r"(?:tạm\s*biệt|bye+|goodbye|bai)(?:\s+(?:bạn|nhé|nha))?",
+    r"ok(?:ay)?(?:\s+(?:bạn|nhé|nha))?",
+]

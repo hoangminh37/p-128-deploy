@@ -13,19 +13,63 @@ from src.services.llm.factory import get_quality_llm
 logger = get_logger(__name__)
 
 
+# LLM hay kèm văn xuôi giải thích sau khối JSON ("Lý do: ..."), và đoạn văn đó
+# có thể chứa dấu ngoặc nhọn làm regex tham lam nuốt quá tay. Ba regex dưới đây
+# đọc thẳng từng trường, dùng khi json.loads thất bại.
+_SUPPORT_RE = re.compile(r'"?support_level"?\s*[:=]\s*"?(fully|partially|no_support)', re.IGNORECASE)
+_ANSWERS_RE = re.compile(r'"?answers_question"?\s*[:=]\s*"?(yes|no|true|false)', re.IGNORECASE)
+_FALSE_VALUES = {"no", "false", "không", "khong"}
+
+
 def _parse_verify_response(raw: str) -> dict:
-    match = re.search(r"\{.*\}", raw, re.DOTALL)
-    if match:
+    """Đọc kết quả verify. JSON là đường chính, regex từng trường là lưới hứng."""
+    # 1. Khối JSON — thử tham lam (tới } cuối) rồi không tham lam (tới } đầu).
+    for pattern in (r"\{.*\}", r"\{.*?\}"):
+        match = re.search(pattern, raw, re.DOTALL)
+        if not match:
+            continue
         try:
-            return json.loads(match.group())
+            parsed = json.loads(match.group())
         except json.JSONDecodeError:
-            pass
-    # Fallback
-    if "fully" in raw.lower():
-        return {"support_level": "fully", "unsupported_sentences": []}
-    if "partially" in raw.lower():
-        return {"support_level": "partially", "unsupported_sentences": []}
-    return {"support_level": "no_support", "unsupported_sentences": []}
+            continue
+        if isinstance(parsed, dict) and "support_level" in parsed:
+            return parsed
+
+    # 2. Bóc từng trường bằng regex. Quan trọng nhất là answers_question: nhánh
+    # fallback cũ bỏ trắng trường này, nên mọi câu trả lời lạc đề đều lọt lưới.
+    result: dict = {"unsupported_sentences": []}
+
+    support_match = _SUPPORT_RE.search(raw)
+    if support_match:
+        result["support_level"] = support_match.group(1).lower()
+    elif "no_support" in raw.lower():
+        result["support_level"] = "no_support"
+    elif "partially" in raw.lower():
+        result["support_level"] = "partially"
+    elif "fully" in raw.lower():
+        result["support_level"] = "fully"
+    else:
+        result["support_level"] = "no_support"
+
+    answers_match = _ANSWERS_RE.search(raw)
+    if answers_match:
+        result["answers_question"] = answers_match.group(1).lower()
+
+    return result
+
+
+def _parse_answers_question(parsed: dict) -> bool:
+    """Đọc cờ answers_question, mặc định True khi thiếu hoặc không đọc được.
+
+    Fail-open có chủ đích: verifier im lặng thì thà trả lời người dùng còn hơn
+    đẩy họ đi gặp bác sĩ vì một lỗi parse.
+    """
+    value = parsed.get("answers_question", True)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() not in _FALSE_VALUES
+    return True
 
 
 async def selfrag_verifier_node(state: AgentState) -> AgentState:
@@ -39,10 +83,18 @@ async def selfrag_verifier_node(state: AgentState) -> AgentState:
     relevant_strips = state.get("relevant_strips", [])
 
     if not response:
-        return {**state, "support_level": "no_support", "unsupported_sentences": []}
+        return {
+            **state,
+            "support_level": "no_support",
+            "unsupported_sentences": [],
+            "answers_question": False,
+        }
 
-    # Build context từ relevant strips
-    context = "\n---\n".join(f"[{d['doc_id']}] {d['content'][:500]}" for d in relevant_strips[:5])
+    # Build context từ relevant strips — nhãn doc_N phải trùng với nhãn
+    # llm_generate đã dán, nếu không verifier sẽ tưởng mọi trích dẫn đều sai nguồn.
+    context = "\n---\n".join(
+        f"[doc_{i}] {d['content'][:500]}" for i, d in enumerate(relevant_strips[:5])
+    )
 
     logger.info("[selfrag_verifier] verifying response...")
 
@@ -59,11 +111,27 @@ async def selfrag_verifier_node(state: AgentState) -> AgentState:
         parsed = _parse_verify_response(result.content)
         support_level = parsed.get("support_level", "no_support")
         unsupported = parsed.get("unsupported_sentences", [])
+        answers_question = _parse_answers_question(parsed)
 
-        logger.info("[selfrag_verifier] support_level=%s | unsupported=%d", support_level, len(unsupported))
-        return {**state, "support_level": support_level, "unsupported_sentences": unsupported}
+        logger.info(
+            "[selfrag_verifier] support_level=%s | answers_question=%s | unsupported=%d",
+            support_level,
+            answers_question,
+            len(unsupported),
+        )
+        return {
+            **state,
+            "support_level": support_level,
+            "unsupported_sentences": unsupported,
+            "answers_question": answers_question,
+        }
 
     except Exception as exc:
         logger.error("[selfrag_verifier] LLM error: %s", exc)
         # Fail-safe: nếu verify lỗi → coi là fully (đã có response)
-        return {**state, "support_level": "fully", "unsupported_sentences": []}
+        return {
+            **state,
+            "support_level": "fully",
+            "unsupported_sentences": [],
+            "answers_question": True,
+        }
