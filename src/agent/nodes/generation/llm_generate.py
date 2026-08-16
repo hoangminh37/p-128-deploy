@@ -30,32 +30,33 @@ def _build_context(relevant_strips: list[dict]) -> str:
 
 def _parse_llm_response(raw: str) -> dict:
     """Parse JSON từ LLM output, fallback nếu malformed."""
-    import re
+
     # 1. Tìm block JSON (đôi khi LLM bọc trong ```json ... ```)
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     json_str = match.group() if match else raw
-    
+
     # 2. Thử parse trực tiếp
     try:
         return json.loads(json_str)
     except json.JSONDecodeError:
         pass
-        
+
     # 3. Chữa cháy: LLM thường hay quên escape newline (xuống dòng thật trong chuỗi)
     # Thay thế các newline bên trong ngoặc kép bằng \n
     try:
         # Regex tìm chuỗi "..." và replace newline bên trong
         def replace_newlines(m):
-            return m.group(0).replace('\n', '\\n')
+            return m.group(0).replace("\n", "\\n")
+
         repaired_str = re.sub(r'"(?:\\"|[^"])*"', replace_newlines, json_str, flags=re.DOTALL)
         return json.loads(repaired_str)
     except json.JSONDecodeError:
         pass
-        
+
     # 4. Fallback mạnh nhất: Dùng Regex trích xuất trường "answer" trực tiếp
     ans_match = re.search(r'"answer"\s*:\s*"(.*?)"(?:\s*,|\s*\})', json_str, re.DOTALL)
-    answer = ans_match.group(1).replace('\\n', '\n') if ans_match else raw.strip()
-    
+    answer = ans_match.group(1).replace("\\n", "\n") if ans_match else raw.strip()
+
     return {"analysis": "", "answer": answer, "claims": []}
 
 
