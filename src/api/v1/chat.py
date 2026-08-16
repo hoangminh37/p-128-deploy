@@ -258,8 +258,9 @@ async def chat_stream(
         # LLM nhả output có dạng: <analysis>...</analysis><answer>...</answer>
         # Chiến lược: tìm chuỗi "<answer>", stream nội dung sau nó.
         import re
-        _raw_buffer: str = ""    # Tích lũy toàn bộ text thô từ LLM
-        _streamed_len: int = 0   # Số ký tụ answer đã yield
+
+        _raw_buffer: str = ""  # Tích lũy toàn bộ text thô từ LLM
+        _streamed_len: int = 0  # Số ký tụ answer đã yield
         _ANSWER_OPEN_RE = re.compile(r"<\s*answer\s*>(.*)", re.DOTALL | re.IGNORECASE)
 
         try:
@@ -298,7 +299,7 @@ async def chat_stream(
                                 raw_answer = m.group(1)
                                 # Lọc bỏ thẻ đóng </answer> nếu LLM đã sinh xong
                                 raw_answer = re.sub(r"<\s*/\s*answer\s*>", "", raw_answer, flags=re.IGNORECASE)
-                                
+
                                 # Chỉ yield phần mới tăng thêm
                                 new_text = raw_answer[_streamed_len:]
                                 if new_text:
@@ -354,10 +355,10 @@ async def chat_stream(
             for i, c in enumerate(final_state.get("citations", [])):
                 cid = i + 1
                 doc_id = c.get("doc_id")
-                
+
                 if doc_id and f"[{doc_id}]" in final_answer:
                     final_answer = final_answer.replace(f"[{doc_id}]", f"[{cid}]")
-                    
+
                 citations_db.append(
                     {
                         "id": cid,
@@ -388,18 +389,24 @@ async def chat_stream(
 
             final_citations = citations_db if status not in ["red_flag", "refused", "referral"] else []
             final_support_level = support_level if status in ["answered", "partial"] else None
-            disclaimer = "⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng." if support_level != "fully" else ""
+            disclaimer = (
+                "⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng."
+                if support_level != "fully"
+                else ""
+            )
 
-            db.add(Message(
-                id=message_id,
-                conversation_id=conversation_id,
-                role="assistant",
-                status=status,
-                content=answer,
-                citations=final_citations,
-                support_level=final_support_level,
-                disclaimer=disclaimer
-            ))
+            db.add(
+                Message(
+                    id=message_id,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    status=status,
+                    content=answer,
+                    citations=final_citations,
+                    support_level=final_support_level,
+                    disclaimer=disclaimer,
+                )
+            )
 
             await db.commit()
 
