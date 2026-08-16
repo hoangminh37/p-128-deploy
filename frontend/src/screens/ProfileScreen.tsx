@@ -7,7 +7,8 @@
  * BỐ CỤC:
  *
  *   1. Ba điều cần nói  — giới hạn của công cụ, đọc trước khi khai bất cứ gì.
- *   2. Form ba bước      — mỗi bước một câu hỏi, có thanh tiến trình và nút lui.
+ *   2. Form ba bước      — tuổi và thể trạng, rồi bệnh đã được chẩn đoán, rồi
+ *                        thời điểm chẩn đoán. Xem `STEP_TITLES`.
  *
  * VÌ SAO CHIA BA BƯỚC: bốn trường hỏi dồn một lúc là một trang dài đặc chữ, và
  * người 45–70 tuổi đang lo lắng nhìn thấy nó thì bỏ giữa chừng. Chia ra thì mỗi
@@ -20,7 +21,7 @@
  * điện thoại là một hộp cuộn nhỏ, ngón tay run bấm rất dễ trượt, và người dùng
  * không nhìn thấy hết lựa chọn cùng lúc.
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useForm, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -29,10 +30,8 @@ import { z } from 'zod'
 
 import { upsertPatientProfile } from '../lib/api'
 import {
-  askingAsSchema,
   patientProfileSchema,
   primaryConditionSchema,
-  type AskingAs,
   type PatientProfileResponse,
   type PrimaryCondition,
 } from '../lib/schemas'
@@ -59,103 +58,89 @@ const CONDITION_LABEL: Record<PrimaryCondition, string> = {
 /** Lấy thẳng từ schema hợp đồng, không gõ lại danh sách giá trị. */
 const CONDITIONS = primaryConditionSchema.options
 
-type StepLabels = {
-  comorbidities: string
-  comorbiditiesHint: string
-  age: string
-  ageHint: string
-  diagnosed: string
-  diagnosedHint: string
-}
-
 /**
- * Cùng một câu hỏi, hai cách xưng hô.
+ * Nhãn của cả ba bước, MỘT bản duy nhất, xưng hô thẳng với người dùng.
  *
- * Người chăm sóc mà bị hỏi "bạn bao nhiêu tuổi" sẽ điền tuổi của chính họ, và
- * cả hồ sơ thành sai. Viết hẳn hai bản thay vì ghép chuỗi từ một biến chủ ngữ:
- * tiếng Việt đổi chủ ngữ thì trật tự và từ nối cũng đổi theo.
+ * Trước đây có hai bản `self` và `caregiver` vì form hỏi người dùng đang hỏi
+ * cho mình hay hỏi giúp người nhà. Lựa chọn "hỏi giúp người nhà" đã bỏ khỏi
+ * giao diện (xem `MUTATION_ASKING_AS`), nên bản `caregiver` không còn đường nào
+ * tới được và đã xoá hẳn — giữ lại chỉ tạo ảo giác rằng giao diện vẫn phục vụ
+ * hai nhóm người dùng, rồi người sau sẽ mất công cập nhật cả câu chữ đã chết.
  */
-const LABELS: Record<AskingAs, StepLabels> = {
-  self: {
-    comorbidities: 'Bạn có mắc thêm bệnh nào dưới đây không?',
-    comorbiditiesHint:
-      'Nếu có, trợ lý sẽ lưu ý những điều cần tránh khi mắc cùng lúc hai bệnh. ' +
-      'Nếu không có thì bạn cứ bỏ trống mục này.',
-    age: 'Bạn bao nhiêu tuổi?',
-    ageHint: 'Tuổi giúp trợ lý đưa lời khuyên hợp với lứa tuổi của bạn.',
-    diagnosed: 'Bạn được chẩn đoán từ khi nào?',
-    diagnosedHint:
-      'Không bắt buộc. Biết bạn mắc bệnh bao lâu rồi giúp lời khuyên sát hơn. ' +
-      'Không nhớ chính xác thì bạn cứ bỏ trống.',
-  },
-  caregiver: {
-    comorbidities: 'Người bạn chăm sóc có mắc thêm bệnh nào dưới đây không?',
-    comorbiditiesHint:
-      'Nếu có, trợ lý sẽ lưu ý những điều cần tránh khi mắc cùng lúc hai bệnh. ' +
-      'Nếu không có thì bạn cứ bỏ trống mục này.',
-    age: 'Người bạn chăm sóc bao nhiêu tuổi?',
-    ageHint: 'Tuổi giúp trợ lý đưa lời khuyên hợp với lứa tuổi của người đó.',
-    diagnosed: 'Người đó được chẩn đoán từ khi nào?',
-    diagnosedHint:
-      'Không bắt buộc. Biết người đó mắc bệnh bao lâu rồi giúp lời khuyên sát hơn. ' +
-      'Không nhớ chính xác thì bạn cứ bỏ trống.',
-  },
-}
+const LABELS = {
+  age: 'Bạn bao nhiêu tuổi?',
+  ageHint: 'Tuổi giúp trợ lý đưa lời khuyên hợp với lứa tuổi của bạn.',
+  body: 'Chiều cao và cân nặng',
+  bodyHint:
+    'Không bắt buộc, bạn có thể bỏ trống cả hai ô này. Trợ lý dùng hai số đó ' +
+    'để chọn tài liệu phù hợp với thể trạng của bạn.',
+  height: 'Bạn cao bao nhiêu? (tính bằng cm)',
+  weight: 'Bạn nặng bao nhiêu? (tính bằng kg)',
+  conditions: 'Bác sĩ đã chẩn đoán bạn mắc bệnh nào?',
+  conditionsHint:
+    'Bạn chọn một bệnh. Nếu bác sĩ chẩn đoán bạn mắc cả hai thì bạn chọn cả hai ô.',
+  diagnosed: 'Bạn được chẩn đoán từ khi nào?',
+  diagnosedHint:
+    'Không bắt buộc. Biết bạn mắc bệnh bao lâu rồi giúp lời khuyên sát hơn. ' +
+    'Không nhớ chính xác thì bạn cứ bỏ trống.',
+} as const
 
 // ---------------------------------------------------------------------------
-// Ba lựa chọn mở đầu
+// Bệnh: một danh sách ở giao diện, hai trường ở hợp đồng
 // ---------------------------------------------------------------------------
 
 /**
- * Một thẻ ở bước 1.
+ * Giá trị `asking_as` mà màn này luôn gửi lên.
  *
- * Hai thẻ đầu gộp luôn "ai hỏi" với "bệnh gì" — người bệnh tự hỏi cho mình là
- * đường đi phổ biến nhất, và hỏi họ hai câu để lấy một thông tin là thừa. Thẻ
- * thứ ba tách ra vì lúc đó bệnh là của người khác, phải hỏi riêng.
+ * Trường `asking_as` VẪN thuộc hợp đồng mục 4 và vẫn nằm nguyên trong
+ * `patientProfileSchema`; chỉ có GIAO DIỆN là chưa cho chọn, vì lựa chọn "tôi
+ * hỏi giúp người nhà" đã bỏ khỏi form. Mọi hồ sơ khai từ màn này vì thế đều là
+ * hồ sơ của chính người đang dùng, tức `self`.
+ *
+ * Đừng gỡ trường này khỏi payload để "cho gọn": backend có quyền phân biệt hai
+ * giá trị, và ngày nào giao diện mở lại lựa chọn kia thì chỉ việc thay hằng số
+ * này bằng một trường của form, hợp đồng không phải đổi gì.
  */
-type WhoChoice = {
-  id: string
-  label: string
-  description: string
-  askingAs: AskingAs
-  /** `null` nghĩa là còn phải hỏi thêm bệnh ở bước phụ ngay bên dưới. */
-  condition: PrimaryCondition | null
-}
+const MUTATION_ASKING_AS = 'self' as const
 
-const WHO_CHOICES: readonly WhoChoice[] = [
-  {
-    id: 'self-diabetes',
-    label: 'Tôi bị tiểu đường',
-    description: 'Bác sĩ chẩn đoán tôi mắc đái tháo đường típ 2.',
-    askingAs: 'self',
-    condition: 'type2_diabetes',
-  },
-  {
-    id: 'self-hypertension',
-    label: 'Tôi bị cao huyết áp',
-    description: 'Bác sĩ chẩn đoán tôi mắc tăng huyết áp.',
-    askingAs: 'self',
-    condition: 'hypertension',
-  },
-  {
-    id: 'caregiver',
-    label: 'Tôi hỏi giúp người nhà',
-    description: 'Tôi đang chăm sóc cho người bệnh trong nhà.',
-    askingAs: 'caregiver',
-    condition: null,
-  },
-]
+/**
+ * Tách danh sách bệnh người dùng chọn thành cặp `primary_condition` +
+ * `comorbidities` của hợp đồng.
+ *
+ * Giao diện hỏi một câu duy nhất "bác sĩ chẩn đoán bạn mắc bệnh nào", chọn được
+ * một hoặc cả hai — người mắc đồng thời đái tháo đường và tăng huyết áp không
+ * nghĩ theo kiểu bệnh nào là chính, và bắt họ tự xếp hạng là bắt họ trả lời một
+ * câu hỏi của lược đồ dữ liệu chứ không phải của y khoa. Nhưng hợp đồng mục 4
+ * vẫn tách hai trường, nên chỗ nào đó phải quyết định. Chỗ đó là đây.
+ *
+ * QUY TẮC, theo đúng thứ tự:
+ *
+ *   1. Hồ sơ cũ đã có `primary_condition` và bệnh đó VẪN đang được chọn thì giữ
+ *      nguyên nó làm bệnh chính. Người dùng vào sửa mỗi cân nặng mà hồ sơ âm
+ *      thầm đổi bệnh chính là một thay đổi dữ liệu không ai yêu cầu.
+ *   2. Còn lại thì lấy bệnh đứng trước trong `primaryConditionSchema.options`,
+ *      tức đái tháo đường típ 2 trước tăng huyết áp. Đây là một thứ tự CỐ ĐỊNH
+ *      chứ không phải xếp hạng y khoa: nếu lấy theo thứ tự người dùng bấm thì
+ *      cùng một cặp bệnh lại ra hai payload khác nhau tuỳ ai bấm ô nào trước.
+ *
+ * Bệnh còn lại rơi vào `comorbidities`. Hai trường vì thế không bao giờ trùng
+ * nhau — đúng ràng buộc mà form cũ phải tự canh bằng `.refine()`.
+ */
+function splitConditions(
+  selected: readonly PrimaryCondition[],
+  previousPrimary: PrimaryCondition | null,
+): { primary: PrimaryCondition; comorbidities: PrimaryCondition[] } {
+  const ordered = CONDITIONS.filter((condition) => selected.includes(condition))
 
-/** Thẻ nào đang được chọn, suy ra từ giá trị form chứ không giữ thêm state riêng. */
-function selectedWhoId(
-  askingAs: AskingAs | undefined,
-  condition: PrimaryCondition | undefined,
-): string | null {
-  if (askingAs === 'caregiver') return 'caregiver'
-  if (askingAs === 'self' && condition !== undefined) {
-    return condition === 'type2_diabetes' ? 'self-diabetes' : 'self-hypertension'
+  const primary =
+    previousPrimary !== null && ordered.includes(previousPrimary)
+      ? previousPrimary
+      : ordered[0]
+
+  return {
+    primary,
+    comorbidities: ordered.filter((condition) => condition !== primary),
   }
-  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +150,11 @@ function selectedWhoId(
 const MIN_AGE = 18
 const MAX_AGE = 120
 
+const MIN_HEIGHT_CM = 100
+const MAX_HEIGHT_CM = 250
+const MIN_WEIGHT_KG = 25
+const MAX_WEIGHT_KG = 300
+
 /**
  * Schema form dựng từ schema hợp đồng, bỏ `patient_id` (do ứng dụng tự sinh)
  * và thay thông báo lỗi bằng tiếng Việt nói rõ phải sửa gì.
@@ -173,16 +163,25 @@ const MAX_AGE = 120
  * kiểu vào và kiểu ra của schema trùng nhau — React Hook Form cần điều đó để
  * `useForm<ProfileFormValues>` khớp với resolver.
  *
- * Có một ràng buộc thêm mà hợp đồng không có: bệnh nền không được trùng bệnh
- * chính. Backend chấp nhận, nhưng với người bệnh thì "bệnh chính: tăng huyết áp,
- * bệnh kèm: tăng huyết áp" là vô nghĩa.
+ * BA TRƯỜNG CỦA HỢP ĐỒNG KHÔNG CÓ MẶT Ở ĐÂY:
+ *
+ *   `asking_as`          — giao diện không hỏi nữa, luôn gửi `MUTATION_ASKING_AS`.
+ *   `primary_condition`  — suy ra từ `conditions` lúc gửi, xem `splitConditions`.
+ *   `comorbidities`      — như trên.
+ *
+ * Form giữ một trường `conditions` duy nhất thay cho cặp bệnh chính / bệnh kèm.
+ * Nhờ vậy ràng buộc "bệnh kèm không được trùng bệnh chính" biến mất khỏi schema:
+ * một danh sách thì không tự trùng với chính nó được, không cần `.refine()` nào
+ * đứng canh.
  */
 const profileFormSchema = patientProfileSchema
-  .omit({ patient_id: true })
+  .omit({
+    patient_id: true,
+    asking_as: true,
+    primary_condition: true,
+    comorbidities: true,
+  })
   .extend({
-    asking_as: z.enum(askingAsSchema.options, {
-      error: 'Bạn hãy chọn một trong ba ô ở trên.',
-    }),
     age: z
       .number({ error: 'Bạn hãy điền tuổi bằng số, ví dụ 58.' })
       .int({ error: 'Tuổi phải là số nguyên, ví dụ 58 chứ không phải 58,5.' })
@@ -192,21 +191,40 @@ const profileFormSchema = patientProfileSchema
       .max(MAX_AGE, {
         error: `Tuổi phải nằm trong khoảng ${MIN_AGE} đến ${MAX_AGE}. Bạn hãy kiểm tra lại số vừa điền.`,
       }),
-    primary_condition: z.enum(CONDITIONS, {
-      error: 'Bạn hãy chọn bệnh mà bác sĩ đã chẩn đoán.',
+    // Chọn được một hoặc cả hai, nhưng không được bỏ trắng: cả sản phẩm xoay
+    // quanh đúng hai bệnh này, không biết người dùng mắc bệnh nào thì trợ lý
+    // không tra được tài liệu nào cả.
+    conditions: z.array(primaryConditionSchema).min(1, {
+      error: 'Bạn hãy chọn bệnh mà bác sĩ đã chẩn đoán, ít nhất một ô.',
     }),
-    comorbidities: z.array(primaryConditionSchema),
     diagnosed_at: z
       .string()
       .regex(/^\d{4}-(0[1-9]|1[0-2])$/, {
         error: 'Bạn hãy chọn tháng và năm, ví dụ tháng 3 năm 2026.',
       })
       .nullable(),
-  })
-  .refine((value) => !value.comorbidities.includes(value.primary_condition), {
-    error:
-      'Bệnh bạn chọn ở mục bệnh kèm đang trùng với bệnh chính. Bạn hãy bỏ chọn ở mục bệnh kèm.',
-    path: ['comorbidities'],
+    // Hai trường thể trạng: bỏ trống là `null`, điền thì phải nằm trong khoảng
+    // của hợp đồng. `.nullable()` chứ không `.nullish()` để kiểu vào và kiểu ra
+    // vẫn trùng nhau, cùng lối với `diagnosed_at` ngay trên.
+    height_cm: z
+      .number({ error: 'Bạn hãy điền chiều cao bằng số, ví dụ 165, hoặc bỏ trống ô này.' })
+      .int({ error: 'Chiều cao điền bằng số nguyên, ví dụ 165 chứ không phải 165,5.' })
+      .min(MIN_HEIGHT_CM, {
+        error: `Chiều cao phải nằm trong khoảng ${MIN_HEIGHT_CM} đến ${MAX_HEIGHT_CM} cm. Bạn hãy kiểm tra lại số vừa điền.`,
+      })
+      .max(MAX_HEIGHT_CM, {
+        error: `Chiều cao phải nằm trong khoảng ${MIN_HEIGHT_CM} đến ${MAX_HEIGHT_CM} cm. Bạn hãy kiểm tra lại số vừa điền.`,
+      })
+      .nullable(),
+    weight_kg: z
+      .number({ error: 'Bạn hãy điền cân nặng bằng số, ví dụ 68.5, hoặc bỏ trống ô này.' })
+      .min(MIN_WEIGHT_KG, {
+        error: `Cân nặng phải nằm trong khoảng ${MIN_WEIGHT_KG} đến ${MAX_WEIGHT_KG} kg. Bạn hãy kiểm tra lại số vừa điền.`,
+      })
+      .max(MAX_WEIGHT_KG, {
+        error: `Cân nặng phải nằm trong khoảng ${MIN_WEIGHT_KG} đến ${MAX_WEIGHT_KG} kg. Bạn hãy kiểm tra lại số vừa điền.`,
+      })
+      .nullable(),
   })
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>
@@ -220,28 +238,45 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>
  * Cùng lối tự kiểm mà `mocks/fixtures.ts` đang dùng.
  */
 function assertMatchesContract(): void {
-  const samples = [
-    { age: MIN_AGE - 1, valid: false },
-    { age: MIN_AGE, valid: true },
-    { age: MAX_AGE, valid: true },
-    { age: MAX_AGE + 1, valid: false },
-    { age: 58.5, valid: false },
+  const base = {
+    patient_id: 'x',
+    age: 58,
+    primary_condition: 'hypertension',
+    comorbidities: [],
+    diagnosed_at: null,
+  }
+
+  const samples: { patch: Record<string, unknown>; valid: boolean }[] = [
+    { patch: { age: MIN_AGE - 1 }, valid: false },
+    { patch: { age: MIN_AGE }, valid: true },
+    { patch: { age: MAX_AGE }, valid: true },
+    { patch: { age: MAX_AGE + 1 }, valid: false },
+    { patch: { age: 58.5 }, valid: false },
+    // Chiều cao và cân nặng bỏ trống được, nên `null` phải qua.
+    { patch: { height_cm: null, weight_kg: null }, valid: true },
+    { patch: { height_cm: MIN_HEIGHT_CM - 1 }, valid: false },
+    { patch: { height_cm: MIN_HEIGHT_CM }, valid: true },
+    { patch: { height_cm: MAX_HEIGHT_CM }, valid: true },
+    { patch: { height_cm: MAX_HEIGHT_CM + 1 }, valid: false },
+    { patch: { height_cm: 165.5 }, valid: false },
+    { patch: { weight_kg: MIN_WEIGHT_KG - 1 }, valid: false },
+    { patch: { weight_kg: MIN_WEIGHT_KG }, valid: true },
+    { patch: { weight_kg: MAX_WEIGHT_KG }, valid: true },
+    { patch: { weight_kg: MAX_WEIGHT_KG + 1 }, valid: false },
+    // Hợp đồng chỉ KHUYẾN NGHỊ một chữ số thập phân chứ không ràng buộc, nên
+    // nhiều hơn một chữ số vẫn phải qua. Ràng buộc lại ở đây là frontend trả về
+    // 422 giả cho một giá trị mà backend chấp nhận.
+    { patch: { weight_kg: 70.35 }, valid: true },
   ]
 
-  for (const { age, valid } of samples) {
-    const contractOk = patientProfileSchema.safeParse({
-      patient_id: 'x',
-      age,
-      primary_condition: 'hypertension',
-      comorbidities: [],
-      diagnosed_at: null,
-    }).success
+  for (const { patch, valid } of samples) {
+    const contractOk = patientProfileSchema.safeParse({ ...base, ...patch }).success
 
     if (contractOk !== valid) {
       throw new Error(
-        `ProfileScreen: ràng buộc tuổi ${age} trong schemas.ts đã đổi ` +
+        `ProfileScreen: ràng buộc của ${JSON.stringify(patch)} trong schemas.ts đã đổi ` +
           `(hợp đồng nói ${contractOk ? 'hợp lệ' : 'không hợp lệ'}, form đang giả định ${valid ? 'hợp lệ' : 'không hợp lệ'}). ` +
-          'Hãy cập nhật MIN_AGE/MAX_AGE và thông báo lỗi trong ProfileScreen.tsx.',
+          'Hãy cập nhật hằng số khoảng giá trị và thông báo lỗi trong ProfileScreen.tsx.',
       )
     }
   }
@@ -253,17 +288,27 @@ assertMatchesContract()
 // Ba bước
 // ---------------------------------------------------------------------------
 
+/**
+ * THỨ TỰ BA BƯỚC, và vì sao tuổi đứng trước.
+ *
+ * Tuổi, chiều cao và cân nặng là ba con số người dùng trả lời được ngay mà
+ * không phải cân nhắc gì — mở đầu bằng chúng thì người dùng vào guồng trước khi
+ * gặp câu khó hơn.
+ *
+ * Bước 3 hiện chỉ còn một câu, vì bệnh nền đã nhập chung vào câu hỏi bệnh ở
+ * bước 2. Cứ để vậy: chỗ trống đó dành cho phần dị ứng sẽ thêm sau.
+ */
 const STEP_TITLES = [
-  'Bạn hỏi cho ai',
-  'Bệnh kèm theo',
-  'Tuổi và thời điểm chẩn đoán',
+  'Tuổi và thể trạng',
+  'Bệnh đã được chẩn đoán',
+  'Thời điểm chẩn đoán',
 ] as const
 
 /** Trường nào thuộc bước nào, để chỉ validate đúng phần người dùng vừa điền. */
 const STEP_FIELDS: FieldPath<ProfileFormValues>[][] = [
-  ['asking_as', 'primary_condition'],
-  ['comorbidities'],
-  ['age', 'diagnosed_at'],
+  ['age', 'height_cm', 'weight_kg'],
+  ['conditions'],
+  ['diagnosed_at'],
 ]
 
 const LAST_STEP = STEP_TITLES.length - 1
@@ -288,7 +333,6 @@ function ChoiceOption({
   name,
   value,
   label,
-  description,
   checked,
   onChange,
 }: {
@@ -296,8 +340,6 @@ function ChoiceOption({
   name: string
   value: string
   label: string
-  /** Chỉ thẻ lớn ở bước 1 mới có dòng giải thích bên dưới nhãn. */
-  description?: string
   checked: boolean
   onChange: (checked: boolean) => void
 }) {
@@ -323,9 +365,6 @@ function ChoiceOption({
         "
       >
         <span className="block text-notice">{label}</span>
-        {description !== undefined && (
-          <span className="mt-hair block text-question">{description}</span>
-        )}
       </span>
     </label>
   )
@@ -353,6 +392,21 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 /** Nhãn của một trường. Tối thiểu 17px theo sàn cỡ chữ. */
 const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-ink'
 
+/** Ô nhập một dòng: số, tháng năm. Cao tối thiểu 44px như mọi vùng chạm khác. */
+const FIELD_INPUT_CLASS =
+  'font-body mt-snug min-h-touch w-full rounded-lg border-2 border-border bg-paper p-snug text-input text-ink'
+
+/**
+ * Ô số để trống trả về chuỗi rỗng, mà hợp đồng chờ `null` — đổi ngay ở đây.
+ *
+ * Không dùng `valueAsNumber` của React Hook Form cho hai ô không bắt buộc: ô
+ * trống sẽ thành `NaN`, và `NaN` không phải `null` nên schema báo lỗi ngay khi
+ * người dùng chỉ đơn giản là bỏ qua ô đó.
+ */
+function toOptionalNumber(raw: string): number | null {
+  return raw === '' ? null : Number(raw)
+}
+
 // ---------------------------------------------------------------------------
 // Màn hình
 // ---------------------------------------------------------------------------
@@ -371,51 +425,39 @@ export function ProfileScreen() {
     handleSubmit,
     watch,
     setValue,
-    resetField,
     reset,
     trigger,
     formState: { errors },
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
-      asking_as: undefined,
       age: undefined,
-      primary_condition: undefined,
-      comorbidities: [],
+      conditions: [],
       diagnosed_at: null,
+      height_cm: null,
+      weight_kg: null,
     },
   })
 
-  const askingAs = watch('asking_as')
-  const primaryCondition = watch('primary_condition')
-  const comorbidities = watch('comorbidities') ?? []
-
-  const labels = LABELS[askingAs ?? 'self']
+  const conditions = watch('conditions') ?? []
 
   // Hồ sơ tới sau lần render đầu (đang gọi API), nên phải nạp lại vào form khi có.
+  //
+  // Đây là chiều ngược của `splitConditions`: hợp đồng giữ hai trường, form giữ
+  // một danh sách, nên nạp lại là gộp chúng về một. Lọc qua `CONDITIONS` để thứ
+  // tự luôn cố định, và để một hồ sơ cũ lỡ có bệnh kèm trùng bệnh chính cũng
+  // chỉ làm sáng lên một ô chứ không sinh mục trùng.
   useEffect(() => {
     if (profile === null) return
+    const saved = [profile.primary_condition, ...(profile.comorbidities ?? [])]
     reset({
-      asking_as: profile.asking_as,
       age: profile.age,
-      primary_condition: profile.primary_condition,
-      comorbidities: profile.comorbidities ?? [],
+      conditions: CONDITIONS.filter((condition) => saved.includes(condition)),
       diagnosed_at: profile.diagnosed_at ?? null,
+      height_cm: profile.height_cm ?? null,
+      weight_kg: profile.weight_kg ?? null,
     })
   }, [profile, reset])
-
-  // Đổi bệnh chính sang đúng bệnh đang chọn ở mục bệnh kèm thì tự bỏ chọn bên
-  // kia, để người dùng không phải tự gỡ một lỗi mà họ không gây ra.
-  useEffect(() => {
-    if (primaryCondition === undefined) return
-    if (comorbidities.includes(primaryCondition)) {
-      setValue(
-        'comorbidities',
-        comorbidities.filter((condition) => condition !== primaryCondition),
-        { shouldValidate: true },
-      )
-    }
-  }, [primaryCondition, comorbidities, setValue])
 
   const mutation = useMutation({
     mutationFn: async (values: ProfileFormValues): Promise<PatientProfileResponse> => {
@@ -430,13 +472,24 @@ export function ProfileScreen() {
         )
       }
 
+      // Một danh sách bệnh ở giao diện tách lại thành hai trường của hợp đồng.
+      // Hồ sơ cũ truyền vào để giữ nguyên bệnh chính đã lưu nếu nó vẫn đang
+      // được chọn — quy tắc đầy đủ ở `splitConditions`.
+      const { primary, comorbidities } = splitConditions(
+        values.conditions,
+        profile?.primary_condition ?? null,
+      )
+
       return upsertPatientProfile({
         patient_id: patientId,
         age: values.age,
-        primary_condition: values.primary_condition,
-        comorbidities: values.comorbidities,
+        primary_condition: primary,
+        comorbidities,
         diagnosed_at: values.diagnosed_at,
-        asking_as: values.asking_as,
+        // Trường này vẫn thuộc hợp đồng, giao diện chỉ chưa cho chọn.
+        asking_as: MUTATION_ASKING_AS,
+        height_cm: values.height_cm,
+        weight_kg: values.weight_kg,
       })
     },
     onSuccess: (saved) => {
@@ -447,23 +500,46 @@ export function ProfileScreen() {
     },
   })
 
-  const onSubmit = handleSubmit((values) => mutation.mutate(values))
+  const submitProfile = handleSubmit((values) => mutation.mutate(values))
 
-  /** Chọn một thẻ ở bước 1. */
-  function pickWho(choice: WhoChoice): void {
-    setValue('asking_as', choice.askingAs, { shouldValidate: true })
-
-    if (choice.condition !== null) {
-      setValue('primary_condition', choice.condition, { shouldValidate: true })
+  /**
+   * LỚP HAI: form chỉ được lưu khi đang đứng ở bước cuối.
+   *
+   * Chốt này dành cho phím Enter. Trình duyệt tự submit form khi người dùng bấm
+   * Enter (implicit submission của HTML), và ở bước chưa cuối thì Enter phải
+   * được hiểu là "đi tiếp" chứ không phải "lưu".
+   *
+   * MỘT MÌNH NÓ KHÔNG ĐỦ, và đừng dựa vào nó để gộp hai nút ở cuối form lại.
+   * `step` đọc ở đây là giá trị SAU khi `goNext` đã tăng bước. Với một sự kiện
+   * submit sinh ra ngay trong lúc chuyển bước — đúng cái mà biểu thức ba ngôi
+   * cũ tạo ra — thì điều kiện này đã đúng và cho đi qua, hồ sơ được lưu và người
+   * dùng bị đẩy sang `/chat`. Lớp một nằm ở khối nút cuối form, đọc ghi chú ở
+   * đó trước khi sửa chỗ này.
+   */
+  function onFormSubmit(event: FormEvent<HTMLFormElement>): void {
+    if (step !== LAST_STEP) {
+      event.preventDefault()
+      void goNext()
       return
     }
+    void submitProfile(event)
+  }
 
-    // Vừa chuyển sang "hỏi giúp người nhà": bệnh vừa chọn là bệnh của NGƯỜI
-    // DÙNG, không phải của người được chăm sóc, nên phải hỏi lại từ đầu. Chỉ xóa
-    // khi thực sự đổi trạng thái — bấm lại đúng thẻ đang chọn thì để yên.
-    if (askingAs !== 'caregiver') {
-      resetField('primary_condition')
-    }
+  /**
+   * Bật tắt một bệnh ở bước 2.
+   *
+   * Dựng lại danh sách theo thứ tự của `CONDITIONS` chứ không nối thêm vào
+   * cuối: thứ tự trong form khi đó không phụ thuộc người dùng bấm ô nào trước,
+   * nên `splitConditions` luôn cho cùng một kết quả với cùng một lựa chọn.
+   */
+  function toggleCondition(condition: PrimaryCondition, isChecked: boolean): void {
+    setValue(
+      'conditions',
+      CONDITIONS.filter((candidate) =>
+        candidate === condition ? isChecked : conditions.includes(candidate),
+      ),
+      { shouldValidate: true },
+    )
   }
 
   async function goNext(): Promise<void> {
@@ -500,33 +576,16 @@ export function ProfileScreen() {
     )
   }
 
-  const otherConditions = CONDITIONS.filter(
-    (condition) => condition !== primaryCondition,
-  )
-  const selectedWho = selectedWhoId(askingAs, primaryCondition)
-
   return (
     <div className="max-w-answer">
       <h1 className="font-display text-ask font-bold">
         {isEditing ? 'Sửa hồ sơ sức khỏe' : 'Trước khi bắt đầu'}
       </h1>
 
+      {/* Ba điều này là giới hạn của công cụ, không phải lời chào một lần rồi
+          thôi, nên người quay lại sửa hồ sơ thấy y hệt người khai lần đầu. */}
       <div className="mt-block">
         <ProfileIntro />
-      </div>
-
-      {/* Ràng buộc PII của brief, nói ngay trước form chứ không giấu ở chân
-          trang: người sắp phải điền thông tin sức khỏe cần được trấn an TRƯỚC
-          khi điền. */}
-      <div className="mt-block border-l-4 border-medical pl-cozy">
-        <p className="font-display text-input font-semibold">
-          Bạn không cần khai tên hay giấy tờ
-        </p>
-        <p className="font-display mt-hair text-question text-moss">
-          Ứng dụng không hỏi và không lưu tên, số điện thoại, số căn cước hay số
-          thẻ bảo hiểm. Chỉ những thông tin dưới đây được lưu, và chỉ để trợ lý
-          tra đúng tài liệu cho bệnh của bạn.
-        </p>
       </div>
 
       {profileState === 'error' && (
@@ -547,130 +606,16 @@ export function ProfileScreen() {
         />
       </div>
 
-      <form onSubmit={onSubmit} noValidate className="mt-block">
-        {/* ---- Bước 1: người hỏi là ai, và bệnh chính ---- */}
+      <form onSubmit={onFormSubmit} noValidate className="mt-block">
+        {/* ---- Bước 1: tuổi, chiều cao, cân nặng ----
+            Ba con số dễ trả lời nhất, hỏi trước để người dùng vào guồng. */}
         {step === 0 && (
-          <>
-            <fieldset>
-              <legend className={FIELD_LABEL_CLASS}>
-                Bạn hỏi cho ai, và về bệnh gì?
-              </legend>
-              <FieldHint id="who-hint">
-                Bạn chọn một ô. Nếu bạn hỏi giúp người nhà, những câu sau sẽ hỏi
-                về người đó chứ không phải về bạn.
-              </FieldHint>
-
-              <div
-                className="mt-snug space-y-snug"
-                aria-describedby={errors.asking_as ? 'who-hint who-error' : 'who-hint'}
-              >
-                {WHO_CHOICES.map((choice) => (
-                  <ChoiceOption
-                    key={choice.id}
-                    type="radio"
-                    name="who"
-                    value={choice.id}
-                    label={choice.label}
-                    description={choice.description}
-                    checked={selectedWho === choice.id}
-                    onChange={() => pickWho(choice)}
-                  />
-                ))}
-              </div>
-              <FieldError id="who-error" message={errors.asking_as?.message} />
-            </fieldset>
-
-            {/* Bệnh của người được chăm sóc — chỉ hỏi khi thực sự cần. */}
-            {askingAs === 'caregiver' && (
-              <fieldset className="mt-block">
-                <legend className={FIELD_LABEL_CLASS}>
-                  Người bạn chăm sóc được chẩn đoán mắc bệnh gì?
-                </legend>
-                <FieldHint id="cared-hint">
-                  Trợ lý chỉ tra cứu trong tài liệu của Bộ Y tế về đúng bệnh này.
-                </FieldHint>
-
-                <div
-                  className="mt-snug space-y-snug"
-                  aria-describedby={
-                    errors.primary_condition ? 'cared-hint cared-error' : 'cared-hint'
-                  }
-                >
-                  {CONDITIONS.map((condition) => (
-                    <ChoiceOption
-                      key={condition}
-                      type="radio"
-                      name="primary_condition"
-                      value={condition}
-                      label={CONDITION_LABEL[condition]}
-                      checked={primaryCondition === condition}
-                      onChange={() =>
-                        setValue('primary_condition', condition, {
-                          shouldValidate: true,
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-                <FieldError
-                  id="cared-error"
-                  message={errors.primary_condition?.message}
-                />
-              </fieldset>
-            )}
-          </>
-        )}
-
-        {/* ---- Bước 2: bệnh nền đi kèm ---- */}
-        {step === 1 && (
-          <fieldset>
-            <legend className={FIELD_LABEL_CLASS}>{labels.comorbidities}</legend>
-            <FieldHint id="comorbid-hint">{labels.comorbiditiesHint}</FieldHint>
-
-            {otherConditions.length === 0 ? (
-              <p className="font-display mt-snug text-question text-moss">
-                Không còn bệnh nào khác trong phạm vi của trợ lý. Bạn bấm tiếp tục.
-              </p>
-            ) : (
-              <div
-                className="mt-snug space-y-snug"
-                aria-describedby={
-                  errors.comorbidities ? 'comorbid-hint comorbid-error' : 'comorbid-hint'
-                }
-              >
-                {otherConditions.map((condition) => (
-                  <ChoiceOption
-                    key={condition}
-                    type="checkbox"
-                    name="comorbidities"
-                    value={condition}
-                    label={CONDITION_LABEL[condition]}
-                    checked={comorbidities.includes(condition)}
-                    onChange={(isChecked) =>
-                      setValue(
-                        'comorbidities',
-                        isChecked
-                          ? [...comorbidities, condition]
-                          : comorbidities.filter((item) => item !== condition),
-                        { shouldValidate: true },
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            )}
-            <FieldError id="comorbid-error" message={errors.comorbidities?.message} />
-          </fieldset>
-        )}
-
-        {/* ---- Bước 3: tuổi và thời điểm chẩn đoán ---- */}
-        {step === 2 && (
           <>
             <div>
               <label htmlFor="age" className={FIELD_LABEL_CLASS}>
-                {labels.age}
+                {LABELS.age}
               </label>
-              <FieldHint id="age-hint">{labels.ageHint}</FieldHint>
+              <FieldHint id="age-hint">{LABELS.ageHint}</FieldHint>
               <input
                 id="age"
                 type="number"
@@ -681,16 +626,113 @@ export function ProfileScreen() {
                 aria-describedby={errors.age ? 'age-hint age-error' : 'age-hint'}
                 aria-invalid={errors.age !== undefined}
                 {...register('age', { valueAsNumber: true })}
-                className="font-body mt-snug min-h-touch w-full rounded-lg border-2 border-border bg-paper p-snug text-input text-ink"
+                className={FIELD_INPUT_CLASS}
               />
               <FieldError id="age-error" message={errors.age?.message} />
             </div>
 
-            <div className="mt-block">
+            {/* ---- Chiều cao và cân nặng ----
+                Hỏi chung một nhóm vì chúng được dùng chung một việc: chọn tài
+                liệu hợp thể trạng. Cả hai bỏ trống được, và dòng nhắc nói thẳng
+                điều đó — người không nhớ số của mình không nên bị kẹt ở đây.
+
+                Không tính và không hiện BMI, cũng không gợi ý cân nặng nên có.
+                Hợp đồng mục 4 xếp việc đó vào tư vấn dinh dưỡng cá nhân hoá,
+                nằm ngoài phạm vi giáo dục của sản phẩm. */}
+            <fieldset className="mt-block">
+              <legend className={FIELD_LABEL_CLASS}>{LABELS.body}</legend>
+              <FieldHint id="body-hint">{LABELS.bodyHint}</FieldHint>
+
+              <div className="mt-snug">
+                <label htmlFor="height_cm" className={FIELD_LABEL_CLASS}>
+                  {LABELS.height}
+                </label>
+                <input
+                  id="height_cm"
+                  type="number"
+                  inputMode="numeric"
+                  min={MIN_HEIGHT_CM}
+                  max={MAX_HEIGHT_CM}
+                  step={1}
+                  aria-describedby={
+                    errors.height_cm ? 'body-hint height-error' : 'body-hint'
+                  }
+                  aria-invalid={errors.height_cm !== undefined}
+                  {...register('height_cm', { setValueAs: toOptionalNumber })}
+                  className={FIELD_INPUT_CLASS}
+                />
+                <FieldError id="height-error" message={errors.height_cm?.message} />
+              </div>
+
+              <div className="mt-snug">
+                <label htmlFor="weight_kg" className={FIELD_LABEL_CLASS}>
+                  {LABELS.weight}
+                </label>
+                <input
+                  id="weight_kg"
+                  type="number"
+                  inputMode="decimal"
+                  min={MIN_WEIGHT_KG}
+                  max={MAX_WEIGHT_KG}
+                  // Một chữ số thập phân là KHUYẾN NGHỊ của hợp đồng chứ không
+                  // phải ràng buộc: `step` chỉ đặt nhịp cho nút tăng giảm, form
+                  // đã `noValidate` nên trình duyệt không chặn số lẻ hơn.
+                  step={0.1}
+                  aria-describedby={
+                    errors.weight_kg ? 'body-hint weight-error' : 'body-hint'
+                  }
+                  aria-invalid={errors.weight_kg !== undefined}
+                  {...register('weight_kg', { setValueAs: toOptionalNumber })}
+                  className={FIELD_INPUT_CLASS}
+                />
+                <FieldError id="weight-error" message={errors.weight_kg?.message} />
+              </div>
+            </fieldset>
+          </>
+        )}
+
+        {/* ---- Bước 2: bệnh đã được chẩn đoán ----
+            MỘT câu cho cả hai bệnh, dùng hộp kiểm chứ không phải ô chọn một.
+            Người mắc đồng thời đái tháo đường và tăng huyết áp không tự xếp
+            bệnh nào là chính, mà hỏi họ điều đó cũng không giúp gì cho câu trả
+            lời — việc tách `primary_condition` với `comorbidities` là yêu cầu
+            của hợp đồng API, và nó được xử lý ở `splitConditions` lúc gửi. */}
+        {step === 1 && (
+          <fieldset>
+            <legend className={FIELD_LABEL_CLASS}>{LABELS.conditions}</legend>
+            <FieldHint id="conditions-hint">{LABELS.conditionsHint}</FieldHint>
+
+            <div
+              className="mt-snug space-y-snug"
+              aria-describedby={
+                errors.conditions ? 'conditions-hint conditions-error' : 'conditions-hint'
+              }
+            >
+              {CONDITIONS.map((condition) => (
+                <ChoiceOption
+                  key={condition}
+                  type="checkbox"
+                  name="conditions"
+                  value={condition}
+                  label={CONDITION_LABEL[condition]}
+                  checked={conditions.includes(condition)}
+                  onChange={(isChecked) => toggleCondition(condition, isChecked)}
+                />
+              ))}
+            </div>
+            <FieldError id="conditions-error" message={errors.conditions?.message} />
+          </fieldset>
+        )}
+
+        {/* ---- Bước 3: thời điểm chẩn đoán ----
+            Câu khó nhớ nhất để cuối, và nó bỏ trống được. */}
+        {step === 2 && (
+          <>
+            <div>
               <label htmlFor="diagnosed_at" className={FIELD_LABEL_CLASS}>
-                {labels.diagnosed}
+                {LABELS.diagnosed}
               </label>
-              <FieldHint id="diagnosed-hint">{labels.diagnosedHint}</FieldHint>
+              <FieldHint id="diagnosed-hint">{LABELS.diagnosedHint}</FieldHint>
               <input
                 id="diagnosed_at"
                 type="month"
@@ -702,7 +744,7 @@ export function ProfileScreen() {
                 {...register('diagnosed_at', {
                   setValueAs: (raw: string) => (raw === '' ? null : raw),
                 })}
-                className="font-body mt-snug min-h-touch w-full rounded-lg border-2 border-border bg-paper p-snug text-input text-ink"
+                className={FIELD_INPUT_CLASS}
               />
               <FieldError id="diagnosed-error" message={errors.diagnosed_at?.message} />
             </div>
@@ -712,7 +754,7 @@ export function ProfileScreen() {
                 <ErrorNotice
                   error={mutation.error}
                   retryLabel="Lưu lại"
-                  onRetry={() => void onSubmit()}
+                  onRetry={() => void submitProfile()}
                 />
               </div>
             )}
@@ -722,7 +764,27 @@ export function ProfileScreen() {
         {/* ---- Đi lui, đi tới ----
             "Quay lại" giữ bề ngang vừa đủ chữ, nút chính ăn hết chỗ còn lại —
             trên điện thoại nó là mảng lớn nhất, khó bấm nhầm sang nút lui. Bước
-            1 không có nút lui vì không có chỗ nào để lui về. */}
+            1 không có nút lui vì không có chỗ nào để lui về.
+
+            HAI NÚT CHÍNH LÀ HAI Ô CON RIÊNG BIỆT. ĐỪNG GỘP LẠI THÀNH MỘT BIỂU
+            THỨC BA NGÔI. Đây là nguyên nhân của một lỗi thật, không phải sở
+            thích trình bày:
+
+            Viết `{cond ? <button type="button"/> : <button type="submit"/>}` thì
+            hai nhánh nằm cùng MỘT ô con và cùng loại phần tử `button`, nên React
+            không dựng nút mới mà dùng lại đúng node DOM cũ, chỉ vá thuộc tính —
+            trong đó có `type`. Bấm "Tiếp tục" ở bước áp chót thì `goNext` chạy
+            `await trigger(...)` rồi `setStep`, mà microtask lại chạy xong ngay
+            khi listener trả về, tức TRƯỚC lúc trình duyệt thực thi activation
+            behavior của nút vừa bấm. React kịp đổi `type` của chính node đó
+            thành `submit`, trình duyệt thấy một nút submit và gửi form. Lúc ấy
+            `step` đã bằng `LAST_STEP` nên chốt trong `onFormSubmit` cũng cho
+            qua: hồ sơ bị lưu và người dùng bị đẩy sang `/chat` giữa chừng.
+
+            Tách làm hai ô con thì mỗi nút có vị trí riêng: React THÁO hẳn nút
+            "Tiếp tục" và GẮN một nút "Lưu" mới. Node vừa được bấm rời khỏi tài
+            liệu nên không còn form owner, không submit được gì; còn nút submit
+            là node mới toanh, chưa hề nhận cú bấm nào. */}
         <div className="mt-block flex gap-snug">
           {step > 0 && (
             <button
@@ -734,7 +796,7 @@ export function ProfileScreen() {
             </button>
           )}
 
-          {step < LAST_STEP ? (
+          {step < LAST_STEP && (
             <button
               type="button"
               onClick={() => void goNext()}
@@ -742,7 +804,11 @@ export function ProfileScreen() {
             >
               Tiếp tục
             </button>
-          ) : (
+          )}
+
+          {/* `type="submit"` giữ nguyên: ở bước cuối, Enter trong ô nhập phải
+              lưu được hồ sơ như mọi form khác. */}
+          {step === LAST_STEP && (
             <button
               type="submit"
               disabled={mutation.isPending}

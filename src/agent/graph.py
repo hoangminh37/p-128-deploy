@@ -32,7 +32,7 @@ def route_intent(state: AgentState) -> str:
     if state.get("is_red_flag"):
         return "emergency_handler"
     intent = state.get("intent", "education")
-    if intent == "diagnosis":
+    if intent in ("diagnosis", "prompt_injection"):
         return "refuse_handler"
     if intent in ("greeting", "out_of_domain"):
         return "out_of_domain_handler"

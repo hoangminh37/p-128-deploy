@@ -24,24 +24,37 @@ type QueueFilter = {
   empty: string
 }
 
+/**
+ * CÂU CHỮ CỦA TRẠNG THÁI RỖNG chỉ được mô tả đúng một điều mà màn này biết
+ * chắc: bộ lọc đang chọn không trả về mục nào.
+ *
+ * Không suy ra nguyên nhân, không khẳng định gì về thư viện. Bản trước viết
+ * "Hàng đợi đã sạch" — nghe như vừa duyệt xong hết, trong khi cùng một danh
+ * sách rỗng cũng có thể nghĩa là chưa từng có mục nào được tạo. Hai tình huống
+ * đó đòi hai hành động ngược nhau, mà giao diện thì không phân biệt được.
+ *
+ * Cùng một lối mở đầu "Danh sách hiện không có mục nào" cho cả ba bộ lọc: lặp
+ * lại như vậy là cố ý, để người đọc nhận ra ngay đây là câu mô tả trạng thái
+ * chứ không phải một nhận định về công việc.
+ */
 const FILTERS: readonly QueueFilter[] = [
   {
     id: 'active',
     label: 'Đang xử lý',
     statuses: ['pending', 'draft'],
-    empty: 'Không còn mục nào chờ xử lý. Hàng đợi đã sạch.',
+    empty: 'Danh sách hiện không có mục nào đang soạn hoặc chờ duyệt.',
   },
   {
     id: 'approved',
     label: 'Đã duyệt',
     statuses: ['approved'],
-    empty: 'Chưa có mục nào được duyệt.',
+    empty: 'Danh sách hiện không có mục nào đã duyệt.',
   },
   {
     id: 'rejected',
     label: 'Đã từ chối',
     statuses: ['rejected'],
-    empty: 'Chưa có mục nào bị từ chối.',
+    empty: 'Danh sách hiện không có mục nào bị từ chối.',
   },
 ]
 

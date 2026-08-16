@@ -21,18 +21,38 @@ không thể thực hiện qua AI một cách an toàn.
 Hãy đặt câu hỏi theo hướng giáo dục y tế, hoặc **liên hệ bác sĩ** để được tư vấn trực tiếp."""
 
 
+INJECTION_RESPONSE = """Tôi không thể chia sẻ thông tin về cấu trúc hoặc hướng dẫn nội bộ của mình.
+
+Tôi là trợ lý y tế được thiết kế để hỗ trợ thông tin sức khỏe cho người bệnh tiểu đường và tăng huyết áp.
+
+**Tôi có thể giúp bạn:**
+- ✅ Giải thích các chỉ số sức khỏe (HbA1c, huyết áp, đường huyết...)
+- ✅ Thông tin về chế độ ăn uống phù hợp với bệnh lý
+- ✅ Hướng dẫn phòng ngừa biến chứng
+- ✅ Giải thích triệu chứng thường gặp
+
+Hãy đặt câu hỏi về sức khỏe của bạn nhé!"""
+
+
 async def refuse_handler_node(state: AgentState) -> AgentState:
-    """Node 3 — từ chối yêu cầu chẩn đoán/kê toa.
+    """Node 3 — từ chối yêu cầu chẩn đoán/kê toa hoặc prompt injection.
 
     - Template cố định, KHÔNG gọi LLM
-    - Từ chối 100% theo FR3.4
+    - Từ chối 100% theo FR3.4 và bảo vệ cấu trúc nội bộ
     """
-    logger.info("[refuse_handler] Diagnosis/prescription request refused")
+    intent = state.get("intent", "diagnosis")
+
+    if intent == "prompt_injection":
+        logger.warning("[refuse_handler] Prompt injection attempt blocked")
+        response = INJECTION_RESPONSE
+    else:
+        logger.info("[refuse_handler] Diagnosis/prescription request refused")
+        response = REFUSE_RESPONSE
 
     return {
         **state,
-        "response": REFUSE_RESPONSE,
-        "intent": "diagnosis",
+        "response": response,
+        "intent": intent,
         "support_level": "fully",
         "citations": [],
         "metadata": {**state.get("metadata", {}), "node": "refuse_handler"},

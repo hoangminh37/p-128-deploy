@@ -215,6 +215,8 @@ export const patientProfileFixture: PatientProfileResponse = {
   comorbidities: ['type2_diabetes'],
   diagnosed_at: '2026-03',
   asking_as: 'self',
+  height_cm: 165,
+  weight_kg: 68.5,
   updated_at: '2026-08-12T09:14:00+07:00',
 }
 

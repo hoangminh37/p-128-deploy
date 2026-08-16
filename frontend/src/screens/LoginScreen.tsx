@@ -13,13 +13,14 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { ApiError, login } from '../lib/api'
 import { APP_NAME } from '../lib/appName'
 import { loginRequestSchema, type LoginResponse } from '../lib/schemas'
 import { DEMO_ACCOUNTS } from '../mocks/demoAccounts'
+import { EXPIRED_SESSION_REASON } from '../session/ExpiredSessionWatcher'
 import { HOME_PATH, useSession } from '../session/context'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { AlertIcon, AppMark } from '../ui/icons'
@@ -101,6 +102,18 @@ function DemoAccountsPanel({
 export function LoginScreen() {
   const { signIn } = useSession()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  /**
+   * Người dùng tới đây vì phiên hết hạn, chứ không phải tự bấm đăng nhập.
+   *
+   * `ExpiredSessionWatcher` gắn lý do vào `location.state` khi lớp api gặp 401.
+   * Đọc từ đó chứ không giữ thêm một state toàn cục: thông tin này chỉ đúng cho
+   * đúng một lần điều hướng, và bấm tải lại trang thì nó biến mất — đúng như
+   * mong đợi, vì lúc đó câu thông báo không còn liên quan gì nữa.
+   */
+  const isSessionExpired =
+    (location.state as { reason?: unknown } | null)?.reason === EXPIRED_SESSION_REASON
 
   const {
     register,
@@ -148,6 +161,15 @@ export function LoginScreen() {
           Bạn đăng nhập bằng tài khoản đã được cấp. Ứng dụng tự biết bạn là bệnh
           nhân hay biên tập viên, bạn không phải chọn.
         </p>
+
+        {/* Phiên hết hạn không phải lỗi của người dùng và cũng không phải sự cố
+            kỹ thuật, nên chỉ một dòng `role="status"` chứ không dùng khối cảnh
+            báo — dành khối đó cho việc gõ sai mật khẩu ngay bên dưới. */}
+        {isSessionExpired && (
+          <p role="status" className="font-display mt-block text-notice text-moss">
+            Phiên đăng nhập của bạn đã hết hạn. Bạn hãy đăng nhập lại để tiếp tục.
+          </p>
+        )}
 
         {isBadCredentials && (
           <div className="mt-block">

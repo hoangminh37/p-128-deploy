@@ -69,6 +69,10 @@ def classify_guardrail(query: str) -> str | None:
         "greeting"  — chào hỏi, trả lời bằng template giới thiệu
         None        — an toàn, tiếp tục pipeline
     """
+    # Kiểm tra injection TRƯỚC vì kẻ tấn công có thể nhúng từ khóa y tế
+    # vào câu tấn công để qua mặt các filter bên dưới
+    if check_prompt_injection(query):
+        return "prompt_injection"
     if check_emergency(query):
         return "red_flag"
     if check_diagnosis_request(query):

@@ -23,6 +23,10 @@ async def intent_router_node(state: AgentState) -> AgentState:
 
     # ── Step 1: Fast rule-based check ──────────────────────────────────────
     guardrail_result = classify_guardrail(query)
+    if guardrail_result == "prompt_injection":
+        logger.warning("[intent_router] PROMPT INJECTION detected (rule-based)")
+        return {**state, "intent": "prompt_injection", "is_red_flag": False}
+
     if guardrail_result == "red_flag":
         logger.warning("[intent_router] EMERGENCY detected (rule-based)")
         return {**state, "intent": "red_flag", "is_red_flag": True}
