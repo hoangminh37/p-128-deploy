@@ -1,6 +1,5 @@
 import uuid
 from datetime import datetime
-from typing import List, Optional
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -8,20 +7,21 @@ from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
+
 class User(Base):
     __tablename__ = "users"
-    
+
     id = Column(String, primary_key=True, default=lambda: f"u_{uuid.uuid4().hex[:6].upper()}")
     email = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
-    role = Column(String, nullable=False) # "patient" or "editor"
+    role = Column(String, nullable=False)  # "patient" or "editor"
 
     patient_profile = relationship("Patient", back_populates="user", uselist=False)
 
 
 class Patient(Base):
     __tablename__ = "patients"
-    
+
     id = Column(String, primary_key=True, default=lambda: f"p_{uuid.uuid4().hex[:6].upper()}")
     user_id = Column(String, ForeignKey("users.id"), unique=True)
     age = Column(Integer, nullable=False)
@@ -37,7 +37,7 @@ class Patient(Base):
 
 class Conversation(Base):
     __tablename__ = "conversations"
-    
+
     id = Column(String, primary_key=True, default=lambda: f"c_{uuid.uuid4().hex[:6].upper()}")
     patient_id = Column(String, ForeignKey("patients.id"))
     title = Column(String, nullable=False)
@@ -50,16 +50,16 @@ class Conversation(Base):
 
 class Message(Base):
     __tablename__ = "messages"
-    
+
     id = Column(String, primary_key=True, default=lambda: f"m_{uuid.uuid4().hex[:6].upper()}")
     conversation_id = Column(String, ForeignKey("conversations.id"))
-    role = Column(String, nullable=False) # "user" or "assistant"
-    status = Column(String, nullable=True) # "answered", "partial", etc.
+    role = Column(String, nullable=False)  # "user" or "assistant"
+    status = Column(String, nullable=True)  # "answered", "partial", etc.
     content = Column(Text, nullable=False)
     citations = Column(JSONB, default=list)
     support_level = Column(String, nullable=True)
     disclaimer = Column(String, nullable=True)
-    meta_data = Column(JSONB, nullable=True) # metadata is reserved word in SQLAlchemy Base
+    meta_data = Column(JSONB, nullable=True)  # metadata is reserved word in SQLAlchemy Base
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="messages")
@@ -70,9 +70,9 @@ class EditorQueueItem(Base):
 
     id = Column(String, primary_key=True, default=lambda: f"e_{uuid.uuid4().hex[:6].upper()}")
     title = Column(String, nullable=False)
-    origin = Column(String, nullable=False) # "question_log" or "editor_upload"
+    origin = Column(String, nullable=False)  # "question_log" or "editor_upload"
     topics = Column(JSONB, default=list)
-    status = Column(String, nullable=False, default="draft") # draft, pending, approved, rejected
+    status = Column(String, nullable=False, default="draft")  # draft, pending, approved, rejected
     content = Column(Text, nullable=False, default="")
     source_url = Column(String, nullable=True)
     issuer = Column(String, nullable=True)

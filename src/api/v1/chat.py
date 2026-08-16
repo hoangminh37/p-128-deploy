@@ -5,17 +5,17 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from src.agent.graph import agent
-from src.core.logging import get_logger
-from src.schemas.chat import ChatRequest, ChatResponse
-from src.core.database import get_db
-from src.models.domain import Patient, Conversation, Message
 from src.api.v1.auth import get_current_user
+from src.core.database import get_db
+from src.core.logging import get_logger
+from src.models.domain import Patient
+from src.schemas.chat import ChatRequest, ChatResponse
 from src.schemas.patient import UserInfo
 
 router = APIRouter()
@@ -41,11 +41,6 @@ NODE_MESSAGES: dict[str, dict] = {
 
 
 # ── POST /chat — synchronous (dùng để test, không streaming) ─────────────────
-
-
-from fastapi import APIRouter, HTTPException, Depends
-from src.core.database import get_db
-from src.models.domain import Patient
 
 
 @router.post("/chat", response_model=ChatResponse, summary="Chat (sync)")
@@ -139,9 +134,10 @@ async def chat(
         if status in ["red_flag", "refused", "referral"]:
             citations = []
 
-        from src.models.domain import Conversation, Message
-        from datetime import datetime
         import uuid
+        from datetime import datetime
+
+        from src.models.domain import Conversation, Message
 
         # Save to DB
         conversation_id = request.conversation_id
@@ -225,7 +221,6 @@ async def chat(
 
 @router.post("/chat/stream", summary="Chat (SSE stream)")
 async def chat_stream(
-    req: Request,
     request: ChatRequest,
     db: AsyncSession = Depends(get_db),
     current_user: UserInfo = Depends(get_current_user),
@@ -277,11 +272,9 @@ async def chat_stream(
                     )
                     yield f"event: step\ndata: {payload}\n\n"
 
-                # Emit token events for streaming
-                if event_type == "on_chat_model_stream":
-                    chunk = event.get("data", {}).get("chunk")
-                    # (Tùy chọn: Dùng nếu LLM trực tiếp stream text ra ngoài)
-                    pass
+                # (Tùy chọn) Chỗ móc để stream thẳng token của LLM ra ngoài:
+                # đọc event["data"]["chunk"] khi event_type == "on_chat_model_stream".
+                # Hiện chưa dùng vì token chỉ được phát sau khi Self-RAG xác minh xong.
 
                 # Trích xuất state từ bất kỳ node nào kết thúc
                 if event_type == "on_chain_end":
@@ -312,9 +305,10 @@ async def chat_stream(
             yield f"event: done\ndata: {done_payload}\n\n"
 
             # Save to DB at the end
-            from src.models.domain import Conversation, Message
-            from datetime import datetime
             import uuid
+            from datetime import datetime
+
+            from src.models.domain import Conversation, Message
 
             conversation_id = request.conversation_id
             if not conversation_id:

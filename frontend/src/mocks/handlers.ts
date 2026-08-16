@@ -38,8 +38,15 @@ import {
 const BASE_URL: string = import.meta.env.VITE_API_URL ?? ''
 const url = (path: string) => `${BASE_URL}/api/v1${path}`
 
-/** Trả lời của LLM thật mất vài giây, giả lập để thấy được trạng thái đang chờ. */
-const CHAT_DELAY_MS = 1500
+/**
+ * Trả lời của LLM thật mất vài giây, giả lập để thấy được trạng thái đang chờ.
+ *
+ * `export` là cố ý dù chưa ai import: handler `/chat` bên dưới đang bị comment
+ * để gọi backend thật, nên hằng số này tạm thời mồ côi. Không export thì cả
+ * eslint lẫn `tsc -b` đều báo lỗi biến không dùng và CI đỏ. Xoá hẳn thì lúc cần
+ * bật lại mock sẽ phải viết lại từ đầu.
+ */
+export const CHAT_DELAY_MS = 1500
 
 /** Các endpoint còn lại chỉ đọc ghi dữ liệu, cho trễ ngắn thôi. */
 const QUICK_DELAY_MS = 300
@@ -209,8 +216,14 @@ const KEYWORD_RULES: ReadonlyArray<{
   },
 ]
 
-/** Không khớp từ khóa nào thì trả kịch bản `answered`. */
-function pickFixture(query: string) {
+/**
+ * Không khớp từ khóa nào thì trả kịch bản `answered`.
+ *
+ * `export` cùng lý do với CHAT_DELAY_MS: hàm này chỉ được handler `/chat` dùng,
+ * mà handler đó đang bị comment để gọi backend thật. Giữ lại vì bảng
+ * KEYWORD_RULES ở trên là bản đối chiếu với mục 5 hợp đồng, chép lại không dễ.
+ */
+export function pickFixture(query: string) {
   const normalized = query.toLowerCase()
   const rule = KEYWORD_RULES.find((candidate) =>
     candidate.keywords.some((keyword) => normalized.includes(keyword)),

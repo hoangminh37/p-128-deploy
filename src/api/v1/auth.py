@@ -1,9 +1,10 @@
+from datetime import UTC, datetime, timedelta
+
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-import jwt
-from datetime import datetime, timedelta, UTC
 
 from src.core.config import get_settings
 from src.core.database import get_db
@@ -37,10 +38,10 @@ async def get_current_user(
         email: str = payload.get("email")
         role: str = payload.get("role")
         patient_id = payload.get("patient_id")
-        
+
         if user_id is None or email is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token không hợp lệ")
-            
+
         return UserInfo(user_id=user_id, email=email, role=role, patient_id=patient_id)
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token đã hết hạn")
@@ -61,43 +62,28 @@ async def get_editor_user(
 async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).filter(User.email == request.email))
     user = result.scalars().first()
-    
+
     if not user or user.password != request.password:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email hoặc mật khẩu không đúng"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email hoặc mật khẩu không đúng")
+
     # Check if patient profile exists to attach patient_id
     patient_id = None
     if user.role == "patient":
         from src.models.domain import Patient
+
         patient_result = await db.execute(select(Patient).filter(Patient.user_id == user.id))
         patient = patient_result.scalars().first()
         if patient:
             patient_id = patient.id
-            
+
     # Generate JWT
-    token_data = {
-        "user_id": user.id,
-        "email": user.email,
-        "role": user.role,
-        "patient_id": patient_id
-    }
+    token_data = {"user_id": user.id, "email": user.email, "role": user.role, "patient_id": patient_id}
     access_token = create_access_token(token_data)
-    
-    user_info = UserInfo(
-        user_id=user.id,
-        email=user.email,
-        role=user.role,
-        patient_id=patient_id
-    )
-    
-    return LoginResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user=user_info
-    )
+
+    user_info = UserInfo(user_id=user.id, email=user.email, role=user.role, patient_id=patient_id)
+
+    return LoginResponse(access_token=access_token, token_type="bearer", user=user_info)
+
 
 @router.post("/logout", status_code=204)
 async def logout():
