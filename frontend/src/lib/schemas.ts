@@ -120,6 +120,16 @@ export const patientProfileSchema = z.object({
   // calo cụ thể — đó là tư vấn dinh dưỡng cá nhân hoá, nằm ngoài phạm vi giáo
   // dục của sản phẩm. Vì vậy frontend cũng không tính BMI hay bất kỳ chỉ số dẫn
   // xuất nào từ hai số này, chỉ gửi nguyên giá trị người dùng khai.
+  //
+  // BACKEND CHƯA NHẬN HAI TRƯỜNG NÀY, tính tới 16/08/2026. `PatientProfile`
+  // trong `src/schemas/patient.py` không khai chúng, bảng `patients` cũng không
+  // có cột tương ứng. Pydantic bỏ qua field lạ nên POST vẫn trả 200, chỉ là hai
+  // số bị nuốt: lưu xong mở lại hồ sơ là thấy hai ô trống.
+  //
+  // ĐÂY KHÔNG PHẢI LỖI FRONTEND. Form vẫn hỏi, vẫn kiểm, vẫn gửi đúng hợp đồng.
+  // Cả hai để `.nullish()` nên response thiếu chúng vẫn parse được — đó là lý do
+  // chuyện này hỏng lặng lẽ chứ không nổ ra thành lỗi. Đã báo backend; khi nào
+  // họ thêm cột và trường thì xoá đoạn ghi chú này, không phải sửa gì thêm.
   height_cm: z.number().int().min(100).max(250).nullish(),
   // Hợp đồng khuyến nghị nhập tới một chữ số thập phân nhưng KHÔNG ràng buộc
   // điều đó, nên ở đây cũng không có `multipleOf` — 70.35 vẫn hợp lệ.

@@ -72,6 +72,24 @@ export function setAuthToken(token: string | null): void {
   authToken = token
 }
 
+/**
+ * Việc phải làm khi máy chủ trả 401 ở một endpoint cần đăng nhập.
+ *
+ * File này không biết gì về React Router lẫn TanStack Query, và không được biết:
+ * nó là lớp HTTP thuần. Nên chỗ này chỉ giữ một chỗ cắm, còn việc xoá phiên,
+ * dọn cache và điều hướng do `session/ExpiredSessionWatcher.tsx` đăng ký vào.
+ *
+ * Đặt ở tầng dùng chung để MỌI endpoint được bảo vệ bằng một chỗ duy nhất. Bắt
+ * 401 ở từng chỗ gọi thì sớm muộn cũng sót một cái, mà cái sót lại là chỗ người
+ * dùng ngồi nhìn màn hình đứng im.
+ */
+let onUnauthorized: (() => void) | null = null
+
+/** Đăng ký hoặc gỡ việc xử lý 401. Truyền `null` để gỡ. */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler
+}
+
 // ---------------------------------------------------------------------------
 // Lỗi
 // ---------------------------------------------------------------------------
@@ -202,8 +220,17 @@ async function sendRequest(options: {
   path: string
   method: 'GET' | 'POST'
   body?: unknown
+  /**
+   * Bỏ qua việc xử lý 401 dùng chung.
+   *
+   * CHỈ endpoint đăng nhập được đặt cờ này. 401 ở đó nghĩa là "sai email hoặc
+   * mật khẩu" — một câu trả lời bình thường của form, không phải phiên hết hạn.
+   * Để nó chạy luồng chung thì người gõ sai mật khẩu sẽ bị đá về đúng cái màn
+   * đang đứng, kèm câu "phiên đã hết hạn" hoàn toàn vô nghĩa với họ.
+   */
+  skipUnauthorizedHandler?: boolean
 }): Promise<Response> {
-  const { path, method, body } = options
+  const { path, method, body, skipUnauthorizedHandler = false } = options
   const url = `${BASE_URL}${API_PREFIX}${path}`
 
   let response: Response
@@ -234,6 +261,13 @@ async function sendRequest(options: {
   }
 
   if (!response.ok) {
+    // Gọi TRƯỚC khi ném: dọn phiên và điều hướng không phụ thuộc vào việc chỗ
+    // gọi có bắt lỗi hay không. Vẫn ném tiếp để tầng trên hiện được lỗi nếu nó
+    // còn kịp render trước lúc chuyển màn.
+    if (response.status === 401 && !skipUnauthorizedHandler) {
+      onUnauthorized?.()
+    }
+
     const detail = await readErrorDetail(response)
     throw new ApiError({
       kind: 'http',
@@ -259,8 +293,17 @@ async function request<S extends z.ZodType>(options: {
   method: 'GET' | 'POST'
   schema: S
   body?: unknown
+  skipUnauthorizedHandler?: boolean
+  /**
+   * Sửa payload thô ngay trước khi parse, để đi vòng qua một lỗi đã biết của
+   * máy chủ. Chỉ dùng cho biện pháp tạm, và mỗi chỗ dùng phải ghi rõ hạn gỡ.
+   *
+   * Đặt ở đây chứ không nới lỏng schema: schema vẫn là bản sao trung thực của
+   * hợp đồng, còn chỗ này nói thẳng rằng dữ liệu thật đang lệch hợp đồng.
+   */
+  repairPayload?: (payload: unknown) => unknown
 }): Promise<z.infer<S>> {
-  const { path, method, schema } = options
+  const { path, method, schema, repairPayload } = options
   const url = `${BASE_URL}${API_PREFIX}${path}`
 
   const response = await sendRequest(options)
@@ -277,7 +320,9 @@ async function request<S extends z.ZodType>(options: {
     })
   }
 
-  const parsed = schema.safeParse(payload)
+  const parsed = schema.safeParse(
+    repairPayload === undefined ? payload : repairPayload(payload),
+  )
   if (!parsed.success) {
     // Dữ liệu lệch hợp đồng thì thà báo lỗi còn hơn render sai thông tin y tế.
     throw new ApiError({
@@ -321,6 +366,9 @@ export async function login(payload: LoginRequest): Promise<LoginResponse> {
     method: 'POST',
     schema: loginResponseSchema,
     body: payload,
+    // Endpoint DUY NHẤT bỏ qua luồng 401 dùng chung. Ở đây 401 là "sai mật
+    // khẩu", phải hiện ngay trên form chứ không phải "phiên đã hết hạn".
+    skipUnauthorizedHandler: true,
   })
 }
 
@@ -339,6 +387,68 @@ export function logout(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
+ * Ba trạng thái mà hợp đồng mục 5 và mục 6 bắt buộc `citations` phải rỗng.
+ *
+ * Giữ bản sao riêng ở đây thay vì import từ `schemas.ts`: danh sách bên đó là
+ * một hằng nội bộ của schema, và biện pháp tạm bên dưới sẽ bị xoá cả cụm.
+ */
+const STATUSES_WITHOUT_CITATIONS: ReadonlySet<string> = new Set([
+  'red_flag',
+  'refused',
+  'referral',
+])
+
+/** Marker trích dẫn kèm khoảng trắng đứng trước, dạng ` [1]`. */
+const ORPHAN_MARKER = /\s*\[\d+\]/g
+
+/**
+ * BIỆN PHÁP TẠM — thêm ngày 16/08/2026, chờ backend sửa.
+ *
+ * LỖI: với `status` là `red_flag`, `refused` hoặc `referral`, backend xoá sạch
+ * `citations` nhưng KHÔNG gỡ marker `[1]`, `[2]` đã chèn vào `answer` trước đó
+ * (`src/api/v1/chat.py`: chỗ thay `[doc_x]` bằng `[n]` chạy trước khi tính
+ * `status`, còn chỗ xoá citations chạy sau và chỉ đụng tới mảng citations).
+ *
+ * HẬU QUẢ NẾU KHÔNG CÓ HÀM NÀY: ràng buộc hai chiều trong `chatResponseSchema`
+ * ném "answer có marker [1] nhưng citations không có phần tử nào mang id 1", cả
+ * câu trả lời bị chặn và người dùng chỉ thấy khối lỗi. Ba trạng thái này lại là
+ * ba nhánh dễ gặp nhất khi thử: hỏi liều thuốc, kể triệu chứng nguy hiểm, hỏi
+ * ngoài phạm vi.
+ *
+ * VÌ SAO GỠ MARKER CHỨ KHÔNG NỚI SCHEMA: ba trạng thái đó không có nguồn để
+ * người dùng bấm vào, nên một số `[1]` nằm giữa câu chỉ là rác. Nới ràng buộc
+ * thì lần sau backend đánh rơi citation ở `answered` cũng lọt qua, mà ở đó câu
+ * khẳng định y khoa mất nguồn là chuyện nghiêm trọng.
+ *
+ * KHI NÀO GỠ ĐƯỢC: khi backend gỡ marker trước lúc trả về. Kiểm bằng cách hỏi
+ * một câu chạm nhánh `refused` (ví dụ "tôi tăng liều thuốc huyết áp được
+ * không") rồi xem `answer` trong tab Network — không còn `[n]` nào là xoá được
+ * cả hằng `STATUSES_WITHOUT_CITATIONS`, `ORPHAN_MARKER`, hàm này và tham số
+ * `repairPayload` ở chỗ gọi bên dưới.
+ */
+function dropOrphanMarkers(payload: unknown): unknown {
+  if (payload === null || typeof payload !== 'object') return payload
+
+  const body = payload as { status?: unknown; answer?: unknown }
+  if (typeof body.status !== 'string' || !STATUSES_WITHOUT_CITATIONS.has(body.status)) {
+    return payload
+  }
+  if (typeof body.answer !== 'string') return payload
+
+  const cleaned = body.answer.replace(ORPHAN_MARKER, '').trim()
+  if (cleaned === body.answer) return payload
+
+  if (import.meta.env.DEV) {
+    console.warn(
+      `[api] Đã gỡ marker trích dẫn thừa khỏi answer của status "${body.status}". ` +
+        'Đây là biện pháp tạm chờ backend sửa — xem ghi chú ở dropOrphanMarkers trong lib/api.ts.',
+    )
+  }
+
+  return { ...body, answer: cleaned }
+}
+
+/**
  * Mục 5 — gửi câu hỏi. `conversation_id` bằng `null` là mở phiên mới.
  *
  * `async` để lỗi payload cũng trả về dưới dạng promise bị reject, đồng nhất với
@@ -351,6 +461,7 @@ export async function sendChatMessage(payload: ChatRequest): Promise<ChatRespons
     method: 'POST',
     schema: chatResponseSchema,
     body: payload,
+    repairPayload: dropOrphanMarkers,
   })
 }
 

@@ -31,6 +31,7 @@ import {
   RequireRole,
 } from './app/guards'
 import { PatientProvider } from './patient/PatientProvider'
+import { ExpiredSessionWatcher } from './session/ExpiredSessionWatcher'
 import { SessionProvider } from './session/SessionProvider'
 import { RootLayout } from './ui/RootLayout'
 import { ChatScreen } from './screens/ChatScreen'
@@ -84,6 +85,10 @@ function App() {
       <SessionProvider>
         <PatientProvider>
           <BrowserRouter>
+            {/* Không render gì, chỉ nối 401 của lớp api với việc xoá phiên, dọn
+                cache và đưa về màn đăng nhập. Phải nằm trong `BrowserRouter`. */}
+            <ExpiredSessionWatcher />
+
             <Routes>
               <Route
                 path="/login"
