@@ -354,6 +354,133 @@ export async function sendChatMessage(payload: ChatRequest): Promise<ChatRespons
   })
 }
 
+/** Step event từ SSE /chat/stream — mỗi node LangGraph kích hoạt 1 event. */
+export type StreamStepEvent = {
+  node: string
+  message: string
+  icon: string
+}
+
+/** Done event từ SSE /chat/stream — kết quả cuối sau khi tất cả node chạy xong. */
+export type StreamDoneEvent = {
+  conversation_id: string
+  message_id: string
+  status: ChatResponse['status']
+  answer: string
+  citations: ChatResponse['citations']
+  support_level: ChatResponse['support_level']
+  intent: string
+  disclaimer: string
+}
+
+/**
+ * Gửi câu hỏi lên /chat/stream và đọc SSE realtime.
+ *
+ * Gọi callbacks theo từng loại event:
+ * - onStep:  mỗi khi một node LangGraph bắt đầu (ví dụ "📚 Đang tìm kiếm...")
+ * - onToken: từng mảnh nhỏ của câu trả lời (streaming text)
+ * - onDone:  citations + support_level sau khi hoàn tất
+ * - onError: lỗi trong quá trình stream
+ */
+export async function streamChatMessage(
+  payload: ChatRequest,
+  callbacks: {
+    onStep?: (event: StreamStepEvent) => void
+    onToken?: (text: string) => void
+    onDone?: (event: StreamDoneEvent) => void
+    onError?: (error: ApiError) => void
+  },
+): Promise<void> {
+  assertValidRequestBody(chatRequestSchema, payload, 'POST /chat/stream')
+
+  const url = `${BASE_URL}${API_PREFIX}/chat/stream`
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  } catch (cause) {
+    const timedOut = cause instanceof DOMException && cause.name === 'TimeoutError'
+    throw new ApiError({
+      kind: timedOut ? 'timeout' : 'network',
+      userMessage: timedOut
+        ? `Máy chủ xử lý quá lâu (hơn ${TIMEOUT_MS / 1000} giây). Vui lòng thử lại.`
+        : 'Không kết nối được tới máy chủ. Vui lòng kiểm tra mạng rồi thử lại.',
+      logMessage: `Stream lỗi: POST ${url}`,
+      cause,
+    })
+  }
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response)
+    throw new ApiError({
+      kind: 'http',
+      userMessage:
+        HTTP_USER_MESSAGES[response.status] ??
+        `Máy chủ trả về lỗi ${response.status}. Vui lòng thử lại sau.`,
+      logMessage: `HTTP ${response.status}: POST ${url}${detail ? ` — ${detail}` : ''}`,
+      status: response.status,
+      detail,
+    })
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) return
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    let eventType = ''
+    let dataLine = ''
+
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        eventType = line.slice(7).trim()
+      } else if (line.startsWith('data: ')) {
+        dataLine = line.slice(6).trim()
+      } else if (line === '' && eventType && dataLine) {
+        // Một SSE event hoàn chỉnh
+        try {
+          const parsed: unknown = JSON.parse(dataLine)
+          if (typeof parsed !== 'object' || parsed === null) continue
+
+          if (eventType === 'step' && callbacks.onStep) {
+            callbacks.onStep(parsed as StreamStepEvent)
+          } else if (eventType === 'token' && callbacks.onToken) {
+            callbacks.onToken((parsed as { text: string }).text)
+          } else if (eventType === 'done' && callbacks.onDone) {
+            callbacks.onDone(parsed as StreamDoneEvent)
+          } else if (eventType === 'error' && callbacks.onError) {
+            callbacks.onError(
+              new ApiError({
+                kind: 'http',
+                userMessage: (parsed as { error: string }).error ?? 'Lỗi từ server.',
+                logMessage: `SSE error event: ${dataLine}`,
+              }),
+            )
+          }
+        } catch {
+          // JSON parse lỗi — bỏ qua dòng này
+        }
+        eventType = ''
+        dataLine = ''
+      }
+    }
+  }
+}
+
+
 /**
  * Mục 4 — tạo hoặc cập nhật hồ sơ bệnh nhân.
  *

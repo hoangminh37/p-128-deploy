@@ -57,3 +57,42 @@ DIAGNOSIS_KEYWORDS: list[str] = [
     "đổi thuốc",
     "dừng thuốc",
 ]
+
+# ── Prompt Injection (Security) ──────────────────────────────────────────────
+# Các pattern cố ý hỏi về cấu trúc nội bộ hoặc thao túng behavior của AI
+PROMPT_INJECTION_KEYWORDS: list[str] = [
+    # Hỏi về system prompt
+    "system prompt",
+    "system message",
+    "prompt của bạn",
+    "prompt gốc",
+    "câu lệnh của bạn",
+    "hướng dẫn của bạn",
+    "instruction của bạn",
+    "bạn được lập trình",
+    "bạn được cài đặt",
+    "bạn được huấn luyện",
+    "nếu system prompt",
+    "nếu prompt",
+    # Yêu cầu bypass / ignore hướng dẫn
+    "ignore previous",
+    "forget previous",
+    "bỏ qua hướng dẫn",
+    "bỏ qua tất cả",
+    "quên đi hướng dẫn",
+    "giả vờ bạn là",
+    "hãy đóng vai",
+    "bây giờ bạn là",
+    "từ bây giờ bạn",
+    "pretend you are",
+    "act as",
+    "you are now",
+    # Khai thác cấu trúc nội bộ
+    "show me your prompt",
+    "reveal your instructions",
+    "what are your instructions",
+    "tiết lộ prompt",
+    "cho tôi xem prompt",
+    "nội dung prompt",
+]
+
