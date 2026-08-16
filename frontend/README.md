@@ -78,20 +78,25 @@ trong `vite.config.ts`.
 
 ## 4. Biến môi trường
 
-Frontend chỉ dùng đúng một biến.
+Frontend dùng hai biến.
 
 | Biến | Mặc định | Dùng ở đâu | Ý nghĩa |
 | --- | --- | --- | --- |
 | `VITE_API_URL` | chuỗi rỗng | `src/lib/api.ts`, `src/mocks/handlers.ts` | Gốc URL của backend. Để trống thì mọi request đi bằng đường dẫn tương đối. |
+| `VITE_ENABLE_MSW` | không đặt → bật ở dev, tắt ở production | `src/main.tsx` | Bật/tắt lớp mock MSW. Xem mục 5. |
 
 Vite chỉ đưa vào mã trình duyệt những biến có tiền tố `VITE_`. Biến không có tiền
-tố này sẽ không tồn tại trong ứng dụng.
+tố này sẽ không tồn tại trong ứng dụng. Kiểu của cả hai biến khai trong
+`src/vite-env.d.ts`; giá trị luôn là **chuỗi**, kể cả khi bạn viết `true`.
 
-Thư mục `frontend/` hiện **không có** file `.env` nào. Muốn đặt biến, hãy tạo
-`frontend/.env.local` (file này đã nằm trong `.gitignore` qua mẫu `*.local`):
+Vite đọc file `.env*` từ thư mục gốc của chính nó, tức `frontend/`, **không** đọc
+`.env` ở gốc repo. Thư mục `frontend/` hiện **không có** file `.env` nào. Muốn đặt
+biến, hãy tạo `frontend/.env.local` (file này đã nằm trong `.gitignore` qua mẫu
+`*.local`):
 
 ```
 VITE_API_URL=https://api.example.com
+VITE_ENABLE_MSW=false
 ```
 
 ### Proxy /api hoạt động thế nào khi phát triển
@@ -150,21 +155,44 @@ thật. Chúng chỉ gọi `fetch` như bình thường.
 
 ### Bật và tắt
 
-`src/main.tsx` gọi `enableMocking()` trước khi render, và hàm này thoát ngay nếu
-không phải chế độ dev:
+Điều khiển bằng biến môi trường `VITE_ENABLE_MSW`, **không** phải bằng cách sửa
+mã. Đặt biến trong `frontend/.env.local` (Vite đọc file `.env*` từ thư mục
+`frontend/`, không đọc `.env` ở gốc repo):
+
+```
+VITE_ENABLE_MSW=false
+```
+
+`src/main.tsx` đọc biến này trước khi render:
 
 ```ts
+const MOCKING_ENABLED =
+  import.meta.env.VITE_ENABLE_MSW === 'true' ||
+  (import.meta.env.VITE_ENABLE_MSW !== 'false' && import.meta.env.DEV)
+
 async function enableMocking(): Promise<void> {
-  if (!import.meta.env.DEV) return
+  if (!MOCKING_ENABLED) return
   const { worker } = await import('./mocks/browser')
   await worker.start({ onUnhandledRequest: 'bypass' })
+  console.info('[MSW] Lớp mock đang BẬT — ...')
 }
 ```
 
-| Lệnh | Trạng thái mock |
-| --- | --- |
-| `npm run dev` | Bật. Mọi request tới `/api/v1/...` đều do MSW trả lời. |
-| `npm run build` rồi `npm run preview` | Tắt. Request đi thẳng tới backend thật. |
+| `VITE_ENABLE_MSW` | `npm run dev` | `npm run build` + `npm run preview` |
+| --- | --- | --- |
+| `true` | Bật | Bật |
+| `false` | Tắt | Tắt |
+| không đặt (mặc định) | **Bật** | **Tắt** |
+
+Chỉ đúng hai chuỗi `true` và `false` được coi là lựa chọn tường minh, vì Vite
+luôn đưa biến môi trường vào mã dưới dạng chuỗi. Giá trị khác, ví dụ `1` hay
+`yes`, bị bỏ qua và rơi về mặc định. Mặc định chọn như vậy để người mới clone
+repo chạy `npm run dev` là thấy giao diện có dữ liệu ngay, không cần dựng backend
+trước; còn bản production thì mặc định không bao giờ dùng dữ liệu giả.
+
+Khi mock đang bật, `main.tsx` in một dòng `[MSW] Lớp mock đang BẬT` ra console.
+Nếu bạn thấy dòng đó, mọi số liệu trên màn hình là dữ liệu giả, không phải dữ
+liệu từ backend thật.
 
 `onUnhandledRequest: 'bypass'` để các request không khớp handler nào, ví dụ tài
 nguyên của Vite, đi thẳng qua mà không bị cảnh báo.
@@ -177,22 +205,34 @@ dụng. Không có `if (mock)` nào nằm rải rác trong component.
 
 Cách chuyển sang backend thật:
 
-1. Chạy `npm run build` rồi `npm run preview`. Bản build production không hề chứa
-   mã mock, nên nó gọi backend thật ngay.
-2. Nếu backend nằm ở nơi khác `http://localhost:8000`, đặt `VITE_API_URL` trong
-   `frontend/.env.local`.
+1. Đặt `VITE_ENABLE_MSW=false` trong `frontend/.env.local`, rồi chạy lại
+   `npm run dev`. Không phải sửa dòng mã nào.
+2. Nếu backend nằm ở nơi khác `http://localhost:8000`, đặt thêm `VITE_API_URL`
+   trong cùng file đó.
+3. Với bản phát hành, `npm run build` là đủ: không đặt biến thì production mặc
+   định đã tắt mock.
 
-Đã kiểm chứng bằng cách grep vào bundle production: các chuỗi `setupWorker`,
-`chatFixtures`, `KEYWORD_RULES`, `c_mock_answered` và nội dung y khoa giả đều xuất
-hiện **0 lần**. Nói cách khác, dữ liệu y khoa giả không bao giờ lọt ra bản phát
-hành. Riêng file tĩnh `public/mockServiceWorker.js` vẫn được sao chép sang `dist/`
-theo cơ chế của thư mục `public`, nhưng không có mã nào đăng ký nó nên nó nằm im.
+Dữ liệu y khoa giả vẫn không lọt ra bản phát hành. Điều kiện bật mock nằm ở hằng
+`MOCKING_ENABLED` trong `src/main.tsx`, viết dưới dạng một biểu thức phẳng chứ
+không gọi hàm, nên khi build production Vite thay `import.meta.env` bằng hằng số
+rồi rút gọn cả biểu thức về `false`, và nhánh `import('./mocks/browser')` bị cắt
+khỏi đồ thị module. Đã kiểm chứng lại sau khi đổi sang biến môi trường: build
+không đặt biến và build với `VITE_ENABLE_MSW=false` cho ra cùng một bundle, không
+còn chunk `browser-*.js`, và grep các chuỗi `setupWorker`, `chatFixtures`,
+`KEYWORD_RULES`, `c_mock_answered` trong `dist/` đều ra **0 lần**.
 
-Hiện **chưa có** cờ môi trường để tắt mock trong lúc đang chạy `npm run dev`. Nếu
-bạn cần vừa dev vừa gọi backend thật, tạm thời phải bỏ lời gọi `enableMocking()`
-trong `src/main.tsx`. Đó là file điểm vào, không phải component, nên nguyên tắc ở
-trên vẫn giữ nguyên. Nếu nhóm cần dùng thường xuyên, nên bổ sung một biến kiểu
-`VITE_ENABLE_MSW` vào điều kiện của `enableMocking()`.
+Hệ quả cần biết: viết điều kiện đó thành lời gọi hàm, ví dụ
+`if (!shouldEnableMocking()) return`, thì bundler không rút gọn được nữa. Khi đó
+mock vẫn tắt đúng, nhưng chunk mock nặng khoảng 436 kB quay lại nằm trong `dist/`
+kèm toàn bộ nội dung y khoa giả. Đây là lý do chỗ đó cố ý không tách thành hàm.
+
+Nếu build với `VITE_ENABLE_MSW=true` thì ngược lại: mock đi theo cả bản
+production, dùng để demo khi chưa có backend. Đừng đặt giá trị này cho bản phát
+hành thật.
+
+Riêng file tĩnh `public/mockServiceWorker.js` vẫn được sao chép sang `dist/` theo
+cơ chế của thư mục `public` trong mọi trường hợp, nhưng khi mock tắt thì không có
+mã nào đăng ký nó nên nó nằm im.
 
 ### Năm kịch bản phản hồi
 
