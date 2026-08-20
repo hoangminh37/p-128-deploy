@@ -15,12 +15,29 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 
+class Quiz(BaseModel):
+    question: str = Field(description="Câu hỏi trắc nghiệm ôn tập kiến thức bài học")
+    options: list[str] = Field(description="Danh sách 4 đáp án dưới dạng chuỗi")
+    correct_index: int = Field(description="Vị trí đáp án đúng (từ 0 đến 3)")
+
 class MicroArticle(BaseModel):
     title: str = Field(description="Tiêu đề bài học ngắn gọn, thân thiện với bệnh nhân (dưới 15 chữ)")
+    full_content: str = Field(
+        description="""Nội dung bài học chi tiết, format Markdown. Yêu cầu:
+- Dài ít nhất 500-800 chữ
+- Dùng ## cho tiêu đề mục, ### cho tiêu đề phụ
+- Dùng **in đậm** cho thuật ngữ quan trọng
+- Dùng > blockquote cho lời khuyên hoặc cảnh báo quan trọng
+- Phải có ít nhất 1 ví dụ thực tế so sánh dễ hiểu (ví dụ: 'Hãy tưởng tượng...' hoặc 'Ví dụ: Anh Minh 55 tuổi...')
+- Giải thích rõ ràng từng thuật ngữ y khoa khi xuất hiện lần đầu
+- Giọng văn thân thiện, ấm áp, xưng 'Bạn'
+- Kết thúc bằng mục '## Điểm cần nhớ' tóm tắt 3-5 ý chính bằng bullet points"""
+    )
     content: str = Field(
-        description="Nội dung bài học, diễn đạt cực kỳ dễ hiểu, bình dân, tránh thuật ngữ y khoa phức tạp. Độ dài khoảng 100-250 chữ."
+        description="Bản tóm tắt siêu ngắn (khoảng 80-100 chữ) dùng cho banner micro-learning hàng ngày."
     )
     category: str = Field(description="Danh mục bệnh (ví dụ: hypertension, type2_diabetes)")
+    quiz: Quiz | None = Field(default=None, description="Câu hỏi trắc nghiệm 4 đáp án, đánh giá hiểu biết thực sự, không hỏi theo kiểu máy móc")
 
 
 class ArticleBatch(BaseModel):
@@ -30,6 +47,7 @@ class ArticleBatch(BaseModel):
 def extract_and_transform(pdf_path: str, category: str, output_path: str):
     print("🚀 Bắt đầu quá trình ETL (Extract-Transform-Load) cho Thư Viện Y Khoa")
     print(f"📄 Đang đọc file PDF: {pdf_path}")
+    origin_source = Path(pdf_path).name
 
     try:
         loader = PyPDFLoader(pdf_path)
@@ -43,38 +61,59 @@ def extract_and_transform(pdf_path: str, category: str, output_path: str):
         print("❌ Thiếu OPENAI_API_KEY trong file .env")
         return
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
     structured_llm = llm.with_structured_output(ArticleBatch)
 
     all_articles = []
 
-    # Chỉ xử lý 10 chunks đầu tiên để test luồng, tránh tốn thời gian và tiền API.
-    # Trong môi trường production, có thể bỏ [:10] để chạy toàn bộ file.
+    # Xử lý 10 chunks để có đủ nội dung phong phú
     test_limit = 10
     print(f"🧠 Đang dùng LLM gpt-4o-mini để biên dịch (Giới hạn {test_limit} chunks đầu tiên)...")
 
     for i, doc in enumerate(docs[:test_limit]):
         print(f" - Đang xử lý phân đoạn {i + 1}/{test_limit}...")
-        prompt = f"""
-Bạn là một chuyên gia giáo dục y tế tận tâm đang biên soạn "Sách giáo khoa mini" cho bệnh nhân.
-Dưới đây là một trích đoạn từ Hướng dẫn Y khoa gốc của Bộ Y Tế (Rất hàn lâm).
-Hãy đọc hiểu và bóc tách những thông tin quan trọng nhất thành 1 đến 3 bài học ngắn (Micro-learning) để bệnh nhân bình dân có thể đọc và tự hiểu dễ dàng.
+        prompt = f"""Bạn là chuyên gia giáo dục y tế, biên soạn "Sách giáo khoa bệnh nhân" từ Hướng dẫn Y khoa chính thức của Bộ Y Tế Việt Nam.
 
-Trích đoạn gốc:
+TRÍCH ĐOẠN GỐC TỪ TÀI LIỆU Y KHOA:
 {doc.page_content}
 
-Yêu cầu:
-- Giọng văn thân thiện, thấu cảm, xưng hô "Bạn" hoặc "Bác".
-- Giải thích các thuật ngữ khó (ví dụ: HATT -> Huyết áp tâm thu) bằng ngôn ngữ đời thường.
-- Tuyệt đối KHÔNG bịa đặt sai kiến thức y khoa gốc.
-- Nếu đoạn này không chứa thông tin gì hữu ích cho giáo dục bệnh nhân (chỉ có mục lục, tên bác sĩ tham gia biên soạn...), hãy trả về mảng articles rỗng [].
+NHIỆM VỤ: Chuyển đổi nội dung trên thành các bài học dễ hiểu cho bệnh nhân.
 
-Danh mục bệnh: {category}
-        """
+YÊU CẦU CHẤT LƯỢNG CHO TỪNG BÀI HỌC:
+
+1. **full_content** — Bài viết đầy đủ (ít nhất 500 chữ), PHẢI có:
+   - Các mục rõ ràng với ## heading
+   - Ít nhất 1 ví dụ thực tế sinh động: "Ví dụ: Ông Nam 60 tuổi bị tiểu đường..." hoặc tương tự
+   - Giải thích mọi thuật ngữ y khoa bằng ngôn ngữ đời thường ngay khi xuất hiện
+   - Blockquote cho cảnh báo/lời khuyên quan trọng: > ⚠️ **Lưu ý:**...
+   - Mục "## Điểm cần nhớ" cuối bài với 3-5 bullet points tóm tắt
+   - Giọng thân thiện, xưng "Bạn"
+
+2. **content** — Tóm tắt 80-100 chữ cho banner nhỏ
+
+3. **quiz** — Câu hỏi kiểm tra hiểu biết THỰC SỰ (không hỏi máy móc), 4 đáp án
+
+QUAN TRỌNG:
+- Tuyệt đối KHÔNG bịa thêm thông tin y khoa ngoài tài liệu gốc
+- Nếu đoạn không có thông tin hữu ích cho bệnh nhân → trả về mảng articles rỗng []
+- Mỗi chunk chỉ sinh 1-2 bài học thật sự chất lượng, không cần nhiều mà thiếu chiều sâu
+
+Danh mục bệnh: {category}"""
         try:
             res = structured_llm.invoke(prompt)
             if res and res.articles:
-                all_articles.extend([a.model_dump() for a in res.articles])
+                for a in res.articles:
+                    article_dict = a.model_dump()
+                    article_dict["origin_source"] = origin_source
+
+                    # Convert quiz to quiz_data structure for DB
+                    if article_dict.get("quiz"):
+                        article_dict["quiz_data"] = article_dict.pop("quiz")
+                    else:
+                        article_dict["quiz_data"] = None
+                        article_dict.pop("quiz", None)
+
+                    all_articles.append(article_dict)
                 print(f"   -> Đã sinh ra {len(res.articles)} bài học.")
             else:
                 print("   -> Bỏ qua (không có thông tin phù hợp).")

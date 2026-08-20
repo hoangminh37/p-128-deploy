@@ -102,6 +102,7 @@ class Article(Base):
     id = Column(String, primary_key=True, default=lambda: f"a_{uuid.uuid4().hex[:6].upper()}")
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
+    full_content = Column(Text, nullable=True)
     category = Column(String, nullable=False)
     quiz_data = Column(JSONB, nullable=True)
     origin_source = Column(String, nullable=True)

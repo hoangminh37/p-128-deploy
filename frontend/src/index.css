@@ -253,3 +253,110 @@
     }
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Markdown bài học — ArticleDetailScreen
+ * Không dùng @tailwindcss/typography, viết thẳng để kiểm soát hoàn toàn.
+ * --------------------------------------------------------------------------- */
+.article-body {
+  color: #374151;
+  line-height: 1.75;
+  font-size: 1rem;
+}
+
+.article-body h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.article-body h2:first-child {
+  margin-top: 0;
+}
+
+.article-body h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-medical);
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.article-body p {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  color: #374151;
+  line-height: 1.8;
+}
+
+.article-body ul {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  padding-left: 0;
+  list-style: none;
+}
+
+.article-body ul li {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+  color: #374151;
+}
+
+.article-body ul li::before {
+  content: '•';
+  color: var(--color-medical);
+  font-weight: 700;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  line-height: 1.6;
+}
+
+.article-body ol {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+  list-style: decimal;
+}
+
+.article-body ol li {
+  margin-bottom: 0.5rem;
+  color: #374151;
+  line-height: 1.75;
+}
+
+.article-body strong {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.article-body blockquote {
+  border-left: 4px solid color-mix(in srgb, var(--color-medical) 40%, transparent);
+  background: color-mix(in srgb, var(--color-medical) 6%, transparent);
+  border-radius: 0 0.75rem 0.75rem 0;
+  padding: 0.875rem 1.25rem;
+  margin: 1.5rem 0;
+  color: #374151;
+}
+
+.article-body blockquote p {
+  margin: 0;
+}
+
+.article-body hr {
+  border-color: #e5e7eb;
+  margin: 1.5rem 0;
+}
+
+.article-body code {
+  background: #f3f4f6;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.875rem;
+  font-family: var(--font-mono);
+}
