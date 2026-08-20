@@ -13,16 +13,24 @@ from src.models.domain import Base, Patient, User
 async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-async def init_db():
-    print("Creating tables...")
+async def init_db(reset: bool = False):
+    print("Initializing database...")
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        if reset:
+            print("Dropping tables (--reset)...")
+            await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
-    print("Tables created.")
+    print("Tables verified.")
 
-    print("Seeding demo accounts...")
     async with async_session_maker() as session:
+        from sqlalchemy import select
+        res = await session.execute(select(User).limit(1))
+        if res.scalars().first() and not reset:
+            print("Database already seeded. Skipping initial seed.")
+            return
+
+        print("Seeding demo accounts and articles...")
         # User benhnhan@demo.vn (p_01HQZX)
         patient_user = User(id="u_01HQZW", email="benhnhan@demo.vn", password="demo1234", role="patient")
         session.add(patient_user)
@@ -97,4 +105,5 @@ async def init_db():
 
 
 if __name__ == "__main__":
-    asyncio.run(init_db())
+    reset_flag = "--reset" in sys.argv
+    asyncio.run(init_db(reset=reset_flag))

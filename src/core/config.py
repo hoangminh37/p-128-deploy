@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,6 +43,16 @@ class Settings(BaseSettings):
     # ── Legacy / Compatibility ───────────────────────────────────────────────
     # Kept for backward-compat with old config.py consumers
     database_url: str = "sqlite:///./data/app.db"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def fix_async_db_url(cls, v: str) -> str:
+        """Railway cung cấp DATABASE_URL dạng postgresql://, asyncpg cần postgresql+asyncpg://"""
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if isinstance(v, str) and v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        return v
 
 
 @lru_cache
