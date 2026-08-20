@@ -267,3 +267,11 @@ async def draft_out_of_scope(
     await db.commit()
 
     return await get_queue_item(draft.id, db, current_user)
+
+
+@router.post("/seed-database")
+async def seed_database_endpoint(db: AsyncSession = Depends(get_db), current_user: UserInfo = Depends(get_editor_user)):
+    from scripts.init_db import init_db
+    await init_db(reset=False)
+    return {"status": "ok", "message": "Database seeded successfully"}
+

@@ -39,6 +39,8 @@ data/vectorstore/*
 data/processed/*
 !data/processed/.gitkeep
 !data/processed/manifest.json
+!data/processed/articles_htn.json
+!data/processed/articles_t2dm.json
 data/quarantine/*
 !data/quarantine/.gitkeep
 # Trạng thái runtime do server ghi khi biên tập viên tải tài liệu lên và duyệt.

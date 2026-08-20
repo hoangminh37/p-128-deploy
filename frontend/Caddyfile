@@ -1,0 +1,16 @@
+:{$PORT:80} {
+    root * /srv
+    encode gzip
+
+    handle /api/* {
+        reverse_proxy https://c3-app-128-api.up.railway.app {
+            header_up Host c3-app-128-api.up.railway.app
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+}
