@@ -8,6 +8,7 @@ from src.api.v1.auth import get_editor_user
 from src.core.database import get_db
 from src.models.domain import EditorQueueItem as EditorQueueItemModel
 from src.models.domain import OutOfScopeLog
+from src.rag.config import get_rag_settings
 
 # Import rag modules
 from src.rag.ingest import approve, stage_upload
@@ -23,6 +24,7 @@ from src.schemas.editor import (
     OutOfScopeLogSchema,
 )
 from src.schemas.patient import UserInfo
+from src.services.etl_service import process_pdf_background
 
 router = APIRouter(prefix="/editor", tags=["editor"])
 
@@ -97,8 +99,12 @@ async def get_queue_item(
     )
 
 
+
+
+
 @router.post("/queue/upload", response_model=EditorQueueItemDetail, status_code=status.HTTP_201_CREATED)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(...),
     issuer: str = Form(...),
@@ -110,11 +116,11 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
     current_user: UserInfo = Depends(get_editor_user),
 ):
-    """Tải lên tài liệu y khoa. Tài liệu sẽ ở trạng thái chờ duyệt."""
+    """Tải lên tài liệu y khoa. Tài liệu sẽ được lưu vật lý và trigger Background Task (ETL) để bóc tách bài học."""
     content = await file.read()
     disease_list = [d.strip() for d in diseases.split(",") if d.strip()]
 
-    # 1. Gọi hệ thống RAG ingest để stage_upload
+    # 1. Gọi hệ thống RAG ingest để stage_upload (Lưu vật lý vào ổ cứng)
     try:
         ingest_res = stage_upload(
             filename=file.filename,
@@ -131,11 +137,21 @@ async def upload_document(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # 2. Tạo bản ghi trong PostgreSQL để quản lý
+    # Kích hoạt Background Task để LLM đọc PDF và sinh Micro-articles
+    settings = get_rag_settings()
+    import pathlib
+
+    suffix = pathlib.Path(file.filename).suffix.lower()
+    file_path = str(settings.raw_dir / f"{ingest_res.doc_id}{suffix}")
+    primary_category = disease_list[0] if disease_list else "general"
+
+    background_tasks.add_task(process_pdf_background, file_path, primary_category)
+
+    # 2. Tạo bản ghi tổng thể trong PostgreSQL (để báo cho Editor biết file mẹ đã vào hệ thống)
     db_item = EditorQueueItemModel(
         id=ingest_res.doc_id,
         title=title,
-        origin="upload",
+        origin="editor_upload",
         status="pending",
         content="",
         source_url=url,

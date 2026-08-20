@@ -6,6 +6,7 @@ import {
   conversationDetailQueryKey,
   conversationsQueryKey,
 } from '../app/conversations'
+import { useDailyLesson, useCompleteLesson } from '../app/learning'
 import {
   getConversationDetail,
   streamChatMessage,
@@ -66,6 +67,92 @@ function MissingProfileBand() {
       >
         Khai hồ sơ
       </Link>
+    </div>
+  )
+}
+
+function DailyLessonBanner() {
+  const { data, isPending } = useDailyLesson()
+  const completeMutation = useCompleteLesson()
+  const [hidden, setHidden] = useState(false)
+  const [showQuiz, setShowQuiz] = useState(false)
+  const [selectedOption, setSelectedOption] = useState<number | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  if (isPending || hidden || !data || !data.lesson) return null
+
+  const handleComplete = () => {
+    const quizData = data.lesson!.quiz_data
+    if (quizData) {
+      if (!showQuiz) {
+        setShowQuiz(true)
+        return
+      }
+      
+      if (selectedOption === null) {
+        setErrorMsg('Vui lòng chọn một đáp án!')
+        return
+      }
+
+      completeMutation.mutate(
+        { articleId: data.lesson!.id, payload: { answer_index: selectedOption } },
+        {
+          onSuccess: () => setHidden(true),
+          onError: (err) => setErrorMsg(err.message || 'Sai đáp án, thử lại nhé!')
+        }
+      )
+    } else {
+      // Fallback cho bài không có quiz
+      completeMutation.mutate(
+        { articleId: data.lesson!.id, payload: { answer_index: 0 } },
+        { onSuccess: () => setHidden(true) }
+      )
+    }
+  }
+
+  return (
+    <div className="mb-block max-w-answer rounded-lg border-2 border-medical/50 bg-medical/5 p-cozy shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="font-bold text-medical">
+          🎓 Bài học ngày {data.day_number}: {data.lesson.title}
+        </h3>
+      </div>
+      
+      {!showQuiz ? (
+        <p className="mb-3 text-sm leading-relaxed text-ink">
+          {data.lesson.content}
+        </p>
+      ) : data.lesson.quiz_data && (
+        <div className="mb-3 mt-4 border-t border-medical/20 pt-3">
+          <p className="font-semibold text-ink mb-2">❓ Câu hỏi: {data.lesson.quiz_data.question}</p>
+          <div className="flex flex-col gap-2">
+            {data.lesson.quiz_data.options.map((opt, idx) => (
+              <label key={idx} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-medical/10 border border-transparent has-[:checked]:border-medical has-[:checked]:bg-medical/20">
+                <input 
+                  type="radio" 
+                  name="quiz" 
+                  className="w-4 h-4 text-medical"
+                  checked={selectedOption === idx}
+                  onChange={() => {
+                    setSelectedOption(idx)
+                    setErrorMsg(null)
+                  }}
+                />
+                <span className="text-sm text-ink">{opt}</span>
+              </label>
+            ))}
+          </div>
+          {errorMsg && <p className="text-red-500 text-sm mt-2 font-medium">{errorMsg}</p>}
+        </div>
+      )}
+
+      <button
+        onClick={handleComplete}
+        disabled={completeMutation.isPending}
+        className="rounded bg-medical px-4 py-1.5 text-sm font-medium text-white hover:bg-opacity-90 disabled:opacity-50 mt-2"
+      >
+        {completeMutation.isPending ? 'Đang gửi...' : (showQuiz ? 'Trả lời & Nhận HP' : 'Làm bài Trắc nghiệm (+10 HP)')}
+      </button>
     </div>
   )
 }
@@ -206,6 +293,9 @@ export function ChatScreen({
         {!hasQuestionHeading && <h1 className="sr-only">Hỏi đáp sức khỏe</h1>}
 
         {profileState === 'absent' && <MissingProfileBand />}
+        
+        {/* Banner bài học hàng ngày */}
+        {profileState !== 'absent' && turns.length === 0 && <DailyLessonBanner />}
 
         {isEmpty && <SuggestedQuestions profile={profile} onPick={ask} />}
 

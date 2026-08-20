@@ -531,3 +531,49 @@ export type EditorRejectRequest = z.infer<typeof editorRejectRequestSchema>
 export type CreateDraftRequest = z.infer<typeof createDraftRequestSchema>
 export type OutOfScopeLog = z.infer<typeof outOfScopeLogSchema>
 export type OutOfScopeList = z.infer<typeof outOfScopeListSchema>
+
+// ---------------------------------------------------------------------------
+// Gamification & Learning
+// ---------------------------------------------------------------------------
+
+export const quizDataSchema = z.object({
+  question: z.string(),
+  options: z.array(z.string()),
+  correct_index: z.number().int(),
+})
+
+export const microArticleSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  content: z.string(),
+  category: z.string(),
+  quiz_data: quizDataSchema.nullable().optional(),
+})
+
+export const gamificationStatsSchema = z.object({
+  total_score: z.number().int(),
+  current_streak: z.number().int(),
+  completed_articles: z.array(z.string()),
+})
+
+export const dailyLessonResponseSchema = z.object({
+  lesson: microArticleSchema.nullable(),
+  day_number: z.number().int(),
+  stats: gamificationStatsSchema,
+})
+
+export const learningLibraryResponseSchema = z.object({
+  articles: z.array(microArticleSchema),
+  completed_articles: z.array(z.string()),
+})
+
+export const completeLessonRequestSchema = z.object({
+  answer_index: z.number().int(),
+})
+
+export type QuizData = z.infer<typeof quizDataSchema>
+export type MicroArticle = z.infer<typeof microArticleSchema>
+export type GamificationStats = z.infer<typeof gamificationStatsSchema>
+export type DailyLessonResponse = z.infer<typeof dailyLessonResponseSchema>
+export type LearningLibraryResponse = z.infer<typeof learningLibraryResponseSchema>
+export type CompleteLessonRequest = z.infer<typeof completeLessonRequestSchema>

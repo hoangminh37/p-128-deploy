@@ -26,6 +26,7 @@ import { ConversationNav } from './ConversationNav'
 import { EditorNav } from './EditorNav'
 import { AppMark, CloseIcon, PlusIcon, UserIcon } from './icons'
 import { SignOutButton } from './SignOutButton'
+import { useDailyLesson } from '../app/learning'
 
 export function Sidebar({
   activeConversationId,
@@ -41,22 +42,14 @@ export function Sidebar({
   const { profile } = usePatient()
   const { user } = useSession()
   const { pathname } = useLocation()
+  
+  // Lấy dữ liệu điểm số từ hook
+  const { data: lessonData } = useDailyLesson()
 
   const isProfileOpen = pathname === '/profile'
-  /**
-   * Biên tập viên không có hồ sơ bệnh nhân, không có hội thoại, và không được
-   * vào `/chat` lẫn `/profile`. Bày ra cho họ nút "Câu hỏi mới" cùng một danh
-   * sách hội thoại rỗng là bày ra toàn đường cụt — bấm vào sẽ bị guard đá ngược
-   * về `/editor` mà không hiểu vì sao.
-   */
+  const isLearningOpen = pathname === '/learning'
   const isPatient = user?.role === 'patient'
 
-  /**
-   * Dòng phụ của khối hồ sơ: bệnh chính và tuổi.
-   *
-   * Chưa khai thì nói thẳng là chưa khai — để trống sẽ khiến khối này trông như
-   * đang tải dở.
-   */
   const profileSubline =
     profile !== null
       ? `${CONDITION_LABEL[profile.primary_condition]} · ${profile.age} tuổi`
@@ -81,13 +74,9 @@ export function Sidebar({
         )}
       </div>
 
-      {/* ---- Câu hỏi mới ----
-          Nổi nhất trong thanh bên: nền `medical` đặc, chữ `paper`, tương phản
-          5.76:1. Cùng lối với nút "Gửi" ở ô nhập, để hai việc chính của ứng dụng
-          trông giống nhau. Dùng `Link` thật chứ không phải nút gọi `navigate`,
-          để bấm giữ vẫn mở được tab mới. */}
+      {/* ---- Câu hỏi mới ---- */}
       {isPatient && (
-        <div className="px-snug py-snug">
+        <div className="px-snug pt-snug pb-tight flex flex-col gap-tight">
           <Link
             to="/chat"
             onClick={onNavigate}
@@ -95,6 +84,18 @@ export function Sidebar({
           >
             <PlusIcon className="h-5 w-5 shrink-0" />
             Câu hỏi mới
+          </Link>
+          
+          <Link
+            to="/learning"
+            onClick={onNavigate}
+            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-lg border-2 px-cozy text-input font-bold no-underline ${
+              isLearningOpen 
+                ? 'border-medical bg-medical text-paper' 
+                : 'border-border bg-paper text-ink hover:bg-rule'
+            }`}
+          >
+            📚 Thư viện học tập
           </Link>
         </div>
       )}
@@ -125,11 +126,14 @@ export function Sidebar({
             </span>
 
             <span className="min-w-0 flex-1">
-              <span className="block text-question font-semibold text-ink">
-                Hồ sơ của bạn
+              <span className="block text-question font-semibold text-ink flex items-center justify-between">
+                <span>Hồ sơ của bạn</span>
+                {lessonData && (
+                  <span className="text-note text-medical bg-medical/10 px-1.5 py-0.5 rounded">
+                    {lessonData.stats.total_score} HP 🔥 {lessonData.stats.current_streak}
+                  </span>
+                )}
               </span>
-              {/* Trên nền `rule` thì `moss` chỉ còn 4.20:1, chưa đạt 4.5:1 — nên
-                  khi khối này đang được mở thì dòng phụ chuyển sang `ink` (8.57:1). */}
               <span
                 className={`mt-hair block line-clamp-2 text-note ${
                   isProfileOpen ? 'text-ink' : 'text-moss'

@@ -14,12 +14,11 @@ import time
 from statistics import mean, stdev
 from typing import Any
 
-
 # ── Mock chain giả lập độ trễ LLM ────────────────────────────────────────────
 
 SIMULATED_LLM_LATENCY_S = 0.8  # 800ms — tiêu biểu cho Groq API
-NUM_DOCS = 5                    # Số tài liệu cần đánh giá
-NUM_RUNS = 5                    # Số lần đo để lấy trung bình
+NUM_DOCS = 5  # Số tài liệu cần đánh giá
+NUM_RUNS = 5  # Số lần đo để lấy trung bình
 
 
 class _MockLLMResult:
@@ -36,6 +35,7 @@ class _MockChain:
 
 # ── Phiên bản tuần tự (code CŨ) ──────────────────────────────────────────────
 
+
 async def _sequential(chain: _MockChain, docs: list[dict]) -> list[dict]:
     """Mô phỏng vòng lặp for tuần tự — code trước khi tối ưu."""
     relevant = []
@@ -47,6 +47,7 @@ async def _sequential(chain: _MockChain, docs: list[dict]) -> list[dict]:
 
 
 # ── Phiên bản song song (code MỚI) ───────────────────────────────────────────
+
 
 async def _evaluate_single_doc(chain: _MockChain, doc: dict) -> dict | None:
     result = await chain.ainvoke({"query": "test", "document": doc["content"]})
@@ -62,6 +63,7 @@ async def _parallel(chain: _MockChain, docs: list[dict]) -> list[dict]:
 
 # ── Hàm đo thời gian ─────────────────────────────────────────────────────────
 
+
 async def _measure(fn, chain, docs, label: str, runs: int) -> list[float]:
     times = []
     for i in range(runs):
@@ -69,23 +71,21 @@ async def _measure(fn, chain, docs, label: str, runs: int) -> list[float]:
         result = await fn(chain, docs)
         elapsed = time.perf_counter() - t0
         times.append(elapsed)
-        print(f"  [{label}] Lần {i+1}/{runs}: {elapsed*1000:.0f} ms — {len(result)} docs relevant")
+        print(f"  [{label}] Lần {i + 1}/{runs}: {elapsed * 1000:.0f} ms — {len(result)} docs relevant")
     return times
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+
 async def main() -> None:
     chain = _MockChain()
-    docs = [
-        {"doc_id": f"doc_{i}", "content": f"Tài liệu y tế số {i} về bệnh tiểu đường"}
-        for i in range(NUM_DOCS)
-    ]
+    docs = [{"doc_id": f"doc_{i}", "content": f"Tài liệu y tế số {i} về bệnh tiểu đường"} for i in range(NUM_DOCS)]
 
     line = "─" * 60
     print(f"\n{line}")
-    print(f"  BENCHMARK: CRAG Evaluator — Tuần tự vs Song Song")
-    print(f"  Độ trễ mô phỏng mỗi lời gọi LLM : {SIMULATED_LLM_LATENCY_S*1000:.0f} ms")
+    print("  BENCHMARK: CRAG Evaluator — Tuần tự vs Song Song")
+    print(f"  Độ trễ mô phỏng mỗi lời gọi LLM : {SIMULATED_LLM_LATENCY_S * 1000:.0f} ms")
     print(f"  Số tài liệu                       : {NUM_DOCS}")
     print(f"  Số lần đo                          : {NUM_RUNS}")
     print(f"{line}\n")
@@ -101,11 +101,11 @@ async def main() -> None:
     par_times = await _measure(_parallel, chain, docs, "PAR", NUM_RUNS)
 
     # Kết quả
-    seq_avg  = mean(seq_times) * 1000
-    seq_std  = stdev(seq_times) * 1000 if len(seq_times) > 1 else 0
-    par_avg  = mean(par_times) * 1000
-    par_std  = stdev(par_times) * 1000 if len(par_times) > 1 else 0
-    speedup  = seq_avg / par_avg if par_avg > 0 else float("inf")
+    seq_avg = mean(seq_times) * 1000
+    seq_std = stdev(seq_times) * 1000 if len(seq_times) > 1 else 0
+    par_avg = mean(par_times) * 1000
+    par_std = stdev(par_times) * 1000 if len(par_times) > 1 else 0
+    speedup = seq_avg / par_avg if par_avg > 0 else float("inf")
     saved_ms = seq_avg - par_avg
 
     print(f"\n{line}")

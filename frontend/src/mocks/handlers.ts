@@ -26,7 +26,9 @@ import {
   editorQueueFixture,
   outOfScopeFixture,
   patientProfileFixture,
+  chatFixtures,
 } from './fixtures'
+import type { ChatStatus } from '../lib/schemas'
 
 // ---------------------------------------------------------------------------
 // Cấu hình

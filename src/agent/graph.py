@@ -8,6 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 from src.agent.nodes.generation.llm_generate import llm_generate_node
 from src.agent.nodes.generation.memory_checkpoint import memory_checkpoint_node
 from src.agent.nodes.generation.partial_rewrite import partial_rewrite_node
+from src.agent.nodes.generation.profile_handler import profile_handler_node
 from src.agent.nodes.generation.safety_disclaimer import safety_disclaimer_node
 from src.agent.nodes.generation.selfrag_verifier import selfrag_verifier_node
 from src.agent.nodes.preprocessing.coref_resolution import coref_resolution_node
@@ -19,7 +20,6 @@ from src.agent.nodes.safety.emergency_handler import emergency_handler_node
 from src.agent.nodes.safety.intent_router import intent_router_node
 from src.agent.nodes.safety.out_of_domain_handler import out_of_domain_handler_node
 from src.agent.nodes.safety.refuse_handler import refuse_handler_node
-from src.agent.nodes.generation.profile_handler import profile_handler_node
 from src.agent.state import AgentState
 
 MAX_RETRIES = 2

@@ -94,3 +94,39 @@ class OutOfScopeLog(Base):
     last_asked_at = Column(DateTime, default=datetime.utcnow)
     drafted = Column(Boolean, default=False)
     drafted_item_id = Column(String, nullable=True)
+
+
+class Article(Base):
+    __tablename__ = "articles"
+
+    id = Column(String, primary_key=True, default=lambda: f"a_{uuid.uuid4().hex[:6].upper()}")
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    category = Column(String, nullable=False)
+    quiz_data = Column(JSONB, nullable=True)
+    origin_source = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class LearningPath(Base):
+    __tablename__ = "learning_paths"
+
+    id = Column(String, primary_key=True, default=lambda: f"lp_{uuid.uuid4().hex[:6].upper()}")
+    disease_category = Column(String, nullable=False)
+    day_number = Column(Integer, nullable=False)
+    article_id = Column(String, ForeignKey("articles.id"))
+
+    article = relationship("Article")
+
+
+class PatientProgress(Base):
+    __tablename__ = "patient_progress"
+
+    id = Column(String, primary_key=True, default=lambda: f"pp_{uuid.uuid4().hex[:6].upper()}")
+    patient_id = Column(String, ForeignKey("patients.id"), unique=True)
+    total_score = Column(Integer, default=0)
+    current_streak = Column(Integer, default=0)
+    completed_articles = Column(JSONB, default=list)  # list of article_ids
+    last_completed_at = Column(DateTime, nullable=True)
+
+    patient = relationship("Patient")

@@ -38,9 +38,11 @@ import { ChatScreen } from './screens/ChatScreen'
 import { EditorDashboardScreen } from './screens/EditorDashboardScreen'
 import { EditorItemScreen } from './screens/EditorItemScreen'
 import { EditorQueueScreen } from './screens/EditorQueueScreen'
+import { EditorUploadScreen } from './screens/EditorUploadScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { OutOfScopeScreen } from './screens/OutOfScopeScreen'
 import { ProfileScreen } from './screens/ProfileScreen'
+import { LearningLibraryScreen } from './screens/LearningLibraryScreen'
 
 /**
  * Hai đường dẫn cùng dẫn tới màn hỏi đáp:
@@ -133,12 +135,28 @@ function App() {
                     </RequireRole>
                   }
                 />
+                <Route
+                  path="learning"
+                  element={
+                    <RequireRole role="patient">
+                      <LearningLibraryScreen />
+                    </RequireRole>
+                  }
+                />
                 {/* Bốn màn của khu vực biên tập, cùng một guard vai trò. */}
                 <Route
                   path="editor"
                   element={
                     <RequireRole role="editor">
                       <EditorDashboardScreen />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="editor/upload"
+                  element={
+                    <RequireRole role="editor">
+                      <EditorUploadScreen />
                     </RequireRole>
                   }
                 />

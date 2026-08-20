@@ -36,7 +36,8 @@ SIMULATED_LLM_OUTPUT = (
 
 # ── EXPECTED_ANSWER: parse từ JSON để đảm bảo đúng encoding ─────────────────
 # (KHÔNG hardcode string literal vì dễ sai thứ tự escape)
-import json as _json
+import json as _json  # noqa: E402
+
 EXPECTED_ANSWER: str = _json.loads(SIMULATED_LLM_OUTPUT)["answer"]
 
 
@@ -94,7 +95,7 @@ async def _simulate_streaming(run_id: int) -> dict:
     import re as _re
     _raw_buffer: str = ""
     _streamed_len: int = 0
-    _ANSWER_RE = _re.compile(r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)"?', _re.DOTALL)
+    _answer_re = _re.compile(r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)"?', _re.DOTALL)
 
     tokens_yielded: list[str] = []
     t_start = time.perf_counter()
@@ -112,7 +113,7 @@ async def _simulate_streaming(run_id: int) -> dict:
             if chunk and chunk.content:
                 _raw_buffer += chunk.content
 
-                m = _ANSWER_RE.search(_raw_buffer)
+                m = _answer_re.search(_raw_buffer)
                 if m:
                     raw_answer = m.group(1)
                     try:
@@ -236,7 +237,7 @@ async def main() -> None:
     print(f"{line}")
 
     if ttft_avg < total_avg * 0.5 and not all_errors:
-        print(f"  ✅  PASS — True Streaming hoạt động đúng.")
+        print("  ✅  PASS — True Streaming hoạt động đúng.")
         print(f"         Token đầu tiên xuất hiện sau {ttft_avg:.0f} ms")
         print(f"         ({ttft_avg/total_avg*100:.0f}% tổng thời gian) — người dùng thấy chữ sớm.")
     else:
