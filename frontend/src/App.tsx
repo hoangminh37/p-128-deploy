@@ -43,6 +43,7 @@ import { LoginScreen } from './screens/LoginScreen'
 import { OutOfScopeScreen } from './screens/OutOfScopeScreen'
 import { ProfileScreen } from './screens/ProfileScreen'
 import { LearningLibraryScreen } from './screens/LearningLibraryScreen'
+import { ArticleDetailScreen } from './screens/ArticleDetailScreen'
 
 /**
  * Hai đường dẫn cùng dẫn tới màn hỏi đáp:
@@ -140,6 +141,14 @@ function App() {
                   element={
                     <RequireRole role="patient">
                       <LearningLibraryScreen />
+                    </RequireRole>
+                  }
+                />
+                <Route
+                  path="learning/:articleId"
+                  element={
+                    <RequireRole role="patient">
+                      <ArticleDetailScreen />
                     </RequireRole>
                   }
                 />

@@ -546,8 +546,10 @@ export const microArticleSchema = z.object({
   id: z.string(),
   title: z.string(),
   content: z.string(),
+  full_content: z.string().nullable().optional(),
   category: z.string(),
   quiz_data: quizDataSchema.nullable().optional(),
+  origin_source: z.string().nullable().optional(),
 })
 
 export const gamificationStatsSchema = z.object({
@@ -562,8 +564,14 @@ export const dailyLessonResponseSchema = z.object({
   stats: gamificationStatsSchema,
 })
 
+export const learningPathItemSchema = z.object({
+  day_number: z.number().int(),
+  disease_category: z.string(),
+  article: microArticleSchema,
+})
+
 export const learningLibraryResponseSchema = z.object({
-  articles: z.array(microArticleSchema),
+  learning_paths: z.array(learningPathItemSchema),
   completed_articles: z.array(z.string()),
 })
 
@@ -575,5 +583,6 @@ export type QuizData = z.infer<typeof quizDataSchema>
 export type MicroArticle = z.infer<typeof microArticleSchema>
 export type GamificationStats = z.infer<typeof gamificationStatsSchema>
 export type DailyLessonResponse = z.infer<typeof dailyLessonResponseSchema>
+export type LearningPathItem = z.infer<typeof learningPathItemSchema>
 export type LearningLibraryResponse = z.infer<typeof learningLibraryResponseSchema>
 export type CompleteLessonRequest = z.infer<typeof completeLessonRequestSchema>

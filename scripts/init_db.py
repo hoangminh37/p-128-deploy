@@ -57,42 +57,39 @@ async def init_db():
         editor_user = User(id="u_01HQZV", email="bientap@demo.vn", password="demo1234", role="editor")
         session.add(editor_user)
 
+        import json
+
         from src.models.domain import Article, LearningPath
 
-        article1 = Article(
-            id="a_mock_1",
-            title="Đường huyết là gì?",
-            content="Đường huyết (hay glucose máu) là lượng đường có trong máu của bạn. Đây là nguồn năng lượng chính cho cơ thể hoạt động. Hãy tưởng tượng nó như xăng chạy xe máy vậy. Nếu đường huyết quá cao hoặc quá thấp đều ảnh hưởng đến sức khoẻ.",
-            category="general",
-            quiz_data={
-                "question": "Đường huyết đóng vai trò gì trong cơ thể?",
-                "options": [
-                    "Giúp cơ thể giải nhiệt",
-                    "Là nguồn năng lượng chính cho cơ thể hoạt động",
-                    "Giúp xương chắc khỏe",
-                    "Không có vai trò gì",
-                ],
-                "correct_index": 1,
-            },
-        )
-        session.add(article1)
+        # Đọc dữ liệu đã qua xử lý từ ETL
+        for cat, fname in [("hypertension", "data/processed/articles_htn.json"),
+                           ("type2_diabetes", "data/processed/articles_t2dm.json")]:
+            if os.path.exists(fname):
+                with open(fname, encoding="utf-8") as f:
+                    articles_data = json.load(f)
 
-        article2 = Article(
-            id="a_mock_2",
-            title="Tập thể dục và Tiểu đường",
-            content="Tập thể dục thường xuyên giúp cơ thể sử dụng insulin hiệu quả hơn, từ đó làm giảm lượng đường trong máu. Mỗi ngày bạn nên dành ít nhất 30 phút để đi bộ hoặc tập các bài tập nhẹ nhàng.",
-            category="general",
-            quiz_data={
-                "question": "Bạn nên dành bao nhiêu thời gian mỗi ngày để tập thể dục?",
-                "options": ["Chỉ cần 5 phút", "Ít nhất 30 phút", "Không cần tập", "Tập 3 tiếng"],
-                "correct_index": 1,
-            },
-        )
-        session.add(article2)
+                day = 1
+                for a_data in articles_data:
+                    article = Article(
+                        title=a_data["title"],
+                        content=a_data["content"],
+                        full_content=a_data.get("full_content", ""),
+                        category=cat,
+                        quiz_data=a_data.get("quiz_data"),
+                        origin_source=a_data.get("origin_source", fname)
+                    )
+                    session.add(article)
+                    await session.flush()  # Sinh ra ID
 
-        lp1 = LearningPath(disease_category="type2_diabetes", day_number=1, article_id="a_mock_1")
-        lp2 = LearningPath(disease_category="type2_diabetes", day_number=2, article_id="a_mock_2")
-        session.add_all([lp1, lp2])
+                    lp = LearningPath(
+                        disease_category=cat,
+                        day_number=day,
+                        article_id=article.id
+                    )
+                    session.add(lp)
+                    day += 1
+            else:
+                print(f"Bỏ qua dữ liệu seed cho {cat} vì không tìm thấy file {fname}")
 
         await session.commit()
 

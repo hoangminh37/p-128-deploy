@@ -190,3 +190,12 @@ export function UserIcon({ className }: IconProps) {
     </StrokeIcon>
   )
 }
+
+/** Đã hoàn thành: Dấu tick */
+export function CheckIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M5 12l5 5L20 7" />
+    </StrokeIcon>
+  )
+}

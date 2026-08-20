@@ -78,22 +78,51 @@ async def get_daily_lesson(db: AsyncSession = Depends(get_db), current_user: Use
 
 @router.get("/library", response_model=LearningLibraryResponse)
 async def get_learning_library(db: AsyncSession = Depends(get_db), current_user: UserInfo = Depends(get_current_user)):
+    from src.models.domain import LearningPath, Patient
+
     result_progress = await db.execute(
         select(PatientProgress).filter(PatientProgress.patient_id == current_user.patient_id)
     )
     progress = result_progress.scalars().first()
     completed_articles = progress.completed_articles if progress else []
 
-    result_articles = await db.execute(select(Article))
-    all_articles = result_articles.scalars().all()
+    # Lấy primary_condition từ hồ sơ bệnh nhân
+    if not current_user.patient_id:
+        return LearningLibraryResponse(learning_paths=[], completed_articles=completed_articles)
 
-    articles_out = []
-    for a in all_articles:
-        articles_out.append(
-            MicroArticleSchema(id=a.id, title=a.title, content=a.content, category=a.category, quiz_data=a.quiz_data)
-        )
+    result_patient = await db.execute(
+        select(Patient).filter(Patient.id == current_user.patient_id)
+    )
+    patient = result_patient.scalars().first()
+    if not patient:
+        return LearningLibraryResponse(learning_paths=[], completed_articles=completed_articles)
 
-    return LearningLibraryResponse(articles=articles_out, completed_articles=completed_articles)
+    primary_condition = patient.primary_condition
+
+    # Join LearningPath và Article theo bệnh của bệnh nhân
+    result = await db.execute(
+        select(LearningPath, Article).join(Article, LearningPath.article_id == Article.id)
+        .filter(LearningPath.disease_category == primary_condition)
+        .order_by(LearningPath.day_number)
+    )
+
+    paths = []
+    for lp, article in result.all():
+        paths.append({
+            "day_number": lp.day_number,
+            "disease_category": lp.disease_category,
+            "article": MicroArticleSchema(
+                id=article.id,
+                title=article.title,
+                content=article.content,
+                full_content=article.full_content,
+                category=article.category,
+                quiz_data=article.quiz_data,
+                origin_source=article.origin_source,
+            )
+        })
+
+    return LearningLibraryResponse(learning_paths=paths, completed_articles=completed_articles)
 
 
 @router.post("/complete-lesson/{article_id}", response_model=GamificationStats)
