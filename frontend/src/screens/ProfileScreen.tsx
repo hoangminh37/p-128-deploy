@@ -36,6 +36,7 @@ import {
   type PrimaryCondition,
 } from '../lib/schemas'
 import { patientProfileQueryKey, usePatient } from '../patient/context'
+import { useDailyLesson } from '../app/learning'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { ProfileIntro } from '../ui/ProfileIntro'
 import { StepProgress } from '../ui/StepProgress'
@@ -415,6 +416,7 @@ export function ProfileScreen() {
   const { patientId, profile, profileState, profileError, reloadProfile } = usePatient()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { data: lessonData } = useDailyLesson()
 
   const [step, setStep] = useState(0)
 
@@ -578,6 +580,19 @@ export function ProfileScreen() {
 
   return (
     <div className="max-w-answer">
+      {isEditing && lessonData?.stats && (
+        <div className="mb-6 flex gap-4">
+          <div className="flex-1 rounded-lg border-2 border-medical/20 bg-medical/5 p-4 text-center">
+            <div className="text-3xl font-bold text-medical">{lessonData.stats.total_score}</div>
+            <div className="text-sm font-semibold text-moss">Điểm số (HP)</div>
+          </div>
+          <div className="flex-1 rounded-lg border-2 border-orange-500/20 bg-orange-500/5 p-4 text-center">
+            <div className="text-3xl font-bold text-orange-600">{lessonData.stats.current_streak} 🔥</div>
+            <div className="text-sm font-semibold text-moss">Chuỗi ngày học</div>
+          </div>
+        </div>
+      )}
+
       <h1 className="font-display text-ask font-bold">
         {isEditing ? 'Sửa hồ sơ sức khỏe' : 'Trước khi bắt đầu'}
       </h1>

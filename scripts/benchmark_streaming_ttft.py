@@ -19,7 +19,7 @@ from statistics import mean, stdev
 
 # ── Cấu hình ─────────────────────────────────────────────────────────────────
 BASE_URL = "http://localhost:8000"
-NUM_RUNS = 3   # Số lần đo — tăng lên nếu muốn kết quả chính xác hơn
+NUM_RUNS = 3  # Số lần đo — tăng lên nếu muốn kết quả chính xác hơn
 
 # ── Payload mẫu ───────────────────────────────────────────────────────────────
 SAMPLE_REQUEST = {
@@ -31,12 +31,11 @@ SAMPLE_REQUEST = {
 
 # JWT token để xác thực — lấy từ endpoint /auth/token trước
 # Để trống sẽ bỏ qua header Authorization (dùng khi không có auth)
-AUTH_TOKEN = ""   # ← Điền JWT token vào đây nếu cần
+AUTH_TOKEN = ""  # ← Điền JWT token vào đây nếu cần
 
 
 async def _measure_stream_once(session, run_id: int) -> dict:
     """Gọi /chat/stream một lần và đo các chỉ số thời gian."""
-    import httpx
 
     headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
     if AUTH_TOKEN:
@@ -67,9 +66,9 @@ async def _measure_stream_once(session, run_id: int) -> dict:
 
             # Phân tích dòng SSE
             if raw_line.startswith("event:"):
-                event_type = raw_line[len("event:"):].strip()
+                event_type = raw_line[len("event:") :].strip()
             elif raw_line.startswith("data:"):
-                data_str = raw_line[len("data:"):].strip()
+                data_str = raw_line[len("data:") :].strip()
                 try:
                     payload = json.loads(data_str)
                 except json.JSONDecodeError:
@@ -87,9 +86,7 @@ async def _measure_stream_once(session, run_id: int) -> dict:
                     # Ghi lại TTFT chỉ lần đầu tiên nhận token
                     if ttft_ms is None:
                         ttft_ms = (now - t_start) * 1000
-                        print(
-                            f"  [Lần {run_id}] ⚡ Token đầu tiên nhận sau: {ttft_ms:.0f} ms"
-                        )
+                        print(f"  [Lần {run_id}] ⚡ Token đầu tiên nhận sau: {ttft_ms:.0f} ms")
 
                 elif event_type == "done":
                     t_done = time.perf_counter()
@@ -112,6 +109,7 @@ async def _measure_stream_once(session, run_id: int) -> dict:
 async def _check_server_alive() -> bool:
     """Kiểm tra server có đang chạy không."""
     import httpx
+
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(f"{BASE_URL}/health", timeout=3.0)
@@ -165,8 +163,8 @@ async def main() -> None:
         sys.exit(1)
 
     # Kết quả
-    ttft_avg  = mean(ttft_list)
-    ttft_std  = stdev(ttft_list) if len(ttft_list) > 1 else 0
+    ttft_avg = mean(ttft_list)
+    ttft_std = stdev(ttft_list) if len(ttft_list) > 1 else 0
     total_avg = mean(total_list)
 
     print(f"\n{line}")
@@ -174,7 +172,7 @@ async def main() -> None:
     print(f"{line}")
     print(f"  TTFT trung bình   : {ttft_avg:7.0f} ms ± {ttft_std:.0f} ms")
     print(f"  Hoàn thành TB     : {total_avg:7.0f} ms")
-    print(f"  Tỷ lệ TTFT/Total  : {ttft_avg/total_avg*100:.1f}%")
+    print(f"  Tỷ lệ TTFT/Total  : {ttft_avg / total_avg * 100:.1f}%")
     print(f"{line}\n")
 
     # Đánh giá chất lượng streaming
@@ -191,9 +189,9 @@ async def main() -> None:
 
     ratio = ttft_avg / total_avg
     if ratio < 0.3:
-        print(f"  ✅  Tỷ lệ TTFT/Total = {ratio*100:.1f}% — Người dùng thấy chữ sớm.")
+        print(f"  ✅  Tỷ lệ TTFT/Total = {ratio * 100:.1f}% — Người dùng thấy chữ sớm.")
     else:
-        print(f"  ⚠️   Tỷ lệ TTFT/Total = {ratio*100:.1f}% — Người dùng còn chờ lâu.")
+        print(f"  ⚠️   Tỷ lệ TTFT/Total = {ratio * 100:.1f}% — Người dùng còn chờ lâu.")
     print()
 
 

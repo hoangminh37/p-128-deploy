@@ -115,6 +115,7 @@ export function RootLayout() {
    */
   function headerTitle(): string {
     if (pathname === '/profile') return 'Hồ sơ của bạn'
+    if (pathname === '/learning') return 'Thư viện học tập'
     if (pathname.startsWith('/editor')) return editorTitle(pathname)
     if (!pathname.startsWith('/chat')) return APP_NAME
     if (activeConversationId === null) return 'Câu hỏi mới'

@@ -61,7 +61,15 @@ export function EditorDashboardScreen() {
 
   return (
     <div className="max-w-reading">
-      <h1 className="font-display text-ask font-bold">Tổng quan</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-ask font-bold">Tổng quan</h1>
+        <Link
+          to="/editor/upload"
+          className="rounded-lg bg-medical px-4 py-2 font-medium text-white hover:bg-opacity-90 no-underline"
+        >
+          + Tải lên tài liệu
+        </Link>
+      </div>
       <p className="mt-snug max-w-answer text-notice text-ink">
         Hai hàng việc của khu vực kiểm duyệt. Nội dung chỉ vào được thư viện mà
         trợ lý trích dẫn sau khi có người ở đây duyệt.

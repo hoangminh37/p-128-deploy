@@ -69,3 +69,19 @@ jobs:
 
       - name: Build frontend (Type check & Vite build)
         run: npm run build
+
+  # deploy-backend-vps:
+  #   needs: [backend-lint-and-test]
+  #   if: github.ref == 'refs/heads/main'
+  #   runs-on: [self-hosted, Linux, X64, cohort3]
+  #   steps:
+  #     - name: Deploy to VPS
+  #       uses: appleboy/ssh-action@master
+  #       with:
+  #         host: ${{ secrets.VPS_IP }}
+  #         username: ${{ secrets.VPS_USER }}
+  #         key: ${{ secrets.VPS_SSH_KEY }}
+  #         script: |
+  #           cd /path/to/P-128
+  #           git pull origin main
+  #           docker-compose up -d --build

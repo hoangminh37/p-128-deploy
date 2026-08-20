@@ -261,7 +261,7 @@ async def chat_stream(
 
         _raw_buffer: str = ""  # Tích lũy toàn bộ text thô từ LLM
         _streamed_len: int = 0  # Số ký tụ answer đã yield
-        _ANSWER_OPEN_RE = re.compile(r"<\s*answer\s*>(.*)", re.DOTALL | re.IGNORECASE)
+        _answer_open_re = re.compile(r"<\s*answer\s*>(.*)", re.DOTALL | re.IGNORECASE)
 
         try:
             # ── Step events (realtime per node) ──────────────────────────
@@ -294,7 +294,7 @@ async def chat_stream(
                             _raw_buffer += chunk.content
 
                             # Dùng regex tìm phần sau thẻ <answer>
-                            m = _ANSWER_OPEN_RE.search(_raw_buffer)
+                            m = _answer_open_re.search(_raw_buffer)
                             if m:
                                 raw_answer = m.group(1)
                                 # Lọc bỏ thẻ đóng </answer> nếu LLM đã sinh xong

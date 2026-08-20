@@ -23,6 +23,8 @@ import {
   outOfScopeListSchema,
   patientProfileResponseSchema,
   patientProfileSchema,
+  dailyLessonResponseSchema,
+  gamificationStatsSchema,
   type ChatRequest,
   type ChatResponse,
   type ConversationDetail,
@@ -37,6 +39,11 @@ import {
   type LoginResponse,
   type OutOfScopeList,
   type PatientProfileResponse,
+  type DailyLessonResponse,
+  type GamificationStats,
+  type LearningLibraryResponse,
+  type CompleteLessonRequest,
+  learningLibraryResponseSchema,
 } from './schemas'
 
 // ---------------------------------------------------------------------------
@@ -749,3 +756,68 @@ export function createDraftFromLog(logId: string): Promise<EditorQueueItemDetail
     schema: editorQueueItemDetailSchema,
   })
 }
+
+/**
+ * Mục 8 — Upload PDF tài liệu y khoa.
+ * Do UploadFile dùng FormData nên chúng ta gửi qua một hàm fetch riêng, không dùng request()
+ * vì request() đang mặc định content-type là application/json.
+ */
+export async function uploadDocument(formData: FormData): Promise<void> {
+  const url = `${BASE_URL}${API_PREFIX}/editor/queue/upload`
+  
+  const headers: Record<string, string> = {}
+  if (authToken !== null && authToken !== '') {
+    headers.Authorization = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData, // Trình duyệt sẽ tự động thêm Content-Type: multipart/form-data
+  })
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      onUnauthorized?.()
+    }
+    throw new ApiError({
+      kind: 'http',
+      userMessage: HTTP_USER_MESSAGES[response.status] ?? 'Lỗi khi tải lên tài liệu.',
+      logMessage: `HTTP ${response.status} khi upload document`,
+      status: response.status,
+    })
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Gamification & Learning (Bệnh nhân)
+// ---------------------------------------------------------------------------
+
+export function getDailyLesson(): Promise<DailyLessonResponse> {
+  return request({
+    path: `/learning/daily-lesson`,
+    method: 'GET',
+    schema: dailyLessonResponseSchema,
+  })
+}
+
+export function getLearningLibrary(): Promise<LearningLibraryResponse> {
+  return request({
+    path: `/learning/library`,
+    method: 'GET',
+    schema: learningLibraryResponseSchema,
+  })
+}
+
+export function completeLesson(
+  articleId: string,
+  payload: CompleteLessonRequest,
+): Promise<GamificationStats> {
+  return request({
+    path: `/learning/complete-lesson/${encodeURIComponent(articleId)}`,
+    method: 'POST',
+    schema: gamificationStatsSchema,
+    body: payload,
+  })
+}
+export type { DailyLessonResponse, GamificationStats, LearningLibraryResponse, CompleteLessonRequest } from './schemas'

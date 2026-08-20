@@ -218,6 +218,8 @@ async def llm_generate_node(state: AgentState) -> AgentState:
         }
 
     except Exception as exc:
+        with open("llm_error.txt", "w") as f:
+            f.write(str(exc))
         logger.error("[llm_generate] LLM error: %s", exc)
         return {
             **state,
