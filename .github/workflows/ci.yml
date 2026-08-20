@@ -70,18 +70,23 @@ jobs:
       - name: Build frontend (Type check & Vite build)
         run: npm run build
 
-  # deploy-backend-vps:
-  #   needs: [backend-lint-and-test]
-  #   if: github.ref == 'refs/heads/main'
-  #   runs-on: [self-hosted, Linux, X64, cohort3]
-  #   steps:
-  #     - name: Deploy to VPS
-  #       uses: appleboy/ssh-action@master
-  #       with:
-  #         host: ${{ secrets.VPS_IP }}
-  #         username: ${{ secrets.VPS_USER }}
-  #         key: ${{ secrets.VPS_SSH_KEY }}
-  #         script: |
-  #           cd /path/to/P-128
-  #           git pull origin main
-  #           docker-compose up -d --build
+  deploy-to-railway:
+    needs: [backend-lint-and-test, frontend-lint-and-build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: [self-hosted, Linux, X64, cohort3]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Deploy Repo
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_PAT }}
+        run: |
+          if [ -n "$DEPLOY_TOKEN" ]; then
+            git remote add deploy_target https://hoangminh37:${DEPLOY_TOKEN}@github.com/hoangminh37/p-128-deploy.git || true
+            git push deploy_target main:main --force
+            echo "Successfully pushed latest main to hoangminh37/p-128-deploy!"
+          else
+            echo "DEPLOY_PAT not configured, skipping auto-sync."
+          fi
