@@ -90,7 +90,7 @@ function DemoAccountsPanel({
   return (
     <div className="mt-block rounded-card bg-sand p-cozy">
       <p className="font-display text-input font-semibold text-sand-deep">
-        Tài khoản mẫu (Development)
+        Tài khoản mẫu (Demo)
       </p>
       <p className="font-display mt-hair text-question text-sand-deep">
         Bấm một tài khoản bên dưới để tự động điền thông tin đăng nhập vào hệ thống:
@@ -282,14 +282,12 @@ export function LoginScreen() {
             )}
           </form>
 
-          {import.meta.env.DEV && (
-            <DemoAccountsPanel
-              onPick={(account) => {
-                setValue('email', account.email, { shouldValidate: true })
-                setValue('password', account.password, { shouldValidate: true })
-              }}
-            />
-          )}
+          <DemoAccountsPanel
+            onPick={(account) => {
+              setValue('email', account.email, { shouldValidate: true })
+              setValue('password', account.password, { shouldValidate: true })
+            }}
+          />
         </div>
       </main>
     </div>
