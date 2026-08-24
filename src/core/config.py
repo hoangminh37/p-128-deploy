@@ -41,16 +41,21 @@ class Settings(BaseSettings):
 
     # ── Legacy / Compatibility ───────────────────────────────────────────────
     # Kept for backward-compat with old config.py consumers
-    database_url: str = "sqlite:///./data/app.db"
+    database_url: str = "sqlite+aiosqlite:///./data/app.db"
 
     @field_validator("database_url", mode="before")
     @classmethod
     def fix_async_db_url(cls, v: str) -> str:
-        """Railway cung cấp DATABASE_URL dạng postgresql://, asyncpg cần postgresql+asyncpg://"""
-        if isinstance(v, str) and v.startswith("postgresql://"):
-            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
-        if isinstance(v, str) and v.startswith("postgres://"):
-            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        """Railway cung cấp DATABASE_URL dạng postgresql://, asyncpg cần postgresql+asyncpg://; SQLite cần sqlite+aiosqlite://"""
+        if not v:
+            return "sqlite+aiosqlite:///./data/app.db"
+        if isinstance(v, str):
+            if v.startswith("postgresql://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+            if v.startswith("sqlite:///") and not v.startswith("sqlite+aiosqlite:///"):
+                return v.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
         return v
 
 
