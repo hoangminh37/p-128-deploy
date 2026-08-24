@@ -78,14 +78,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Push to Deploy Repo
         env:
           DEPLOY_TOKEN: ${{ secrets.DEPLOY_PAT }}
         run: |
           if [ -n "$DEPLOY_TOKEN" ]; then
-            git remote add deploy_target https://hoangminh37:${DEPLOY_TOKEN}@github.com/hoangminh37/p-128-deploy.git || true
-            git push deploy_target main:main --force
+            git push https://hoangminh37:${DEPLOY_TOKEN}@github.com/hoangminh37/p-128-deploy.git HEAD:main --force
             echo "Successfully pushed latest main to hoangminh37/p-128-deploy!"
           else
             echo "DEPLOY_PAT not configured, skipping auto-sync."
