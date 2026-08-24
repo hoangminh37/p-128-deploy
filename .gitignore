@@ -53,8 +53,9 @@ data/interim/*
 #   2. đúng thư mục segment đang sống — tên nó là segment id trong bảng
 #      `segments` của chroma.sqlite3, KHÔNG phải collection id, và các thư mục
 #      UUID còn lại trên đĩa là rác của những lần nạp cũ.
-data/vectorstore/*
-!data/vectorstore/.gitkeep
+# Cho phép commit kho vector data/vectorstore để production có sẵn 1088 chunk
+!data/vectorstore/
+!data/vectorstore/**
 data/processed/*
 !data/processed/.gitkeep
 !data/processed/manifest.json
@@ -68,6 +69,8 @@ data/quarantine/*
 data/uploads.json
 *.db
 *.sqlite3
+!data/vectorstore/chroma.sqlite3
+!data/vectorstore/**
 
 # Logs
 logs/
