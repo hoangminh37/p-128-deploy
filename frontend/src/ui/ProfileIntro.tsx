@@ -77,7 +77,7 @@ const POINTS: readonly IntroPoint[] = [
 
 export function ProfileIntro() {
   return (
-    <div className="max-w-answer rounded-card-lg bg-white p-cozy">
+    <div className="max-w-answer rounded-card-lg bg-surface p-cozy">
       <ul className="space-y-cozy">
         {POINTS.map(({ id, Icon, body }) => (
           <li key={id} className="flex items-start gap-snug">
@@ -88,7 +88,7 @@ export function ProfileIntro() {
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-icon bg-sand text-sand-deep">
               <Icon className="h-6 w-6" />
             </span>
-            <p className="text-question text-ink">{body}</p>
+            <p className="text-question text-body">{body}</p>
           </li>
         ))}
       </ul>

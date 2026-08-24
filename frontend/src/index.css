@@ -21,8 +21,22 @@
    * lại là làm hỏng chỗ này.
    * ================================================================== */
 
-  /* --- Họ nền tối --- */
-  --color-ink: #0B2545;       /* nền dẫn dắt; và là chữ chính trên nền sáng */
+  /* --- Họ nền dẫn dắt ---
+   *
+   * HAI VAI CỦA MÀU NAVY, và vì sao `ink` KHÔNG lật theo chế độ:
+   *
+   *   `ink` là NỀN của phần dẫn dắt (thanh bên, trang giới thiệu, nửa trái màn
+   *   đăng nhập, tổng quan biên tập) — và cũng là màu CHỮ đặt trên ba màu nhấn
+   *   mint / coral / sand. Cả hai vai đó đều không đổi khi sang chế độ tối: nền
+   *   navy vẫn là nền navy, và mint vẫn là một màu sáng nên chữ trên nó vẫn
+   *   phải tối.
+   *
+   *   Chữ chính của VÙNG LÀM VIỆC thì có lật — nhưng đó là `--color-body`, một
+   *   token khác. Bản trước dùng chung `ink` cho cả hai vai, và đó chính là thứ
+   *   khiến chế độ tối không dựng được: một token không thể vừa là nền navy
+   *   vừa là chữ sáng. `bg-ink` giờ luôn là nền, `text-body` luôn là chữ, và
+   *   `text-ink` chỉ còn xuất hiện trên ba màu nhấn. */
+  --color-ink: #0B2545;       /* nền dẫn dắt, và chữ trên ba màu nhấn */
   --color-ink-soft: #123258;  /* họa tiết vòng tròn trên nền ink */
   --color-dot: #1B4470;       /* lưới chấm 3×2 ở góc khối navy */
 
@@ -34,12 +48,31 @@
   --color-sand: #FFE3B8;       /* nền khối từ chối */
   --color-sand-deep: #5C3F0F;  /* 7.79:1 trên sand */
 
-  /* --- Họ nền sáng --- */
+  /* --- Họ nền làm việc ---
+   *
+   * BỐN TOKEN NÀY ĐỔI THEO CHẾ ĐỘ SÁNG/TỐI. Xem khối `[data-theme="dark"]` ở
+   * cuối phần `@theme`, và đọc ghi chú "HAI VAI CỦA MÀU NAVY" ngay dưới đây
+   * trước khi đụng vào bất cứ cái nào. */
   --color-canvas: #F2F7F6;    /* nền vùng làm việc */
-  --color-slate: #5A7387;     /* 4.58:1 trên canvas — chữ phụ trên nền sáng */
-  --color-mist: #93B0C7;      /* 6.80:1 trên ink — chữ phụ trên nền tối */
+  --color-surface: #FFFFFF;   /* nền thẻ: câu trả lời, dòng hàng đợi, form */
+  --color-body: #0B2545;      /* 14.22:1 trên canvas — chữ chính vùng làm việc */
+  --color-slate: #5A7387;     /* 4.58:1 trên canvas — chữ phụ vùng làm việc */
 
-  --color-alert: #B3261E;     /* 6.04:1 trên canvas — cảnh báo cấp cứu */
+  /* --- Cố định ở CẢ HAI chế độ --- */
+  --color-mist: #93B0C7;      /* 6.80:1 trên ink — chữ phụ trên nền navy */
+
+  /* HAI VAI CỦA MÀU ĐỎ, và vì sao phải tách làm hai token.
+   *
+   * `alert` là vai CHỮ và VIỀN: nó nằm trên nền vùng làm việc, nên nó phải lật
+   * theo chế độ — #B3261E trên nền sáng, #FF9A8F trên nền tối.
+   *
+   * `alert-solid` là vai NỀN KHỐI: khối cảnh báo cấp cứu, và ô biểu tượng của
+   * khối lỗi. Nó KHÔNG lật, vì nó phải giữ đúng một sắc đỏ ở cả hai chế độ —
+   * đây là thứ nổi nhất màn hình trong cả ứng dụng, và người đang đau ngực
+   * không được nhìn thấy hai màu khác nhau tuỳ máy họ đang để chế độ nào.
+   * `white` trên `alert-solid` đạt 6.54:1 ở cả hai chế độ. */
+  --color-alert: #B3261E;     /* 6.04:1 trên canvas sáng */
+  --color-alert-solid: #B3261E; /* nền khối cấp cứu — KHÔNG lật */
 
   /* --- Hai lớp voan của họa tiết nền trên vùng canvas ---
    *
@@ -48,13 +81,17 @@
    * chỉ một phần trăm cũng đẩy chữ phụ xuống dưới ngưỡng ở đúng chỗ nó đi qua.
    * Đi lên phía trắng thì mọi cặp chữ chỉ có thể tốt lên:
    *
-   *              vs canvas   ink      slate    alert
+   *              vs canvas   body     slate    alert
    *   veil       1.039:1     14.78    4.76     6.28   (canvas: 14.22 / 4.58 / 6.04)
    *   veil-soft  1.059:1     15.06    4.85     6.40
    *
    * Chênh lệch độ sáng HSL so với canvas (95.9%): veil +1.96%, veil-soft
    * +2.94% — cả hai nằm trong ngân sách 3%. Đừng đẩy tiếp lên trắng: ở +4.12%
-   * nó vượt ngân sách, và thẻ trắng đặt lên đó sẽ mất hẳn đường bao. */
+   * nó vượt ngân sách, và thẻ trắng đặt lên đó sẽ mất hẳn đường bao.
+   *
+   * Ở CHẾ ĐỘ TỐI HAI HÌNH NÀY ĐỔI CHIỀU: chúng phải TỐI HƠN canvas, vì lúc đó
+   * chữ trên canvas là chữ sáng. Cùng một luật "đi xa khỏi màu chữ", chỉ khác
+   * hướng. Xem khối `[data-theme="dark"]`. */
   --color-veil: #F8FBFA;
   --color-veil-soft: #FBFDFC;
 
@@ -324,6 +361,63 @@
   --animate-breathe: breathe 2s ease-in-out infinite;
 }
 
+/* ===========================================================================
+ * CHẾ ĐỘ TỐI
+ *
+ * MỘT KHỐI DUY NHẤT, và đó là chủ ý. `<html>` LUÔN mang `data-theme` bằng đúng
+ * `"light"` hoặc `"dark"` — không bao giờ bằng `"system"`. Lựa chọn "theo hệ
+ * điều hành" được giải ra thành một trong hai giá trị đó ngay trong đoạn script
+ * ở `index.html`, trước khi React vẽ khung hình đầu tiên. Nhờ vậy ở đây không
+ * cần thêm một khối `@media (prefers-color-scheme: dark)` song song, tức không
+ * có hai bản danh sách token để lệch nhau.
+ *
+ * CÁCH DỰNG: không đảo ngược sáng tối. Hệ màu vốn đã dùng navy `ink` làm nền
+ * cho gần nửa số màn, nên chế độ tối chỉ MỞ RỘNG vùng navy ra toàn bộ:
+ *
+ *   canvas   sáng #F2F7F6  →  tối #061729  (đậm hơn ink một bậc)
+ *   surface  sáng #FFFFFF  →  tối #153455  (nhạt hơn ink một bậc)
+ *   ink      #0B2545 ở CẢ HAI — nó là mốc, hai bậc kia nằm hai bên nó.
+ *
+ * Ba màu nhấn mint / coral / sand và cặp chữ `*-deep` của chúng GIỮ NGUYÊN
+ * hoàn toàn. Đã cân nhắc hạ độ sáng cho đỡ chói trên nền tối, nhưng hạ thì mọi
+ * cặp `*-deep` phải tính lại và mint mất đúng cái sắc mà cả sản phẩm nhận diện
+ * qua đó. Chúng là những mảng nhỏ (nút, viên thuốc, ô biểu tượng), không phải
+ * mảng nền lớn, nên độ chói không thành vấn đề.
+ *
+ * MỌI CẶP CHỮ TRÊN NỀN Ở ĐÂY ĐỀU ĐÃ TÍNH LẠI VÀ ĐẠT 4.5:1. Con số ghi ngay
+ * cạnh từng dòng. Đổi một giá trị mà không tính lại là làm hỏng chỗ này.
+ * =========================================================================== */
+[data-theme='dark'] {
+  /* Nền vùng làm việc. body 15.56:1 · slate 8.42:1 · white 18.07:1 */
+  --color-canvas: #061729;
+  /* Nền thẻ. body 10.93:1 · slate 5.91:1 · mist 5.61:1 · mint 6.56:1 */
+  --color-surface: #153455;
+
+  /* Chữ chính vùng làm việc. 15.56:1 trên canvas, 10.93:1 trên surface. */
+  --color-body: #E7EFF7;
+  /* Chữ phụ. 8.42:1 trên canvas, 5.91:1 trên surface — và 5.91:1 cũng là con
+   * số của nó khi làm VIỀN ô nhập, vượt ngưỡng 3:1 của WCAG 1.4.11. */
+  --color-slate: #9BB4CB;
+
+  /* Nét phân cách. Vẫn CHỈ trang trí: 1.38:1 trên surface, đúng như bản sáng
+   * chỉ đạt 1.46:1. Đừng dùng làm viền thành phần tương tác — dùng `slate`. */
+  --color-line: #2A4A6B;
+
+  /* Đỏ ở vai CHỮ và VIỀN. 8.84:1 trên canvas, 6.21:1 trên surface, 7.53:1 trên
+   * ink. `alert-solid` thì KHÔNG lật — xem ghi chú ở phần khai token. */
+  --color-alert: #FF9A8F;
+
+  /* Hai lớp voan đổi chiều: TỐI HƠN canvas, vì chữ trên canvas nay là chữ sáng.
+   * Lệch độ sáng HSL: veil −2.75%, veil-soft −2.16% — vẫn trong ngân sách 3%.
+   * body trên veil 16.58:1, slate trên veil 8.97:1. */
+  --color-veil: #040F1D;
+  --color-veil-soft: #05121F;
+
+  /* Bậc "đậm hơn" của nút nền ink đổi thành bậc SÁNG HƠN: trên nền tối, đi
+   * xuống nữa là chìm hẳn vào nền. white trên nó 11.57:1. */
+  --color-ink-press: #1A3A5F;
+}
+
 @keyframes answer-in {
   from {
     opacity: 0;
@@ -359,7 +453,7 @@
    * trắng lạ ở mép màn hình. */
   body {
     background-color: var(--color-ink);
-    color: var(--color-ink);
+    color: var(--color-body);
     font-family: var(--font-body);
     font-size: var(--text-answer);
     line-height: var(--text-answer--line-height);
@@ -400,9 +494,24 @@
    *
    * HAI VÒNG, vì ứng dụng có hai họ nền và không màu nào một mình đủ cho
    * cả hai. Vòng trong `mint` đạt 7.95:1 trên nền ink nhưng chỉ 1.79:1
-   * trên nền canvas; vòng ngoài `ink` thì ngược lại — 14.22:1 trên canvas,
-   * và chìm hẳn trên nền ink. Ghép lại thì ở BẤT KỲ nền nào cũng có ít
-   * nhất một vòng vượt ngưỡng 3:1 của WCAG 1.4.11.
+   * trên nền canvas sáng; vòng ngoài navy thì ngược lại — 14.22:1 trên
+   * canvas sáng, và chìm hẳn trên nền ink. Ghép lại thì ở BẤT KỲ nền nào
+   * cũng có ít nhất một vòng vượt ngưỡng 3:1 của WCAG 1.4.11.
+   *
+   * Ở chế độ tối thì mọi nền đều là navy, nên vòng `mint` một mình đã đủ:
+   * 9.33:1 trên canvas tối và 6.56:1 trên surface tối. Quầng navy bên ngoài
+   * giữ nguyên và lúc đó chỉ còn tác dụng tách viền khỏi các mảng nhấn sáng
+   * như nút mint.
+   *
+   * ĐỘ ĐẶC CỦA QUẦNG LÀ 0.72, KHÔNG PHẢI 0.55 NHƯ BẢN TRƯỚC. Chỗ khó nhất
+   * không phải nền trang mà là NÚT MINT: ở đó vòng mint trùng màu nền nên chỉ
+   * còn quầng gánh, mà ở 0.55 quầng chỉ đạt 2.91:1 trên mint và 2.89:1 trên
+   * coral — cả hai dưới ngưỡng 3:1. Ở 0.72 thì mint lên 4.30:1, coral 4.13:1,
+   * sand 5.68:1, canvas sáng 5.98:1, surface sáng 6.26:1. Đừng hạ xuống nữa.
+   *
+   * Nền `alert-solid` không bao giờ đạt với quầng navy (2.35:1 kể cả ở độ đặc
+   * 1.0) — nhưng trong khối cấp cứu, thứ duy nhất nhận được focus là nút gọi
+   * 115, mà nút đó nền TRẮNG: quầng trên trắng đạt 6.26:1.
    *
    * Nét 3px chứ không phải viền mặc định mảnh của trình duyệt, vì mắt lão
    * thị không bắt được nét 1px nhạt. */
@@ -410,7 +519,7 @@
     outline: 3px solid var(--color-mint);
     outline-offset: 2px;
     border-radius: 2px;
-    box-shadow: 0 0 0 7px rgb(11 37 69 / 0.55);
+    box-shadow: 0 0 0 7px rgb(11 37 69 / 0.72);
   }
 
   /* Người bật giảm chuyển động ở hệ điều hành thì KHÔNG THẤY GÌ chuyển động.
@@ -489,7 +598,7 @@
  * nhất (`code`, 0.8rem) ra 14,4px — vẫn trên sàn 14px của chữ phụ.
  * --------------------------------------------------------------------------- */
 .article-body {
-  color: var(--color-ink);
+  color: var(--color-body);
   line-height: 1.8;
   font-size: var(--text-answer);
 }
@@ -498,7 +607,7 @@
   font-family: var(--font-title);
   font-size: 1.3rem;
   font-weight: 700;
-  color: var(--color-ink);
+  color: var(--color-body);
   margin-top: 2rem;
   margin-bottom: 0.75rem;
   padding-bottom: 0.5rem;
@@ -513,7 +622,7 @@
   font-family: var(--font-title);
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--color-ink);
+  color: var(--color-body);
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
 }
@@ -521,7 +630,7 @@
 .article-body p {
   margin-top: 1rem;
   margin-bottom: 1rem;
-  color: var(--color-ink);
+  color: var(--color-body);
   line-height: 1.8;
 }
 
@@ -537,12 +646,12 @@
   gap: 0.625rem;
   align-items: flex-start;
   margin-bottom: 0.5rem;
-  color: var(--color-ink);
+  color: var(--color-body);
 }
 
 .article-body ul li::before {
   content: '•';
-  color: var(--color-mint-deep);
+  color: var(--color-mint);
   font-weight: 700;
   font-size: 1.1rem;
   flex-shrink: 0;
@@ -558,13 +667,13 @@
 
 .article-body ol li {
   margin-bottom: 0.5rem;
-  color: var(--color-ink);
+  color: var(--color-body);
   line-height: 1.8;
 }
 
 .article-body strong {
   font-weight: 600;
-  color: var(--color-ink);
+  color: var(--color-body);
 }
 
 .article-body blockquote {
@@ -573,7 +682,7 @@
   border-radius: 0 var(--radius-card) var(--radius-card) 0;
   padding: 0.875rem 1.25rem;
   margin: 1.5rem 0;
-  color: var(--color-ink);
+  color: var(--color-body);
 }
 
 .article-body blockquote p {

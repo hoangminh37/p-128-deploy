@@ -20,8 +20,10 @@ import { Link } from 'react-router-dom'
 
 import { APP_NAME } from '../lib/appName'
 import { Backdrop } from '../ui/Backdrop'
-import { AppMark, LibraryIcon, NoteIcon, PillIcon } from '../ui/icons'
+import { AppMark, LibraryIcon, NoteIcon, PillIcon, PlusIcon } from '../ui/icons'
+import { DocumentStack, PhoneInHand } from '../ui/illustrations'
 import { Mascot } from '../ui/Mascot'
+import { ThemeToggle } from '../ui/ThemeToggle'
 
 /**
  * Ba mục trên thanh điều hướng.
@@ -31,9 +33,9 @@ import { Mascot } from '../ui/Mascot'
  * mint ngay bên cạnh rồi.
  */
 const NAV_ITEMS: readonly { href: string; label: string }[] = [
-  { href: '#gia-tri', label: 'Ứng dụng làm gì' },
-  { href: '#nguon', label: 'Nguồn tài liệu' },
-  { href: '#gioi-han', label: 'Giới hạn' },
+  { href: '#cach-hoat-dong', label: 'Cách hoạt động' },
+  { href: '#nguon-tai-lieu', label: 'Nguồn tài liệu' },
+  { href: '#cau-hoi', label: 'Câu hỏi thường gặp' },
 ]
 
 type ValueCard = {
@@ -45,7 +47,7 @@ type ValueCard = {
 
 const VALUE_CARDS: readonly ValueCard[] = [
   {
-    id: 'gia-tri',
+    id: 'gia-tri-benh',
     Icon: NoteIcon,
     title: 'Trả lời theo bệnh của bạn',
     body:
@@ -54,7 +56,7 @@ const VALUE_CARDS: readonly ValueCard[] = [
       'chung cho tất cả mọi người.',
   },
   {
-    id: 'nguon',
+    id: 'gia-tri-nguon',
     Icon: LibraryIcon,
     title: 'Luôn kèm tài liệu gốc',
     body:
@@ -62,12 +64,83 @@ const VALUE_CARDS: readonly ValueCard[] = [
       'cạnh. Bạn tự kiểm tra được, hoặc in ra đưa bác sĩ xem trong lần tái khám.',
   },
   {
-    id: 'gioi-han',
+    id: 'gia-tri-gioi-han',
     Icon: PillIcon,
     title: 'Không kê đơn, không chỉnh liều',
     body:
       'Bạn hỏi nên uống mấy viên hay có nên tăng giảm liều thì trợ lý sẽ mời bạn ' +
       'hỏi bác sĩ điều trị. Đó là điều đã định sẵn, không phải máy hỏng.',
+  },
+]
+
+/**
+ * Ba bước, đúng thứ tự người dùng thật sự đi qua.
+ *
+ * Mỗi bước MỘT CÂU. Ba bước mà mỗi bước một đoạn thì phần này dài bằng cả trang,
+ * và người đọc bỏ giữa chừng đúng lúc họ chỉ đang muốn biết "dùng nó thế nào".
+ */
+const STEPS: readonly { title: string; body: string }[] = [
+  {
+    title: 'Khai hồ sơ một lần',
+    body:
+      'Bạn cho biết tuổi và bệnh bác sĩ đã chẩn đoán. Chỉ vậy — không tên, ' +
+      'không số điện thoại, không giấy tờ.',
+  },
+  {
+    title: 'Hỏi bằng lời thường',
+    body:
+      'Bạn gõ câu hỏi đúng như cách bạn hỏi người nhà, không cần thuật ngữ ' +
+      'y khoa nào.',
+  },
+  {
+    title: 'Đọc câu trả lời kèm nguồn',
+    body:
+      'Mỗi ý đều có tên và số hiệu văn bản của Bộ Y tế nằm ngay cạnh, để bạn ' +
+      'tự kiểm tra hoặc đưa bác sĩ xem.',
+  },
+]
+
+/**
+ * Bốn câu hỏi thường gặp.
+ *
+ * BÁM ĐÚNG RÀNG BUỘC SẢN PHẨM, không phải bốn câu quảng cáo. Ba trong bốn câu
+ * dưới đây nói ra một GIỚI HẠN — không kê đơn, chỉ hai bệnh, không thay bác sĩ.
+ * Người đọc biết trước ba điều đó thì lúc gặp chúng trong ứng dụng sẽ hiểu là
+ * thiết kế, không phải máy hỏng, và họ không đi hỏi chỗ khác — mà chỗ khác thì
+ * không có ai kiểm duyệt nội dung y khoa.
+ */
+const FAQS: readonly { question: string; answer: string }[] = [
+  {
+    question: 'Vì sao trợ lý không trả lời câu hỏi về liều thuốc?',
+    answer:
+      'Liều thuốc phụ thuộc kết quả xét nghiệm, chức năng gan thận và những ' +
+      'thuốc bạn đang uống — những thứ chỉ bác sĩ đang điều trị cho bạn mới ' +
+      'nắm. Trợ lý được đặt ra để KHÔNG trả lời loại câu hỏi đó, và khi bạn ' +
+      'hỏi, nó sẽ nói thẳng như vậy chứ không đoán.',
+  },
+  {
+    question: 'Ứng dụng có lưu thông tin cá nhân của tôi không?',
+    answer:
+      'Không hỏi và không lưu tên, số điện thoại, địa chỉ hay số giấy tờ. Hồ ' +
+      'sơ chỉ gồm tuổi, bệnh đã được chẩn đoán, và tuỳ chọn chiều cao cân ' +
+      'nặng. Khu vực kiểm duyệt nội dung cũng không thấy được ai đã hỏi câu ' +
+      'nào — người biên tập chỉ đọc nội dung câu hỏi để biết thư viện đang ' +
+      'thiếu chủ đề gì.',
+  },
+  {
+    question: 'Ứng dụng dùng cho bệnh nào?',
+    answer:
+      'Hai bệnh: tăng huyết áp và đái tháo đường típ 2. Thư viện tài liệu chỉ ' +
+      'phủ hai bệnh này, nên câu hỏi ngoài phạm vi đó sẽ được trả lời rằng ' +
+      'chưa có tài liệu để trích dẫn, thay vì được trả lời qua loa.',
+  },
+  {
+    question: 'Trợ lý có thay thế bác sĩ không?',
+    answer:
+      'Không, và không được dùng thay. Đây là công cụ giáo dục sức khỏe cho ' +
+      'người ĐÃ đi khám và đã có kết luận. Nếu bạn đang thấy khó chịu trong ' +
+      'người và muốn biết mình bị bệnh gì, việc cần làm là đi khám. Gặp dấu ' +
+      'hiệu cấp cứu thì gọi 115.',
   },
 ]
 
@@ -115,12 +188,16 @@ function TopNav() {
         ))}
       </ul>
 
-      <Link
-        to="/login"
-        className="motion-press font-display ml-auto flex min-h-touch shrink-0 items-center rounded-pill bg-mint px-cozy text-input font-bold text-ink no-underline hover:bg-mint-press md:ml-0"
-      >
-        Đăng nhập
-      </Link>
+      <div className="ml-auto flex shrink-0 items-center gap-tight md:ml-0">
+        <ThemeToggle tone="shell" />
+
+        <Link
+          to="/login"
+          className="motion-press font-display flex min-h-touch shrink-0 items-center rounded-pill bg-mint px-cozy text-input font-bold text-ink no-underline hover:bg-mint-press"
+        >
+          Đăng nhập
+        </Link>
+      </div>
     </nav>
   )
 }
@@ -164,7 +241,7 @@ export function LandingScreen() {
                 </Link>
 
                 <a
-                  href="#gia-tri"
+                  href="#gia-tri-heading"
                   className="motion-press font-display flex min-h-call items-center justify-center rounded-pill border-2 border-mist px-block text-input font-semibold text-white no-underline hover:bg-white/10"
                 >
                   Xem ứng dụng làm gì
@@ -185,14 +262,14 @@ export function LandingScreen() {
       {/* ---- Ba thẻ giá trị, nền canvas ---- */}
       <section
         aria-labelledby="gia-tri-heading"
-        className="relative isolate overflow-hidden bg-canvas px-cozy py-block"
+        className="relative isolate scroll-mt-block overflow-hidden bg-canvas px-cozy py-block"
       >
         <Backdrop tone="canvas" />
 
         <div className="relative z-10 mx-auto w-full max-w-page">
           <h2
             id="gia-tri-heading"
-            className="max-w-answer text-heading font-semibold text-ink"
+            className="max-w-answer text-heading font-semibold text-body"
           >
             Ba điều nên biết trước khi bắt đầu
           </h2>
@@ -202,17 +279,183 @@ export function LandingScreen() {
               <li
                 key={id}
                 id={id}
-                className="scroll-mt-block rounded-card-lg bg-white p-cozy"
+                className="scroll-mt-block rounded-card-lg bg-surface p-cozy"
               >
                 <span className="flex h-12 w-12 items-center justify-center rounded-chip bg-mint text-mint-deep">
                   <Icon className="h-7 w-7" />
                 </span>
 
-                <h3 className="mt-cozy text-empty font-semibold text-ink">{title}</h3>
+                <h3 className="mt-cozy text-empty font-semibold text-body">{title}</h3>
                 <p className="font-display mt-tight text-question text-slate">{body}</p>
               </li>
             ))}
           </ul>
+        </div>
+      </section>
+
+      {/* ---- Cách hoạt động: ba bước có đánh số, nền navy ---- */}
+      <section
+        aria-labelledby="cach-hoat-dong-heading"
+        id="cach-hoat-dong"
+        className="relative isolate scroll-mt-block overflow-hidden px-cozy py-block"
+      >
+        <Backdrop />
+
+        <div className="relative z-10 mx-auto w-full max-w-page">
+          <div className="flex flex-col items-start gap-block lg:flex-row lg:items-center">
+            <div className="min-w-0 flex-1">
+              <h2
+                id="cach-hoat-dong-heading"
+                className="text-heading font-semibold text-white"
+              >
+                Dùng thế nào
+              </h2>
+
+              {/* `ol` chứ không phải `ul`: ba bước này CÓ thứ tự, và trình đọc
+                  màn hình phải nghe được điều đó. Con số hiện ra bằng khối mint
+                  bên trái là bản nhìn của chính thứ tự ấy, nên `list-none` bỏ
+                  đánh số mặc định đi cho khỏi đọc hai lần. */}
+              <ol className="mt-block list-none space-y-cozy">
+                {STEPS.map((step, index) => (
+                  <li key={step.title} className="flex items-start gap-snug">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-chip bg-mint text-heading font-semibold text-mint-deep">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-empty font-semibold text-white">
+                        {step.title}
+                      </h3>
+                      <p className="font-display mt-hair text-question text-mist">
+                        {step.body}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="mx-auto shrink-0 lg:mx-0">
+              <PhoneInHand size={260} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---- Nguồn tài liệu: giải thích, kèm một thẻ trích dẫn mẫu ---- */}
+      <section
+        aria-labelledby="nguon-tai-lieu-heading"
+        id="nguon-tai-lieu"
+        className="relative isolate scroll-mt-block overflow-hidden bg-canvas px-cozy py-block"
+      >
+        <Backdrop tone="canvas" />
+
+        <div className="relative z-10 mx-auto grid w-full max-w-page gap-block lg:grid-cols-2 lg:items-center">
+          <div className="min-w-0">
+            <h2
+              id="nguon-tai-lieu-heading"
+              className="text-heading font-semibold text-body"
+            >
+              Thư viện đến từ đâu
+            </h2>
+            <p className="mt-cozy text-answer text-body">
+              Trợ lý chỉ được trích dẫn những văn bản đã nằm trong thư viện, và
+              một văn bản chỉ vào được thư viện sau khi có người trong đội ngũ
+              biên tập y khoa đọc, sửa và bấm duyệt. Không có đường nào khác.
+            </p>
+            <p className="font-display mt-cozy text-question text-slate">
+              Nguồn hiện tại là hướng dẫn chẩn đoán và điều trị của Bộ Y tế cho
+              hai bệnh trong phạm vi sản phẩm. Câu hỏi nào thư viện chưa phủ,
+              trợ lý nói thẳng là chưa có tài liệu — và câu hỏi đó được ghi lại
+              để đội ngũ biên tập bổ sung.
+            </p>
+
+            <div className="mt-block flex items-center gap-snug">
+              <DocumentStack size={96} />
+              <p className="font-display min-w-0 text-question text-slate">
+                Mỗi câu trả lời đi kèm một thẻ như bên cạnh: tên tài liệu, đúng
+                câu được trích, cơ quan ban hành và số hiệu văn bản.
+              </p>
+            </div>
+          </div>
+
+          {/* Thẻ trích dẫn MẪU, dựng đúng bằng ngôn ngữ hình của thẻ nguồn thật
+              ở màn hỏi đáp (xem `RAIL_SKIN.lead` trong `AnswerDocument.tsx`).
+              Cố ý giống hệt: người xem trang này phải nhận ra ngay chính cái
+              thẻ đó khi họ gặp nó lần đầu trong ứng dụng.
+
+              `aria-hidden` vì đây là hình minh hoạ cho đoạn văn bên trái, không
+              phải một nguồn thật để ai đi tra. */}
+          <div
+            aria-hidden="true"
+            className="w-full max-w-answer justify-self-center rounded-card bg-ink p-cozy lg:justify-self-end"
+          >
+            <p className="font-mono text-question font-semibold text-mint">01</p>
+            <p className="font-display mt-hair text-source font-semibold text-white">
+              Hướng dẫn chẩn đoán và điều trị tăng huyết áp
+            </p>
+            <p className="font-body mt-tight text-question text-white">
+              “Hạn chế lượng muối ăn vào dưới 5 gam mỗi ngày, tương đương khoảng
+              một thìa cà phê gạt ngang.”
+            </p>
+            <p className="font-display mt-tight text-question text-mist">
+              Bộ Y tế Việt Nam
+            </p>
+            <p className="font-mono text-question text-mist">3192/QĐ-BYT</p>
+            <span className="font-display mt-snug inline-flex min-h-touch items-center justify-center rounded-pill bg-mint px-cozy text-question font-semibold text-ink">
+              Mở tài liệu
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ---- Câu hỏi thường gặp ---- */}
+      <section
+        aria-labelledby="cau-hoi-heading"
+        id="cau-hoi"
+        className="relative isolate scroll-mt-block overflow-hidden px-cozy py-block"
+      >
+        <Backdrop />
+
+        <div className="relative z-10 mx-auto w-full max-w-page">
+          <h2
+            id="cau-hoi-heading"
+            className="text-heading font-semibold text-white"
+          >
+            Câu hỏi thường gặp
+          </h2>
+
+          {/* `details` / `summary` của HTML chứ không phải accordion tự viết.
+              Miễn phí toàn bộ hành vi bàn phím, trạng thái mở/đóng mà trình đọc
+              màn hình hiểu đúng, và tìm-trong-trang của trình duyệt vẫn mở được
+              mục đang đóng. Một accordion tự viết bằng `useState` phải dựng lại
+              tất cả những thứ đó, và thường dựng thiếu.
+
+              Bốn mục xếp hai cột từ 768px: mỗi câu trả lời dài 3–5 dòng, một
+              cột thì phần này chiếm gần hai màn hình cuộn. */}
+          <div className="mt-block grid gap-snug md:grid-cols-2">
+            {FAQS.map((faq) => (
+              <details
+                key={faq.question}
+                className="group rounded-card bg-white/10 px-cozy [&_summary::-webkit-details-marker]:hidden"
+              >
+                <summary className="flex min-h-touch cursor-pointer list-none items-center justify-between gap-snug py-snug text-input font-semibold text-white">
+                  {faq.question}
+                  {/* Dấu cộng xoay thành dấu trừ khi mở. Chuyển động bọc trong
+                      `motion-safe:` — người tắt hiệu ứng thấy nó đổi ngay, không
+                      thấy nó quay. */}
+                  <span
+                    aria-hidden="true"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-mint text-ink motion-safe:transition-transform motion-safe:duration-150 group-open:rotate-45"
+                  >
+                    <PlusIcon className="h-5 w-5" />
+                  </span>
+                </summary>
+                <p className="font-display border-t border-white/20 py-snug text-question text-mist">
+                  {faq.answer}
+                </p>
+              </details>
+            ))}
+          </div>
         </div>
       </section>
 

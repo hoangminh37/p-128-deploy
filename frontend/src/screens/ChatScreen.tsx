@@ -73,7 +73,7 @@ function historyToTurns(messages: ConversationMessage[]): Turn[] {
  */
 function WaitingBlock() {
   return (
-    <div className="flex max-w-answer items-center gap-cozy rounded-card-lg bg-white p-cozy">
+    <div className="flex max-w-answer items-center gap-cozy rounded-card-lg bg-surface p-cozy">
       <span className="shrink-0 motion-safe:animate-breathe">
         <Mascot variant="muted" size={64} />
       </span>
@@ -145,7 +145,7 @@ function DailyLessonBanner() {
   }
 
   return (
-    <div className="mb-block max-w-answer rounded-card-lg bg-white p-cozy">
+    <div className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
       <div className="flex items-center gap-snug">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-icon bg-mint text-mint-deep">
           <LibraryIcon className="h-7 w-7" />
@@ -154,16 +154,16 @@ function DailyLessonBanner() {
           <p className="font-display text-note font-semibold text-slate">
             Bài học ngày {data.day_number}
           </p>
-          <h2 className="text-empty font-semibold text-ink">{data.lesson.title}</h2>
+          <h2 className="text-empty font-semibold text-body">{data.lesson.title}</h2>
         </div>
       </div>
 
       {!showQuiz ? (
-        <p className="mt-cozy text-answer text-ink">{data.lesson.content}</p>
+        <p className="mt-cozy text-answer text-body">{data.lesson.content}</p>
       ) : (
         data.lesson.quiz_data && (
           <div className="mt-cozy border-t border-line pt-snug">
-            <p className="font-display text-input font-semibold text-ink">
+            <p className="font-display text-input font-semibold text-body">
               {data.lesson.quiz_data.question}
             </p>
 
@@ -174,7 +174,13 @@ function DailyLessonBanner() {
               {data.lesson.quiz_data.options.map((opt, idx) => (
                 <label
                   key={idx}
-                  className="flex min-h-touch cursor-pointer items-center gap-snug rounded-card bg-canvas p-snug has-[:checked]:bg-mint"
+                  // Màu chữ đặt ở ĐÂY chứ không ở thẻ con: nền ô đổi từ
+                  // `canvas` sang `mint` khi được chọn, mà ở chế độ tối
+                  // `canvas` là navy đậm còn `mint` vẫn sáng — hai nền đó cần
+                  // hai màu chữ ngược nhau. Chỉ thẻ <label> mới biết ô đang
+                  // được chọn hay không (`has-[:checked]`), nên luật màu phải
+                  // sống ở đây rồi để thẻ con thừa kế.
+                  className="flex min-h-touch cursor-pointer items-center gap-snug rounded-card bg-canvas p-snug text-body has-[:checked]:bg-mint has-[:checked]:text-ink"
                 >
                   <input
                     type="radio"
@@ -186,7 +192,7 @@ function DailyLessonBanner() {
                       setErrorMsg(null)
                     }}
                   />
-                  <span className="font-display text-question text-ink">{opt}</span>
+                  <span className="font-display text-question">{opt}</span>
                 </label>
               ))}
             </div>
@@ -404,8 +410,8 @@ export function ChatScreen({
             {streamedAnswer ? (
               // Đúng thẻ trắng bo 18px mà câu trả lời hoàn chỉnh sẽ dùng, để
               // lúc stream xong không có gì nhảy chỗ.
-              <div className="max-w-answer rounded-card-lg bg-white p-cozy">
-                <p className="text-answer whitespace-pre-wrap text-ink">
+              <div className="max-w-answer rounded-card-lg bg-surface p-cozy">
+                <p className="text-answer whitespace-pre-wrap text-body">
                   {streamedAnswer}
                   {/* Con trỏ nhấp nháy. `inline` cộng `border-l-4`, KHÔNG dùng
                       `inline-block`: tên bậc khoảng cách `--spacing-block` làm

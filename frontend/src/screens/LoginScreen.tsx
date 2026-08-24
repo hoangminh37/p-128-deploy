@@ -55,12 +55,12 @@ const loginFormSchema = loginRequestSchema.extend({
 type LoginFormValues = z.infer<typeof loginFormSchema>
 
 /** Nhãn của một trường. Tối thiểu 17px theo sàn cỡ chữ. */
-const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-ink'
+const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-body'
 /** Ô nhập nền trắng trên nền canvas: chỗ nền đổi màu chính là ranh giới của ô,
  * cộng thêm một viền `slate` (4.96:1 trên trắng) cho ngưỡng 3:1 của WCAG
  * 1.4.11. `line` KHÔNG dùng được ở đây — xem cảnh báo trong `index.css`. */
 const FIELD_INPUT_CLASS =
-  'font-body mt-snug min-h-touch w-full rounded-card border-2 border-slate bg-white p-snug text-input text-ink'
+  'font-body mt-snug min-h-touch w-full rounded-card border-2 border-slate bg-surface p-snug text-input text-body'
 
 /** Lỗi hiện ngay dưới trường của nó, không gom về cuối form. */
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -103,7 +103,7 @@ function DemoAccountsPanel({
             <button
               type="button"
               onClick={() => onPick(account)}
-              className="motion-lift font-display flex min-h-touch w-full flex-col justify-center rounded-card bg-white px-snug py-tight text-left text-ink"
+              className="motion-lift font-display flex min-h-touch w-full flex-col justify-center rounded-card bg-surface px-snug py-tight text-left text-body"
             >
               <span className="text-input font-semibold">{account.label}</span>
               <span className="font-mono text-question">
@@ -194,11 +194,11 @@ export function LoginScreen() {
       </section>
 
       {/* ---- Nửa phải: nền canvas, form ---- */}
-      <main className="relative isolate flex flex-1 flex-col justify-center overflow-hidden bg-canvas px-cozy py-block text-ink lg:w-1/2 lg:px-block">
+      <main className="relative isolate flex flex-1 flex-col justify-center overflow-hidden bg-canvas px-cozy py-block text-body lg:w-1/2 lg:px-block">
         <Backdrop tone="canvas" />
 
         <div className="relative z-10 mx-auto w-full max-w-answer">
-          <h2 className="text-ask font-semibold text-ink">Đăng nhập</h2>
+          <h2 className="text-ask font-semibold text-body">Đăng nhập</h2>
 
           {/* Phiên hết hạn không phải lỗi của người dùng và cũng không phải sự cố
               kỹ thuật, nên chỉ một dòng `role="status"` chứ không dùng khối cảnh
@@ -217,7 +217,7 @@ export function LoginScreen() {
                 heading="Email hoặc mật khẩu không đúng"
                 icon={<AlertIcon className="h-7 w-7" />}
               >
-                <p className="font-display text-notice text-ink">
+                <p className="font-display text-notice text-body">
                   Bạn hãy kiểm tra lại rồi thử lần nữa. Vì lý do an toàn, hệ thống
                   không cho biết địa chỉ email này đã có tài khoản hay chưa.
                 </p>
@@ -271,7 +271,7 @@ export function LoginScreen() {
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="motion-press font-display mt-block min-h-call w-full rounded-pill bg-mint px-cozy text-input font-bold text-ink enabled:hover:bg-mint-press disabled:bg-white disabled:font-normal disabled:text-slate"
+              className="motion-press font-display mt-block min-h-call w-full rounded-pill bg-mint px-cozy text-input font-bold text-ink enabled:hover:bg-mint-press disabled:bg-surface disabled:font-normal disabled:text-slate"
             >
               {mutation.isPending ? 'Đang đăng nhập…' : 'Đăng nhập'}
             </button>

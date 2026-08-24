@@ -17,6 +17,7 @@ import {
   USER_STORAGE_KEY,
   type SessionContextValue,
 } from './context'
+import { THEME_STORAGE_KEY } from '../ui/theme'
 
 type StoredSession = {
   accessToken: string
@@ -74,7 +75,14 @@ function clearStoredSession(): void {
     const keys: string[] = []
     for (let index = 0; index < window.localStorage.length; index += 1) {
       const key = window.localStorage.key(index)
-      if (key !== null && key.startsWith(STORAGE_PREFIX)) keys.push(key)
+      if (key === null || !key.startsWith(STORAGE_PREFIX)) continue
+      // MỘT NGOẠI LỆ: chế độ sáng/tối. Nó dùng chung tiền tố vì nó thuộc cùng
+      // ứng dụng, nhưng nó KHÔNG phải dữ liệu của phiên — nó là thiết lập hiển
+      // thị của cái máy này. Xoá nó khi đăng xuất nghĩa là người dùng phải chọn
+      // lại chế độ tối sau mỗi lần thoát, mà việc đó chẳng bảo vệ được gì: biết
+      // một cái máy đang để chế độ tối không nói lên điều gì về người vừa dùng.
+      if (key === THEME_STORAGE_KEY) continue
+      keys.push(key)
     }
     for (const key of keys) window.localStorage.removeItem(key)
   } catch {

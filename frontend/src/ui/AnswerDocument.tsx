@@ -198,13 +198,13 @@ const RAIL_SKIN = {
     // trắng nữa đặt lên đó thì không còn ranh giới nào. Từ 1162px thẻ ra hẳn lề
     // phải hoặc xuống lưới bên dưới, đứng trên nền canvas của trang, và lúc đó
     // trắng mới là màu tách nó ra.
-    card: 'bg-canvas rail:border-2 rail:border-line rail:bg-white',
-    title: 'text-ink',
-    number: 'text-ink',
-    quote: 'text-ink',
+    card: 'bg-canvas rail:border-2 rail:border-line rail:bg-surface',
+    title: 'text-body',
+    number: 'text-body',
+    quote: 'text-body',
     meta: 'text-slate',
-    action: 'border-2 border-slate text-ink hover:bg-canvas',
-    expand: 'text-ink',
+    action: 'border-2 border-slate text-body hover:bg-canvas',
+    expand: 'text-body',
   },
 } as const
 
@@ -421,7 +421,7 @@ function StackedCitations({
     >
       <h2
         id={headingId}
-        className="font-display text-question font-semibold text-ink"
+        className="font-display text-question font-semibold text-body"
       >
         Nguồn của câu trả lời · {citations.length} tài liệu
       </h2>
@@ -566,7 +566,7 @@ export function AnswerDocument({
     // xếp dưới dùng hết chỗ đó. Thẻ trắng bên trong vẫn dừng ở `max-w-answer` ở
     // mọi bố cục — xem ghi chú "CỘT CHỮ GIỮ NGUYÊN BỀ NGANG" ở đầu file.
     <div className="w-full">
-      <div className="max-w-answer rounded-card-lg bg-white p-cozy">
+      <div className="max-w-answer rounded-card-lg bg-surface p-cozy">
         {/* `relative` là mốc neo cho CẢ cột thẻ, không phải cho từng đoạn. Neo
             theo từng đoạn thì mỗi thẻ chỉ biết ô của riêng nó và không có cách
             nào tránh thẻ đứng trước. */}

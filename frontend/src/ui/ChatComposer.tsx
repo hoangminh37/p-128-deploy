@@ -75,7 +75,7 @@ export function ChatComposer({
 
         {/* Viền focus vẽ trên cả thanh chứ không riêng ô `input`: một khung chữ
             nhật nằm lọt trong một thanh bo tròn trông như lỗi hiển thị. */}
-        <div className="flex items-center gap-tight rounded-pill bg-white pr-tight pl-cozy focus-within:outline-3 focus-within:outline-mint focus-within:outline-offset-2">
+        <div className="flex items-center gap-tight rounded-pill bg-surface pr-tight pl-cozy focus-within:outline-3 focus-within:outline-mint focus-within:outline-offset-2">
           <SearchIcon className="h-6 w-6 shrink-0 text-slate" />
 
           <input
@@ -89,7 +89,7 @@ export function ChatComposer({
             autoComplete="off"
             placeholder="Hỏi tiếp về bệnh của bạn"
             aria-describedby={showHint ? hintId : undefined}
-            className="font-body min-h-touch w-full min-w-0 flex-1 bg-transparent text-input text-ink placeholder:text-slate focus:outline-none disabled:text-slate"
+            className="font-body min-h-touch w-full min-w-0 flex-1 bg-transparent text-input text-body placeholder:text-slate focus:outline-none disabled:text-slate"
           />
 
           {!isEmpty && (

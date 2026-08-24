@@ -65,7 +65,7 @@ export function SuggestedQuestions({
           `EmptyState` chỉ nhận đúng một hành động. */}
       <Mascot variant="muted" size={80} />
 
-      <h2 id="suggested-heading" className="mt-cozy text-heading font-semibold text-ink">
+      <h2 id="suggested-heading" className="mt-cozy text-heading font-semibold text-body">
         Bạn có thể hỏi gì?
       </h2>
       <p className="font-display mt-tight text-question text-slate">
@@ -73,7 +73,9 @@ export function SuggestedQuestions({
         màn hình.
       </p>
 
-      <ul className="mt-cozy space-y-snug">
+      {/* Hai cột từ 640px: đây là một danh sách ngắn, xếp dọc một cột thì nó
+          kéo màn hỏi đáp còn trống dài thêm mà không thêm thông tin nào. */}
+      <ul className="mt-cozy grid gap-snug sm:grid-cols-2">
         {questions.map((question) => (
           <li key={question}>
             <button
@@ -82,7 +84,7 @@ export function SuggestedQuestions({
               // Thẻ trắng trên nền canvas, không viền. Ranh giới của nút là
               // chỗ nền đổi từ canvas sang trắng — đủ thấy ở mọi cỡ chữ, và
               // không thêm một nét kẻ nữa vào một danh sách vốn đã nhiều nét.
-              className="motion-lift font-display min-h-touch w-full rounded-card bg-white p-cozy text-left text-question text-ink"
+              className="motion-lift font-display min-h-touch w-full rounded-card bg-surface p-cozy text-left text-question text-body"
             >
               {question}
             </button>

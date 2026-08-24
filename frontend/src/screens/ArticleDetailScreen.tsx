@@ -1,9 +1,14 @@
 /**
  * Một bài học trong lộ trình, đường dẫn `/learning/:articleId`.
  *
- * Nền canvas — đây là màn để ĐỌC, thuộc họ nền sáng. Nội dung bài nằm trong một
- * thẻ trắng bo 18px, giống hệt thẻ bọc câu trả lời ở màn hỏi đáp: hai chỗ đều
- * là "chữ dài để đọc kỹ", nên chúng phải trông như nhau.
+ * MÀN ĐỂ ĐỌC, nên cả trang bị chặn ở `max-w-answer` (594px, ~62 ký tự mỗi
+ * dòng) và CĂN GIỮA. Bản trước để `w-full`, tức ở màn hình rộng bài viết chạy
+ * hết 878px — khoảng 90 ký tự mỗi dòng, vượt xa ngưỡng dễ đọc mà cả thang cỡ
+ * chữ của dự án được đặt ra để giữ. Đây là màn duy nhất trong ứng dụng mà người
+ * dùng đọc liền vài phút, nên nó là chỗ ít được phép nhân nhượng nhất.
+ *
+ * Nội dung bài nằm trong một thẻ bo 18px, giống hệt thẻ bọc câu trả lời ở màn
+ * hỏi đáp: hai chỗ đều là "chữ dài để đọc kỹ", nên chúng phải trông như nhau.
  *
  * Khối nguồn tài liệu dùng nền `sand`: nó là xuất xứ, không phải nội dung và
  * cũng không phải hành động. Mint đã dành cho hành động (nút, marker, nhãn
@@ -15,7 +20,7 @@ import ReactMarkdown from 'react-markdown'
 import { useLearningLibrary } from '../app/learning'
 import { EmptyState } from '../ui/EmptyState'
 import { ErrorNotice } from '../ui/ErrorNotice'
-import { CheckIcon, LibraryIcon } from '../ui/icons'
+import { CheckIcon, ChevronLeftIcon, LibraryIcon } from '../ui/icons'
 
 export function ArticleDetailScreen() {
   const { articleId } = useParams<{ articleId: string }>()
@@ -75,13 +80,17 @@ export function ArticleDetailScreen() {
   const source = sourceLabels[sourceFile]
 
   return (
-    <div className="w-full">
+    <div className="mx-auto w-full max-w-answer">
+      {/* Nút quay lại là một NÚT, không phải liên kết: nó gọi `navigate(-1)`,
+          tức "lùi một bước trong lịch sử", chứ không dẫn tới một địa chỉ cố
+          định. Dựng nó thành thẻ `a` thì bấm chuột giữa sẽ mở một tab trống. */}
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="font-display flex min-h-touch items-center gap-tight text-input font-semibold text-ink underline underline-offset-4"
+        className="motion-press font-display flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
       >
-        ← Lộ trình học tập
+        <ChevronLeftIcon className="h-5 w-5 shrink-0" />
+        Về lộ trình học tập
       </button>
 
       <div className="mt-snug flex flex-wrap items-center gap-tight">
@@ -96,10 +105,12 @@ export function ArticleDetailScreen() {
         )}
       </div>
 
-      <h1 className="mt-cozy text-ask font-semibold text-ink">{article.title}</h1>
+      {/* Tiêu đề Lora — thẻ `h1` lấy `--font-title` từ luật nền ở `index.css`,
+          không cần gắn `font-title` ở đây. */}
+      <h1 className="mt-cozy text-ask font-semibold text-body">{article.title}</h1>
 
       {/* Nội dung bài học */}
-      <div className="mt-block rounded-card-lg bg-white p-cozy">
+      <div className="mt-block rounded-card-lg bg-surface p-cozy">
         <div className="article-body">
           <ReactMarkdown>{article.full_content ?? article.content}</ReactMarkdown>
         </div>
@@ -132,13 +143,13 @@ export function ArticleDetailScreen() {
           Đây là bản ĐÃ LỘ ĐÁP ÁN, để ôn lại — không phải bài chấm điểm. Bài
           chấm điểm nằm ở màn hỏi đáp, và dòng lưu ý cuối khối nói rõ điều đó. */}
       {article.quiz_data && (
-        <div className="mt-block rounded-card-lg bg-white p-cozy">
-          <h2 className="text-empty font-semibold text-ink">Ôn tập nhanh</h2>
+        <div className="mt-block rounded-card-lg bg-surface p-cozy">
+          <h2 className="text-empty font-semibold text-body">Ôn tập nhanh</h2>
           <p className="font-display mt-hair text-question text-slate">
             Kiểm tra kiến thức bạn vừa học. Đáp án đúng đã được đánh dấu sẵn.
           </p>
 
-          <p className="font-display mt-cozy text-input font-semibold text-ink">
+          <p className="font-display mt-cozy text-input font-semibold text-body">
             {article.quiz_data.question}
           </p>
 
@@ -149,12 +160,12 @@ export function ArticleDetailScreen() {
                 <li
                   key={idx}
                   className={`flex items-start gap-snug rounded-card p-snug ${
-                    isCorrect ? 'bg-mint text-ink' : 'bg-canvas text-ink'
+                    isCorrect ? 'bg-mint text-ink' : 'bg-canvas text-body'
                   }`}
                 >
                   <span
                     className={`font-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-icon text-question font-semibold ${
-                      isCorrect ? 'bg-ink text-mint' : 'bg-white text-slate'
+                      isCorrect ? 'bg-ink text-mint' : 'bg-surface text-slate'
                     }`}
                   >
                     {String.fromCharCode(65 + idx)}
@@ -172,7 +183,7 @@ export function ArticleDetailScreen() {
 
           <p className="font-display mt-cozy border-t border-line pt-snug text-question text-slate">
             Bạn chỉ được cộng 10 điểm khi trả lời đúng câu hỏi này ở phần{' '}
-            <Link to="/chat" className="font-semibold text-ink underline">
+            <Link to="/chat" className="font-semibold text-body underline">
               Bài học hôm nay
             </Link>{' '}
             trên màn hỏi đáp, mỗi ngày một lần.

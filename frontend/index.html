@@ -1,10 +1,52 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <meta name="color-scheme" content="light dark" />
+    <title>Trợ lý sức khỏe</title>
+
+    <!--
+      Chọn chế độ sáng/tối TRƯỚC khi trình duyệt vẽ khung hình đầu tiên.
+
+      Phải là script ĐỒNG BỘ và nằm trong `<head>`, không phải `type="module"`:
+      module bị hoãn tới sau khi dựng xong cây DOM, nên người dùng để chế độ tối
+      sẽ thấy một nháy trắng đầy màn hình rồi mới tối lại. Với người đang mở ứng
+      dụng trong phòng tối lúc nửa đêm thì một nháy trắng 15.56:1 là chói thật,
+      không phải chuyện thẩm mỹ.
+
+      Đoạn này GIẢI lựa chọn "theo hệ điều hành" ra thành `light` hoặc `dark`
+      ngay tại đây, nên `data-theme` không bao giờ mang giá trị `system`. Nhờ
+      vậy CSS chỉ cần một khối `[data-theme='dark']` duy nhất, không cần thêm
+      một khối `@media (prefers-color-scheme: dark)` song song để rồi hai bản
+      danh sách token lệch nhau.
+
+      Khóa localStorage phải TRÙNG với `THEME_STORAGE_KEY` trong `ui/theme.ts`.
+      Không import được vì đây là script thường; nếu đổi thì đổi cả hai chỗ.
+    -->
+    <script>
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('tro-ly-suc-khoe:theme')
+          var preference =
+            stored === 'light' || stored === 'dark' ? stored : 'system'
+          var isDark =
+            preference === 'dark' ||
+            (preference === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.setAttribute(
+            'data-theme',
+            isDark ? 'dark' : 'light',
+          )
+        } catch (error) {
+          // localStorage bị chặn (chế độ riêng tư, hoặc trình duyệt cấm cookie
+          // bên thứ ba trong iframe). Không có lựa chọn nào đọc được thì rơi về
+          // chế độ sáng — thà sáng nhầm còn hơn ứng dụng không dựng được.
+          document.documentElement.setAttribute('data-theme', 'light')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

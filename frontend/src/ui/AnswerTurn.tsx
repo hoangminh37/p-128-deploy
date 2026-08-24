@@ -73,7 +73,7 @@ export function QuestionHeading({ question }: { question: string }) {
       <p className="font-display text-note font-semibold text-slate">
         Câu hỏi của bạn
       </p>
-      <h1 className="mt-hair text-ask font-semibold text-ink">{question}</h1>
+      <h1 className="mt-hair text-ask font-semibold text-body">{question}</h1>
     </header>
   )
 }
@@ -191,7 +191,7 @@ function ActionButton({
     <button
       type="button"
       onClick={onClick}
-      className="motion-press font-display flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate bg-white px-cozy text-input font-semibold text-ink enabled:hover:bg-canvas"
+      className="motion-press font-display flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
     >
       {children}
       {label}

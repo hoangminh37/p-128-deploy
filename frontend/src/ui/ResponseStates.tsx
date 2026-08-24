@@ -52,10 +52,12 @@ import { Mascot } from './Mascot'
  */
 const TONE = {
   emergency: {
-    container: 'bg-alert',
+    container: 'bg-alert-solid',
     heading: 'text-white',
     body: 'text-white',
-    iconBox: 'bg-white text-alert',
+    // Nền TRẮNG THẬT, không phải `surface`: ở chế độ tối `surface` là navy, mà
+    // một ô navy trên khối đỏ thì chìm. Ô này phải sáng ở cả hai chế độ.
+    iconBox: 'bg-white text-alert-solid',
   },
   refuse: {
     container: 'bg-sand',
@@ -64,16 +66,16 @@ const TONE = {
     iconBox: 'bg-sand-deep text-sand',
   },
   neutral: {
-    container: 'border-2 border-line bg-white',
-    heading: 'text-ink',
-    body: 'text-ink',
-    iconBox: 'bg-canvas text-ink',
+    container: 'border-2 border-line bg-surface',
+    heading: 'text-body',
+    body: 'text-body',
+    iconBox: 'bg-canvas text-body',
   },
   fault: {
-    container: 'border-2 border-l-8 border-alert bg-white',
+    container: 'border-2 border-l-8 border-alert bg-surface',
     heading: 'text-alert',
-    body: 'text-ink',
-    iconBox: 'bg-alert text-white',
+    body: 'text-body',
+    iconBox: 'bg-alert-solid text-white',
   },
 } as const
 
@@ -191,7 +193,11 @@ export function RedFlagBlock({ answer }: { answer: string }) {
 
       <a
         href="tel:115"
-        className="font-display mt-block flex min-h-call w-full items-center justify-center gap-tight rounded-pill bg-white px-cozy text-center text-notice font-bold text-alert no-underline lg:w-auto lg:px-block"
+        // Nền TRẮNG THẬT và chữ `alert-solid`, cố định ở cả hai chế độ. Đây là
+        // nút duy nhất trong ứng dụng không đổi một pixel nào khi chuyển chế
+        // độ — người đang đau ngực phải thấy đúng một thứ, bất kể máy họ đang
+        // để chế độ nào. Trắng trên đỏ đặc: 6.54:1.
+        className="font-display mt-block flex min-h-call w-full items-center justify-center gap-tight rounded-pill bg-white px-cozy text-center text-notice font-bold text-alert-solid no-underline lg:w-auto lg:px-block"
       >
         <PhoneIcon className="h-7 w-7 shrink-0" />
         Gọi cấp cứu 115
@@ -271,7 +277,7 @@ export function RefusedBlock({ answer }: { answer: string }) {
  */
 export function ReferralBlock({ answer }: { answer: string }) {
   return (
-    <section className="max-w-answer rounded-card-lg border-2 border-line bg-white p-cozy">
+    <section className="max-w-answer rounded-card-lg border-2 border-line bg-surface p-cozy">
       <div className="flex items-start gap-snug">
         {/* Linh vật thay hẳn khối biểu tượng của ba khối kia. 64px chứ không
             lớn hơn: trên máy 360px, thẻ này chỉ còn ~296px bề ngang, và mỗi
@@ -281,7 +287,7 @@ export function ReferralBlock({ answer }: { answer: string }) {
         </span>
 
         <div className="min-w-0 flex-1">
-          <h2 className="text-heading font-semibold text-ink">
+          <h2 className="text-heading font-semibold text-body">
             Thư viện chưa có tài liệu về chủ đề này
           </h2>
           <p className="font-display mt-tight text-question text-slate">
@@ -291,7 +297,7 @@ export function ReferralBlock({ answer }: { answer: string }) {
         </div>
       </div>
 
-      <div className="mt-cozy text-ink">
+      <div className="mt-cozy text-body">
         <AnswerText answer={answer} />
       </div>
 

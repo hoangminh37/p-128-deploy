@@ -17,6 +17,7 @@ import { useInvalidateEditorData, useOutOfScopeLogs } from '../app/editor'
 import { createDraftFromLog } from '../lib/api'
 import { formatDateTime } from '../lib/datetime'
 import { EmptyState } from '../ui/EmptyState'
+import { DocumentStack } from '../ui/illustrations'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { PlusIcon } from '../ui/icons'
 
@@ -40,8 +41,8 @@ export function OutOfScopeScreen() {
 
   return (
     <div className="max-w-reading">
-      <h1 className="text-ask font-semibold text-ink">Câu hỏi chưa trả lời được</h1>
-      <p className="mt-snug max-w-answer text-notice text-ink">
+      <h1 className="text-ask font-semibold text-body">Câu hỏi chưa trả lời được</h1>
+      <p className="mt-snug max-w-answer text-notice text-body">
         Bệnh nhân đã hỏi những câu này nhưng thư viện chưa có tài liệu để trích
         dẫn. Xếp theo số lượt hỏi giảm dần — trên cùng là chỗ thiếu nhiều nhất.
       </p>
@@ -84,6 +85,7 @@ export function OutOfScopeScreen() {
       {!isPending && !isError && logs.length === 0 && (
         <div className="mt-block">
           <EmptyState
+            illustration={<DocumentStack size={128} />}
             title="Danh sách hiện không có mục nào"
             body="Chỗ này chỉ hiện những câu hỏi mà trợ lý đã phải trả lời rằng chưa có tài liệu để trích dẫn."
           />
@@ -98,7 +100,7 @@ export function OutOfScopeScreen() {
             return (
               <li
                 key={log.log_id}
-                className="flex items-start gap-snug rounded-card bg-white p-cozy"
+                className="flex items-start gap-snug rounded-card bg-surface p-cozy"
               >
                 {/* Khối số lượt hỏi, vuông bo góc, số bằng Lora.
                     NỀN CORAL khi chưa ai tạo bài, NỀN SAND khi đã tạo. Đây là
@@ -116,7 +118,7 @@ export function OutOfScopeScreen() {
                 </span>
 
                 <div className="min-w-0 flex-1">
-                  <p className="text-notice text-ink">{log.question}</p>
+                  <p className="text-notice text-body">{log.question}</p>
 
                   <p className="font-display mt-snug text-question text-slate">
                     Gần nhất {formatDateTime(log.last_asked_at)}
@@ -126,7 +128,7 @@ export function OutOfScopeScreen() {
                     {log.drafted && log.drafted_item_id !== null ? (
                       <Link
                         to={`/editor/queue/${encodeURIComponent(log.drafted_item_id)}`}
-                        className="motion-press font-display inline-flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate px-cozy text-input font-semibold text-ink no-underline hover:bg-canvas"
+                        className="motion-press font-display inline-flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body no-underline hover:bg-canvas"
                       >
                         Đã tạo bài · mở mục nháp
                       </Link>
