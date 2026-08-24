@@ -21,20 +21,27 @@ export function StepProgress({
 }) {
   return (
     <div>
-      <p role="status" className="font-display text-question text-moss">
-        Bước {current} trên {total} · {title}
-      </p>
-
-      <div aria-hidden="true" className="mt-tight flex gap-tight">
+      {/* Thanh tiến trình ĐỨNG TRƯỚC tiêu đề bước: nó trả lời "còn bao xa nữa"
+          — câu người dùng hỏi trước khi hỏi "bước này là gì". */}
+      <div aria-hidden="true" className="flex gap-tight">
         {Array.from({ length: total }, (_, index) => (
           <span
             key={index}
-            className={`h-2 flex-1 rounded-full ${
-              index < current ? 'bg-medical' : 'bg-rule'
+            // Đoạn chưa tới dùng `line` chứ không dùng `white`: nền của màn hồ
+            // sơ là `canvas`, mà trắng trên canvas gần như không thấy. `line`
+            // được phép ở đây vì hai vạch này đã `aria-hidden` và dòng chữ ngay
+            // dưới mới là bản chính — xem ghi chú đầu file.
+            className={`h-2 flex-1 rounded-pill ${
+              index < current ? 'bg-mint' : 'bg-line'
             }`}
           />
         ))}
       </div>
+
+      <p role="status" className="font-display mt-snug text-question text-slate">
+        Bước {current} trên {total}
+      </p>
+      <h2 className="mt-hair text-heading font-semibold text-ink">{title}</h2>
     </div>
   )
 }

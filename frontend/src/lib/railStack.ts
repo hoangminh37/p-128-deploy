@@ -21,6 +21,56 @@
  * Tách khỏi component để kiểm được bằng số thuần, không cần trình duyệt.
  */
 
+/**
+ * Nhiều nhất bấy nhiêu thẻ thì dải nguồn còn được đứng ở lề phải.
+ *
+ * VÌ SAO PHẢI CÓ NGƯỠNG. Dải nguồn rộng 252px, còn một thẻ đầy đủ — số thứ tự,
+ * tên tài liệu, đoạn trích hai dòng, nút xem đầy đủ, cơ quan ban hành, số hiệu,
+ * nút mở tài liệu — cao khoảng 312px ở bề ngang đó. Một đoạn văn hai dòng thì
+ * cao 65px. Tức mỗi thẻ chiếm chỗ bằng gần năm dòng chữ.
+ *
+ * Với một hai nguồn, `stackRailTops` đẩy thẻ xuống một chút là xong. Nhưng
+ * backend có lúc trả về bảy nguồn cho một câu trả lời: cột thẻ khi đó cao
+ * 7 × 312 + 6 × 12 = 2256px, trong khi cột chữ chỉ vài trăm px. Phần chênh
+ * lệch là khoảng trắng thuần — gần ba màn hình laptop — và không có luật xếp
+ * chồng nào chữa được, vì vấn đề không nằm ở chỗ xếp mà ở chỗ CỘT BÊN PHẢI DÀI
+ * HƠN CỘT BÊN TRÁI.
+ *
+ * Khi số nguồn vượt quá chiều cao đoạn văn, việc thẳng hàng không còn nói lên
+ * điều gì: thẻ thứ năm nằm ngang một đoạn văn mà nó không hề chú thích. Lúc đó
+ * xếp toàn bộ thẻ xuống dưới câu trả lời thành lưới hai cột là TRUNG THỰC HƠN —
+ * nó thôi hứa một mối liên hệ không có thật — và nó không bao giờ vỡ, vì chiều
+ * cao lưới không còn phụ thuộc chiều cao cột chữ nữa.
+ *
+ * NGƯỠNG LÀ HAI, và con số đó đến từ trường hợp xấu nhất chứ không phải trường
+ * hợp trung bình. Bản trước đặt ngưỡng ba vì cột ba thẻ cao khoảng 960px, vẫn
+ * trong tầm một câu trả lời BÌNH THƯỜNG. Nhưng câu trả lời ngắn thì không hiếm:
+ * một đoạn một dòng cao 32px, đi với ba thẻ là 960px cột bên phải — 928px trắng
+ * trơn, hơn một màn hình laptop, cho một câu trả lời dài đúng một dòng.
+ *
+ * Hai thẻ thì trường hợp xấu nhất còn 636px cột thẻ, tức 604px trắng — vẫn
+ * nhiều, nhưng đây là ngưỡng thấp nhất còn giữ được bố cục hai cột cho những
+ * câu trả lời một nguồn và hai nguồn, vốn là đa số. Hạ xuống một nữa thì dải
+ * nguồn ở lề phải không còn tồn tại trong thực tế.
+ */
+export const MAX_INLINE_RAIL_CARDS = 2
+
+/**
+ * Có phải xếp dải nguồn xuống dưới câu trả lời không.
+ *
+ * `cardCount` là số THẺ sẽ dựng, tức số nguồn được nhắc tới LẦN ĐẦU trong bài —
+ * không phải `citations.length`. Hai con số lệch nhau khi máy chủ trả về một
+ * nguồn mà `answer` không hề có marker trỏ tới: nguồn đó không sinh thẻ nào,
+ * nên nó cũng không được tính vào quyết định bố cục.
+ *
+ * Luật này CHỈ áp ở bố cục từ `--breakpoint-rail` (1162px) trở lên. Dưới mốc đó
+ * dải nguồn vốn đã nằm dưới đoạn văn tương ứng theo luồng thường, không có cột
+ * nào để mà lệch.
+ */
+export function shouldStackRail(cardCount: number): boolean {
+  return cardCount > MAX_INLINE_RAIL_CARDS
+}
+
 export type RailSlot = {
   /** Khoảng cách từ đỉnh cột chữ tới đỉnh đoạn văn tương ứng, đơn vị px. */
   paragraphTop: number

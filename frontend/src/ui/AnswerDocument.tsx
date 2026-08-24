@@ -5,21 +5,45 @@
  * khẳng định y khoa mà không nhìn thấy nguồn của nó CÙNG LÚC. Nguồn không nằm
  * cuối bài, không nằm trong accordion, không nằm sau một cú bấm.
  *
- * BỐ CỤC — vì sao dùng absolute chứ không dùng grid:
+ * BA BỐ CỤC, chọn theo BỀ NGANG và theo SỐ THẺ:
+ *
+ *   Dưới 1162px (`rail:`), mọi số thẻ — thẻ rơi xuống ngay dưới đoạn văn của
+ *   nó theo luồng thường. Không có cột nào để mà lệch.
+ *
+ *   Từ 1162px, tới hai thẻ — dải nguồn ở lề phải, mỗi thẻ neo ngang đoạn văn
+ *   chứa marker của nó. Đây là bố cục chính của sản phẩm.
+ *
+ *   Từ 1162px, từ ba thẻ trở lên — bỏ dải nguồn ở lề phải, toàn bộ thẻ xếp
+ *   xuống dưới câu trả lời thành lưới hai cột. Ngưỡng và lý do đầy đủ nằm ở
+ *   `shouldStackRail` trong `lib/railStack.ts`; tóm tắt: khi số thẻ vượt quá
+ *   chiều cao đoạn văn thì việc thẳng hàng không còn nói lên điều gì — thẻ thứ
+ *   ba đứng ngang một đoạn nó không hề chú thích — nên xếp xuống dưới vừa
+ *   trung thực hơn vừa không bao giờ vỡ.
+ *
+ * CỘT CHỮ GIỮ NGUYÊN BỀ NGANG Ở CẢ BA BỐ CỤC: thẻ trắng luôn dừng ở
+ * `max-w-answer` (594px, ~62 ký tự mỗi dòng). Chỉ KHỐI THẺ NGUỒN xếp dưới mới
+ * lấy hết bề ngang vùng nội dung.
+ *
+ * Bản trước cho cả thẻ trắng giãn ra 850px ở bố cục xếp dưới, tức ~90 ký tự
+ * mỗi dòng — vượt xa khoảng 62–68 ký tự mà `--container-answer` trong
+ * `index.css` được đặt ra để giữ. Người đọc là bệnh nhân 45–70 tuổi: dòng dài
+ * hơn thì mắt dò từ cuối dòng này sang đầu dòng sau dễ nhảy dòng, và đó đúng
+ * là kiểu lỗi đọc mà cả thang cỡ chữ của dự án đang cố tránh. Bố cục thẻ nguồn
+ * không phải lý do để nới cột chữ.
+ *
+ * VÌ SAO BỐ CỤC HAI CỘT DÙNG absolute CHỨ KHÔNG DÙNG grid:
  *
  * Bản trước đặt đoạn văn và thẻ nguồn vào hai ô của cùng một hàng grid. Ngang
  * hàng thì đúng, nhưng chiều cao hàng bằng chiều cao ô cao nhất, nên một đoạn
  * hai dòng đi với thẻ nguồn bốn dòng sẽ bị đẩy giãn ra, và nhịp giữa các đoạn
  * lúc rộng lúc hẹp — chữ mất nhịp đọc.
  *
- * Nay từ 1024px trở lên, thẻ nguồn được nhấc ra khỏi luồng bằng `absolute` và
- * neo vào mép phải của chính đoạn văn nó chú thích. Khoảng cách giữa các đoạn
- * vì thế luôn đúng một bậc `para`, bất kể thẻ cao bao nhiêu.
+ * Nay thẻ nguồn được nhấc ra khỏi luồng bằng `absolute` và neo vào mép phải của
+ * chính đoạn văn nó chú thích. Khoảng cách giữa các đoạn vì thế luôn đúng một
+ * bậc `para`, bất kể thẻ cao bao nhiêu.
  *
- * Dưới 1024px `absolute` tắt, thẻ rơi xuống ngay dưới đoạn của nó theo luồng
- * thường — vẫn đúng nguyên tắc trên, chỉ đổi hướng. Ở bản hẹp thẻ có thêm nền
- * nhạt để tách khỏi dòng chữ đang chảy quanh nó; ở bản rộng thì lề phải đã tách
- * sẵn rồi nên bỏ nền, chỉ còn vạch dọc.
+ * Thẻ giữ nguyên nền của nó ở mọi bố cục: từ bản này thẻ là một khối có nền đặc
+ * (navy hoặc trắng viền), nên nó tự tách khỏi chữ mà không cần một kiểu riêng.
  *
  * THẺ LẶP LẠI: một nguồn được trích ở ba đoạn thì hiện ba thẻ đầy đủ, mỗi thẻ
  * cạnh đúng đoạn của nó. Cố ý không rút gọn lần nhắc thứ hai thành một dòng —
@@ -29,7 +53,12 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 
 import { splitParagraphs } from '../lib/paragraphs'
-import { stackBottom, stackRailTops, type RailSlot } from '../lib/railStack'
+import {
+  shouldStackRail,
+  stackBottom,
+  stackRailTops,
+  type RailSlot,
+} from '../lib/railStack'
 import type { Citation } from '../lib/schemas'
 
 /** Marker trích dẫn trong `answer`, dạng `[1]`, `[2]`... Khớp mục 5 hợp đồng. */
@@ -48,8 +77,18 @@ type Paragraph = {
    * câu chữ vẫn còn nguyên ở mọi lần nhắc — đó mới là thứ nối khẳng định với
    * nguồn, còn thẻ chỉ là chỗ trình bày chi tiết một lần.
    */
-  citations: Citation[]
+  citations: RailCitation[]
 }
+
+/**
+ * Thứ tự XUẤT HIỆN của một thẻ trong cả dải nguồn, đếm từ 0.
+ *
+ * KHÔNG phải `citation.id`. Hai thứ này trùng nhau ở phần lớn câu trả lời, rồi
+ * lệch ngay khi bài trích nguồn 2 trước nguồn 1 — lúc đó thẻ mang số 2 mới là
+ * thẻ đầu dải. Dải nguồn tô màu theo VỊ TRÍ chứ không theo số hiệu, nên nó cần
+ * con số này.
+ */
+type RailCitation = { citation: Citation; order: number }
 
 /**
  * Cắt `answer` thành các đoạn văn, mỗi đoạn kèm đúng những nguồn nó trích dẫn.
@@ -85,23 +124,28 @@ function parseAnswer(answer: string, citations: Citation[]): Paragraph[] {
       segments.push({ kind: 'text', value: block.slice(cursor) })
     }
 
-    const paragraphCitations = citedIds
-      .sort((a, b) => a - b)
-      .map((id) => byId.get(id))
-      .filter((citation): citation is Citation => citation !== undefined)
+    const paragraphCitations: RailCitation[] = []
+
+    for (const id of [...citedIds].sort((a, b) => a - b)) {
+      const citation = byId.get(id)
+      if (citation === undefined) continue
       // Giữ lại đúng lần nhắc đầu tiên. Từ lần thứ hai trở đi, lề phải im lặng.
-      .filter((citation) => {
-        if (alreadyShown.has(citation.id)) return false
-        alreadyShown.add(citation.id)
-        return true
-      })
+      if (alreadyShown.has(citation.id)) continue
+
+      // Gán `order` NGAY TRONG vòng lặp này, không tách thành một `.map()`
+      // đứng sau `.filter()`: `filter` chạy xong toàn bộ mảng rồi `map` mới bắt
+      // đầu, nên lúc đó `alreadyShown` đã chứa cả những nguồn phía sau và mọi
+      // thẻ trong cùng một đoạn sẽ nhận chung một con số.
+      paragraphCitations.push({ citation, order: alreadyShown.size })
+      alreadyShown.add(citation.id)
+    }
 
     return { segments, citations: paragraphCitations }
   })
 }
 
 /**
- * Marker giữa dòng chữ: số nhỏ nâng lên, nền medical đặc, chữ paper (5.76:1).
+ * Marker giữa dòng chữ: số nhỏ nâng lên, NỀN MINT đặc, chữ `ink` (7.95:1).
  *
  * Dùng `sup` thật chứ không phải `span` tự nâng bằng CSS, để trình đọc màn hình
  * và chế độ đọc của trình duyệt hiểu đúng đây là chú thích chứ không phải một
@@ -119,7 +163,7 @@ function parseAnswer(answer: string, citations: Citation[]): Paragraph[] {
  */
 function CitationMarker({ id }: { id: number }) {
   return (
-    <sup className="font-mono rounded-xs bg-medical px-hair text-marker font-semibold text-paper">
+    <sup className="font-mono rounded-sm bg-mint px-hair text-marker font-semibold text-ink">
       {id}
       <span className="sr-only"> (nguồn {id})</span>
     </sup>
@@ -127,19 +171,44 @@ function CitationMarker({ id }: { id: number }) {
 }
 
 /**
- * Thẻ nguồn của một đoạn văn.
+ * Hai bộ mặt của một thẻ nguồn, chọn theo VỊ TRÍ trong dải chứ không theo số
+ * hiệu tài liệu.
  *
- * Bốn phần, theo thứ tự người bệnh cần: tài liệu nào, tài liệu nói gì, số hiệu
- * để đối chiếu, rồi mới tới đường dẫn mở bản gốc.
+ * THẺ ĐẦU nền navy chữ trắng, các thẻ sau nền trắng chữ ink. Nhịp này có hai
+ * việc: nó cho mắt một điểm dừng ở đầu dải thay vì một cột thẻ trắng đều tăm
+ * tắp, và nó ngầm nói rằng thẻ đầu là nguồn của khẳng định ĐẦU TIÊN trong bài —
+ * thứ người bệnh đọc trước nhất.
  *
- * `snippet` là phần quan trọng nhất và trước đây bị bỏ quên hẳn: nó là chỗ duy
- * nhất người bệnh đọc được ĐÚNG CÂU trong văn bản gốc mà không phải mở tài liệu
- * ra. Đặt trong ngoặc kép và dùng font body để nhìn ra ngay đây là lời trích,
- * không phải lời của trợ lý.
+ * `lead` dùng `mist` cho dòng phụ (6.80:1 trên ink) và `rest` dùng `slate`
+ * (4.96:1 trên trắng). Hai họ nền, hai màu chữ phụ, không lẫn.
  */
-/** Khung chung của một mục trong dải nguồn: nét dọc, và nền nhạt ở bản hẹp. */
-const RAIL_ITEM_CLASS =
-  'rounded-lg border-l-4 border-medical bg-medical/10 p-snug lg:rounded-none lg:bg-transparent lg:py-0 lg:pr-0 lg:pl-snug'
+const RAIL_SKIN = {
+  lead: {
+    card: 'bg-ink',
+    title: 'text-white',
+    number: 'text-mint',
+    quote: 'text-white',
+    meta: 'text-mist',
+    action: 'bg-mint text-ink hover:bg-mint-press',
+    expand: 'text-mint',
+  },
+  rest: {
+    // Nền `canvas` ở bản hẹp, `white` từ 1162px. Không phải hai ý thích: dưới
+    // mốc đó thẻ nguồn rơi vào TRONG thẻ trắng bọc câu trả lời, nên một thẻ
+    // trắng nữa đặt lên đó thì không còn ranh giới nào. Từ 1162px thẻ ra hẳn lề
+    // phải hoặc xuống lưới bên dưới, đứng trên nền canvas của trang, và lúc đó
+    // trắng mới là màu tách nó ra.
+    card: 'bg-canvas rail:border-2 rail:border-line rail:bg-white',
+    title: 'text-ink',
+    number: 'text-ink',
+    quote: 'text-ink',
+    meta: 'text-slate',
+    action: 'border-2 border-slate text-ink hover:bg-canvas',
+    expand: 'text-ink',
+  },
+} as const
+
+type RailSkin = (typeof RAIL_SKIN)[keyof typeof RAIL_SKIN]
 
 /**
  * Đoạn trích, cắt còn hai dòng kèm nút mở rộng.
@@ -157,7 +226,7 @@ const RAIL_ITEM_CLASS =
  * `scrollHeight` bằng `clientHeight`, đo tiếp sẽ kết luận "không bị cắt" và nút
  * thu gọn tự biến mất — người dùng mở ra rồi không đóng lại được.
  */
-function CitationSnippet({ text }: { text: string }) {
+function CitationSnippet({ text, skin }: { text: string; skin: RailSkin }) {
   const [isExpanded, setExpanded] = useState(false)
   const [isTruncated, setTruncated] = useState(false)
   const textRef = useRef<HTMLParagraphElement>(null)
@@ -186,7 +255,7 @@ function CitationSnippet({ text }: { text: string }) {
       <p
         ref={textRef}
         id={snippetId}
-        className={`font-body mt-tight text-question text-ink ${
+        className={`font-body mt-tight text-question ${skin.quote} ${
           isExpanded ? '' : 'line-clamp-2'
         }`}
       >
@@ -199,7 +268,7 @@ function CitationSnippet({ text }: { text: string }) {
           onClick={() => setExpanded((current) => !current)}
           aria-expanded={isExpanded}
           aria-controls={snippetId}
-          className="font-display flex min-h-touch items-center text-question font-semibold text-medical underline underline-offset-4"
+          className={`motion-press font-display flex min-h-touch items-center text-question font-semibold underline underline-offset-4 ${skin.expand}`}
         >
           {isExpanded ? 'Thu gọn đoạn trích' : 'Xem đầy đủ đoạn trích'}
         </button>
@@ -218,22 +287,32 @@ function CitationSnippet({ text }: { text: string }) {
  * không phải mở tài liệu ra. Đặt trong ngoặc kép và dùng font body để nhìn ra
  * ngay đây là lời trích, không phải lời của trợ lý.
  */
-function FullCitationCard({ citation }: { citation: Citation }) {
+function FullCitationCard({ citation, order }: RailCitation) {
+  const skin = order === 0 ? RAIL_SKIN.lead : RAIL_SKIN.rest
+
   return (
-    <div className={RAIL_ITEM_CLASS}>
-      <p className="font-display text-source text-ink">
-        <span className="font-mono text-medical">{citation.id}.</span>{' '}
+    <div className={`rounded-card p-snug ${skin.card}`}>
+      {/* Số thứ tự tách hẳn thành một dòng mono riêng ở trên tên tài liệu, chứ
+          không nhét vào đầu câu như bản trước. Nó là thứ nối thẻ này với marker
+          trong dòng chữ, nên nó phải tìm được bằng cách quét dọc mép trái dải
+          nguồn — mà muốn quét dọc được thì mọi thẻ phải đặt số ở cùng một chỗ,
+          không phụ thuộc tên tài liệu dài hay ngắn. */}
+      <p className={`font-mono text-question font-semibold ${skin.number}`}>
+        {String(citation.id).padStart(2, '0')}
+      </p>
+
+      <p className={`font-display mt-hair text-source font-semibold ${skin.title}`}>
         {citation.title}
       </p>
 
-      <CitationSnippet text={citation.snippet} />
+      <CitationSnippet text={citation.snippet} skin={skin} />
 
-      <p className="font-display mt-tight text-question text-moss">
+      <p className={`font-display mt-tight text-question ${skin.meta}`}>
         {citation.issuer}
       </p>
 
       {citation.doc_code !== null && (
-        <p className="font-mono text-question text-moss">{citation.doc_code}</p>
+        <p className={`font-mono text-question ${skin.meta}`}>{citation.doc_code}</p>
       )}
 
       {/* Hợp đồng cho phép `url` bằng `null` — tài liệu chưa được đăng công khai
@@ -244,7 +323,7 @@ function FullCitationCard({ citation }: { citation: Citation }) {
           href={citation.url}
           target="_blank"
           rel="noreferrer"
-          className="font-display mt-tight inline-flex min-h-touch items-center text-question font-semibold text-medical underline underline-offset-4"
+          className={`motion-press font-display mt-snug inline-flex min-h-touch items-center justify-center rounded-pill px-cozy text-question font-semibold no-underline ${skin.action}`}
         >
           Mở tài liệu
           <span className="sr-only">: {citation.title}, mở ở tab mới</span>
@@ -260,12 +339,19 @@ function FullCitationCard({ citation }: { citation: Citation }) {
  * Chỉ dựng cho những nguồn LẦN ĐẦU được nhắc tới — `parseAnswer` đã lọc sẵn.
  * Đoạn nào chỉ nhắc lại nguồn cũ thì trả `null`, lề phải bỏ trống hẳn chỗ đó và
  * thẻ tiếp theo được kéo lên gần đoạn văn của nó hơn.
+ *
+ * `isStacked` đổi hẳn vai của khối này: ở bố cục xếp dưới, nó chỉ còn sống dưới
+ * 1162px và biến mất hẳn từ 1162px trở lên, nhường chỗ cho `StackedCitations`.
+ * `rail:hidden` gỡ nó khỏi cả cây trợ năng nữa (`display: none`), nên trình đọc
+ * màn hình không đọc hai lần cùng một danh sách nguồn.
  */
 function CitationRail({
   citations,
+  isStacked,
   ref,
 }: {
-  citations: Citation[]
+  citations: RailCitation[]
+  isStacked: boolean
   /** Để `useCitationRailLayout` đo chiều cao và đặt `top` cho thẻ này. */
   ref: (element: HTMLElement | null) => void
 }) {
@@ -276,15 +362,74 @@ function CitationRail({
       ref={ref}
       // Nhãn nói rõ đây là nguồn của riêng đoạn liền kề, không phải của cả bài.
       aria-label="Nguồn cho đoạn trên"
-      // KHÔNG có `lg:top-0` nữa: `top` do JavaScript đặt. Trước lúc script chạy
+      // KHÔNG có `rail:top-0`: `top` do JavaScript đặt. Trước lúc script chạy
       // xong, `top: auto` cho thẻ đứng đúng chỗ tĩnh của nó — ngay dưới đoạn văn
       // — nên trạng thái tạm cũng không đè lên nhau.
-      className="mt-snug lg:absolute lg:left-full lg:mt-0 lg:ml-block lg:w-rail"
+      //
+      // `rail:` chứ KHÔNG phải `lg:` (xem `--breakpoint-rail` ở `index.css`):
+      // ở 1024px thì <main> chỉ còn 772px, thiếu 138px so với 910px mà bố cục
+      // hai cột cần, nên dải nguồn thò ra khỏi mép cửa sổ và sinh thanh cuộn
+      // ngang. `lg:` vẫn là mốc của thanh bên và của hai nút trên thanh tiêu đề;
+      // hai mốc đó độc lập với mốc này.
+      //
+      // Ở bố cục xếp dưới thì KHÔNG gắn `rail:absolute`. Đó cũng chính là tín
+      // hiệu mà `useCitationRailLayout` đọc để biết mình không có việc gì làm —
+      // nó hỏi thẳng `getComputedStyle().position` chứ không giữ thêm một cờ.
+      className={
+        isStacked
+          ? 'mt-snug rail:hidden'
+          : 'mt-snug rail:absolute rail:left-full rail:mt-0 rail:ml-block rail:w-rail'
+      }
     >
       <ul className="space-y-snug">
-        {citations.map((citation) => (
-          <li key={citation.id}>
-            <FullCitationCard citation={citation} />
+        {citations.map((entry) => (
+          <li key={entry.citation.id}>
+            <FullCitationCard citation={entry.citation} order={entry.order} />
+          </li>
+        ))}
+      </ul>
+    </aside>
+  )
+}
+
+/**
+ * Toàn bộ thẻ nguồn, xếp thành lưới hai cột dưới câu trả lời.
+ *
+ * CHỈ dựng từ 1162px (`hidden rail:block`) và chỉ khi có từ ba thẻ — dưới mốc
+ * đó `CitationRail` đã lo phần việc này theo luồng thường.
+ *
+ * ĐẶT NGOÀI thẻ trắng bọc câu trả lời, không phải bên trong. Thẻ nguồn từ vị trí
+ * thứ hai trở đi có nền trắng; nằm trong một thẻ trắng khác thì chúng mất hẳn
+ * đường bao. Ở đây chúng đứng trên nền `canvas` của trang, nên nền trắng mới là
+ * thứ tách chúng ra.
+ *
+ * Dòng tiêu đề nói rõ SỐ TÀI LIỆU. Ở bố cục hai cột, người đọc biết có bao nhiêu
+ * nguồn bằng cách nhìn lề phải; ở bố cục này danh sách nằm dưới cuối và có thể
+ * dài hơn một màn hình, nên con số phải nói ra bằng chữ.
+ */
+function StackedCitations({
+  citations,
+  headingId,
+}: {
+  citations: RailCitation[]
+  headingId: string
+}) {
+  return (
+    <aside
+      aria-labelledby={headingId}
+      className="mt-block hidden rail:block"
+    >
+      <h2
+        id={headingId}
+        className="font-display text-question font-semibold text-ink"
+      >
+        Nguồn của câu trả lời · {citations.length} tài liệu
+      </h2>
+
+      <ul className="mt-snug grid grid-cols-2 gap-cozy">
+        {citations.map((entry) => (
+          <li key={entry.citation.id}>
+            <FullCitationCard citation={entry.citation} order={entry.order} />
           </li>
         ))}
       </ul>
@@ -395,45 +540,71 @@ export function AnswerDocument({
   citations: Citation[]
 }) {
   const paragraphs = parseAnswer(answer, citations)
+  const stackedHeadingId = useId()
 
-  // Chữ ký đổi khi số đoạn hoặc chỗ đặt thẻ đổi — lúc đó phải gắn lại observer.
+  /**
+   * Mọi thẻ sẽ dựng, theo đúng thứ tự xuất hiện trong bài.
+   *
+   * `parseAnswer` đã lọc lần nhắc thứ hai trở đi, nên độ dài mảng này CHÍNH LÀ
+   * số thẻ — không phải `citations.length`, thứ còn đếm cả những nguồn mà
+   * `answer` không có marker nào trỏ tới.
+   */
+  const railCards = paragraphs.flatMap((paragraph) => paragraph.citations)
+  const isStacked = shouldStackRail(railCards.length)
+
+  // Chữ ký đổi khi bố cục hoặc chỗ đặt thẻ đổi — lúc đó phải gắn lại observer.
   // Dùng chuỗi chứ không dùng mảng, để mảng mới mỗi lần render không làm effect
-  // chạy lại vô ích.
-  const signature = paragraphs.map((paragraph) => paragraph.citations.length).join(',')
+  // chạy lại vô ích. `isStacked` nằm trong chữ ký vì đổi bố cục là đổi hẳn tập
+  // phần tử cần đo.
+  const signature = `${isStacked}|${paragraphs
+    .map((paragraph) => paragraph.citations.length)
+    .join(',')}`
   const { containerRef, paragraphRefs, railRefs } = useCitationRailLayout(signature)
 
   return (
-    // `relative` là mốc neo cho CẢ cột thẻ, không phải cho từng đoạn. Neo theo
-    // từng đoạn thì mỗi thẻ chỉ biết ô của riêng nó và không có cách nào tránh
-    // thẻ đứng trước.
-    <div ref={containerRef} className="relative max-w-answer">
-      {paragraphs.map((paragraph, index) => (
-        <div
-          key={index}
-          ref={(element) => {
-            paragraphRefs.current[index] = element
-          }}
-          // Khoảng cách giữa các đoạn luôn đúng một bậc `para`. Thẻ nguồn nằm
-          // ngoài luồng ở bản rộng nên không kéo giãn được chỗ này.
-          className={index < paragraphs.length - 1 ? 'mb-para' : ''}
-        >
-          <p className="text-answer whitespace-pre-wrap">
-            {paragraph.segments.map((segment, segmentIndex) =>
-              segment.kind === 'text' ? (
-                <span key={segmentIndex}>{segment.value}</span>
-              ) : (
-                <CitationMarker key={segmentIndex} id={segment.id} />
-              ),
-            )}
-          </p>
-          <CitationRail
-            citations={paragraph.citations}
-            ref={(element) => {
-              railRefs.current[index] = element
-            }}
-          />
+    // Khối ngoài lấy hết bề ngang vùng nội dung, nhưng CHỈ để khối thẻ nguồn
+    // xếp dưới dùng hết chỗ đó. Thẻ trắng bên trong vẫn dừng ở `max-w-answer` ở
+    // mọi bố cục — xem ghi chú "CỘT CHỮ GIỮ NGUYÊN BỀ NGANG" ở đầu file.
+    <div className="w-full">
+      <div className="max-w-answer rounded-card-lg bg-white p-cozy">
+        {/* `relative` là mốc neo cho CẢ cột thẻ, không phải cho từng đoạn. Neo
+            theo từng đoạn thì mỗi thẻ chỉ biết ô của riêng nó và không có cách
+            nào tránh thẻ đứng trước. */}
+        <div ref={containerRef} className="relative w-full">
+          {paragraphs.map((paragraph, index) => (
+            <div
+              key={index}
+              ref={(element) => {
+                paragraphRefs.current[index] = element
+              }}
+              // Khoảng cách giữa các đoạn luôn đúng một bậc `para`. Thẻ nguồn nằm
+              // ngoài luồng ở bố cục hai cột nên không kéo giãn được chỗ này.
+              className={index < paragraphs.length - 1 ? 'mb-para' : ''}
+            >
+              <p className="text-answer whitespace-pre-wrap">
+                {paragraph.segments.map((segment, segmentIndex) =>
+                  segment.kind === 'text' ? (
+                    <span key={segmentIndex}>{segment.value}</span>
+                  ) : (
+                    <CitationMarker key={segmentIndex} id={segment.id} />
+                  ),
+                )}
+              </p>
+              <CitationRail
+                citations={paragraph.citations}
+                isStacked={isStacked}
+                ref={(element) => {
+                  railRefs.current[index] = element
+                }}
+              />
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
+
+      {isStacked && (
+        <StackedCitations citations={railCards} headingId={stackedHeadingId} />
+      )}
     </div>
   )
 }

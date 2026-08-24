@@ -1,10 +1,10 @@
 /**
  * Lỗi kỹ thuật, trình bày bằng đúng ngôn ngữ của ba khối trạng thái kia.
  *
- * Dùng chung `StateBlock` với giọng `fault`: nét dọc màu `alert` nhưng KHÔNG có
- * nền đặc. Đây là chủ ý — chỉ `red_flag` mới được phép là một khối đỏ kín màn
- * hình. Một máy chủ hỏng không bao giờ được trông ngang hàng với một cơn đau
- * ngực.
+ * Dùng chung `StateBlock` với giọng `fault`: nền trắng, viền và nét trái màu
+ * `alert`, nhưng KHÔNG có nền đặc. Đây là chủ ý — chỉ `red_flag` mới được phép
+ * là một khối đỏ kín màn hình. Một máy chủ hỏng không bao giờ được trông ngang
+ * hàng với một cơn đau ngực.
  *
  * `ApiError.userMessage` đã có sẵn câu tiếng Việt, nhưng nó mô tả CHUYỆN GÌ ĐÃ
  * XẢY RA. Người 45–70 tuổi đang lo lắng cần biết BÂY GIỜ PHẢI LÀM GÌ, nên ở đây
@@ -153,7 +153,7 @@ export function ErrorNotice({
         <button
           type="button"
           onClick={onRetry}
-          className="font-display mt-cozy min-h-touch rounded-lg border-2 border-border px-cozy text-input font-semibold text-ink"
+          className="motion-press font-display mt-cozy min-h-touch rounded-pill border-2 border-slate px-cozy text-input font-semibold text-ink enabled:hover:bg-canvas"
         >
           {retryLabel}
         </button>

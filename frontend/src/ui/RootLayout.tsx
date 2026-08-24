@@ -1,5 +1,5 @@
 /**
- * Khung ngoài dùng chung cho cả ba màn: thanh bên và vùng nội dung.
+ * Khung ngoài dùng chung cho mọi màn sau đăng nhập: thanh bên và vùng nội dung.
  *
  * HAI CÁCH HIỂN THỊ, ranh giới ở 1024px — đúng mốc `lg` mà `AnswerDocument`
  * dùng để nhả dải nguồn ra lề phải:
@@ -14,8 +14,16 @@
  * không tắt được. Ẩn bằng `display:none` mà vẫn khóa cuộn trang thì ở bản rộng
  * người dùng sẽ không cuộn được trang mà chẳng hiểu vì sao.
  *
- * Vùng nội dung giữ nguyên bề ngang cũ: bằng cột câu trả lời, từ 1024px nới ra
- * đúng bằng cột chữ cộng dải nguồn.
+ * HAI HỌ NỀN GẶP NHAU Ở ĐÂY. Khung ngoài là navy đặc; vùng nội dung là một tấm
+ * `canvas` đặt chồng lên, bo hai góc TRÁI để lộ một vạch navy chạy dọc giữa
+ * thanh bên và nội dung. Vạch đó thay hẳn đường kẻ 1px của bản trước: nó là
+ * ranh giới nhìn thấy được ở mọi cỡ chữ, và nó nói ra rằng thanh bên với vùng
+ * nội dung là hai lớp khác nhau chứ không phải hai ô của cùng một bảng.
+ *
+ * NGOẠI LỆ DUY NHẤT: `/editor` (tổng quan) giữ nền navy suốt cả vùng nội dung.
+ * Đó là màn DẪN DẮT — người dùng mở nó để nhìn hai con số rồi đi tiếp, không
+ * đọc gì lâu ở đó — nên nó thuộc họ nền tối, cùng nhóm với trang giới thiệu và
+ * màn đăng nhập. Ba màn làm việc còn lại của biên tập viên vẫn là canvas.
  */
 import { useCallback, useRef, useState } from 'react'
 import { Outlet, useLocation, useMatch } from 'react-router-dom'
@@ -24,6 +32,7 @@ import { useConversations } from '../app/conversations'
 import { APP_NAME } from '../lib/appName'
 import { CONDITION_LABEL } from '../lib/conditions'
 import { usePatient } from '../patient/context'
+import { Backdrop } from './Backdrop'
 import { ContentHeader } from './ContentHeader'
 import { Sidebar } from './Sidebar'
 import { useFocusTrap, useMediaQuery, useScrollLock } from './shellHooks'
@@ -36,7 +45,19 @@ function editorTitle(pathname: string): string {
   if (pathname.startsWith('/editor/queue/')) return 'Duyệt nội dung'
   if (pathname.startsWith('/editor/queue')) return 'Hàng đợi duyệt'
   if (pathname.startsWith('/editor/out-of-scope')) return 'Câu hỏi chưa trả lời được'
+  if (pathname.startsWith('/editor/upload')) return 'Tải lên tài liệu'
   return 'Tổng quan'
+}
+
+/**
+ * Màn nào thuộc họ nền tối.
+ *
+ * Chỉ tổng quan biên tập viên, và phải so khớp CHÍNH XÁC: `startsWith` sẽ kéo
+ * theo cả `/editor/queue` lẫn `/editor/out-of-scope`, hai màn làm việc thuộc
+ * họ nền sáng.
+ */
+function isDarkContent(pathname: string): boolean {
+  return pathname === '/editor'
 }
 
 /**
@@ -65,7 +86,7 @@ function SidebarDrawer({
       <div
         aria-hidden="true"
         onClick={onClose}
-        className="absolute inset-0 bg-ink/50"
+        className="absolute inset-0 bg-ink/70"
       />
 
       <div
@@ -73,7 +94,7 @@ function SidebarDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Thanh bên"
-        className="absolute inset-y-0 left-0 w-rail border-r border-rule bg-paper"
+        className="absolute inset-y-0 left-0 w-rail bg-ink"
       >
         <Sidebar
           activeConversationId={activeConversationId}
@@ -135,6 +156,8 @@ export function RootLayout() {
       ? CONDITION_LABEL[profile.primary_condition]
       : APP_NAME
 
+  const isDark = isDarkContent(pathname)
+
   // Kéo cửa sổ rộng ra thì thanh bên đã thường trực, ngăn kéo phải tự thu lại —
   // nếu không thì lần thu hẹp sau nó sẽ tự bật ra dù người dùng chưa bấm gì.
   //
@@ -147,21 +170,37 @@ export function RootLayout() {
   }
 
   return (
-    <div className="flex min-h-dvh bg-paper text-ink">
+    <div className="flex min-h-dvh bg-ink">
       {isDesktop && (
         // `h-dvh` + `sticky` cho thanh bên đứng yên trong lúc nội dung cuộn.
         // Có chiều cao tường minh nên nó không bị flex kéo giãn theo nội dung,
         // và phần danh sách bên trong mới cuộn riêng được.
-        <aside className="sticky top-0 h-dvh w-rail shrink-0 border-r border-rule">
+        <aside className="sticky top-0 h-dvh w-rail shrink-0 bg-ink">
           <Sidebar activeConversationId={activeConversationId} />
         </aside>
       )}
 
       {/* `min-w-0` để chữ dài trong vùng nội dung co lại được thay vì đẩy rộng
-          cả khung và sinh ra thanh cuộn ngang. */}
-      <div className="flex min-w-0 flex-1 flex-col">
+          cả khung và sinh ra thanh cuộn ngang.
+          Bo góc CHỈ ở bản rộng: dưới 1024px thanh bên không thường trực nên
+          không có nền navy nào ở bên trái để lộ ra, và một góc bo lơ lửng
+          giữa mép màn hình trông như lỗi hiển thị. */}
+      <div
+        // `relative isolate` là mốc neo và là hộp xếp lớp cho họa tiết nền:
+        // `Backdrop` nằm ở `-z-0` bên trong, còn thanh tiêu đề (`z-30`) và vùng
+        // nội dung (`z-10`) nổi lên trên. Thiếu `isolate` thì `-z-0` có thể chui
+        // xuống dưới cả nền của khối cha ở một số trình duyệt.
+        className={`relative isolate flex min-w-0 flex-1 flex-col lg:rounded-l-card-lg ${
+          isDark ? 'bg-ink' : 'bg-canvas'
+        }`}
+      >
+        {/* Chỉ ở họ nền sáng. Màn tổng quan biên tập là nền navy và nó tự dựng
+            họa tiết `ink` của riêng mình — xem `EditorDashboardScreen`. */}
+        {!isDark && <Backdrop tone="canvas" />}
+
         <ContentHeader
           isDesktop={isDesktop}
+          isDark={isDark}
           title={headerTitle()}
           conditionLabel={conditionLabel}
           isDrawerOpen={isDrawerOpen}
@@ -171,7 +210,11 @@ export function RootLayout() {
 
         <main
           ref={contentRef}
-          className="mx-auto flex w-full max-w-answer flex-1 flex-col px-cozy py-cozy lg:max-w-reading"
+          className={`relative z-10 mx-auto flex w-full flex-1 flex-col px-cozy py-cozy ${
+            // Màn tổng quan biên tập là một bố cục thẻ, không phải một cột chữ,
+            // nên nó cần cả bề ngang. Mọi màn còn lại giữ nguyên cột đọc cũ.
+            isDark ? 'max-w-page' : 'max-w-answer lg:max-w-reading'
+          }`}
         >
           <Outlet />
         </main>

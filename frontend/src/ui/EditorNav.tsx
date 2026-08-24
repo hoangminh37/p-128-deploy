@@ -49,15 +49,21 @@ export function EditorNav({ onNavigate }: { onNavigate?: () => void }) {
               end={item.end}
               onClick={onNavigate}
               className={({ isActive }) =>
-                `font-display flex min-h-touch items-center gap-tight rounded-lg border-l-4 py-tight pr-snug pl-tight text-question text-ink no-underline ${
-                  isActive ? 'border-medical bg-rule font-semibold' : 'border-transparent'
+                // Cùng ngôn ngữ hình với danh sách hội thoại: nền trắng mờ cộng
+                // chữ sáng lên. Xem ghi chú màu ở đầu `ConversationNav.tsx`.
+                `font-display flex min-h-touch items-center gap-tight rounded-icon px-snug py-tight text-question no-underline ${
+                  isActive
+                    ? 'bg-white/10 font-semibold text-white hover:bg-white/15'
+                    : 'text-mist hover:bg-white/10 hover:text-white'
                 }`
               }
             >
               <span className="min-w-0 flex-1">{item.label}</span>
 
+              {/* Nền mint đặc chứ không phải nền mờ: con số này là thứ biên
+                  tập viên quét mắt tìm, và mint / ink đạt 7.95:1. */}
               {item.count !== undefined && (
-                <span className="font-mono shrink-0 rounded-full bg-medical/10 px-snug text-question text-medical">
+                <span className="font-mono shrink-0 rounded-pill bg-mint px-snug text-question font-semibold text-ink">
                   {item.count}
                 </span>
               )}

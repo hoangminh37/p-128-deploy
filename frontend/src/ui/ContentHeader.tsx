@@ -55,16 +55,22 @@ function readTranscript(root: HTMLElement | null): string {
 /**
  * Nút chỉ có biểu tượng.
  *
- * Viền `border` (3.29:1) chứ không phải `rule`: đây là thành phần tương tác nên
- * ranh giới của nó phải nhìn thấy được. `aria-label` là bắt buộc — hình vẽ bên
- * trong đã `aria-hidden` nên không có nhãn thì nút hoàn toàn câm.
+ * Nền đặc chứ không phải viền mảnh: trên nền `canvas` thì khối trắng đã đủ
+ * tách, trên nền `ink` thì khối trắng mờ 10% cho ra #233B58 và biểu tượng
+ * trắng trên đó đạt 11.43:1. Cách nào cũng vượt xa ngưỡng 3:1 cho ranh giới
+ * thành phần tương tác, mà không phải kẻ thêm nét nào.
+ *
+ * `aria-label` là bắt buộc — hình vẽ bên trong đã `aria-hidden` nên không có
+ * nhãn thì nút hoàn toàn câm.
  */
 function IconButton({
   label,
+  isDark,
   onClick,
   children,
 }: {
   label: string
+  isDark: boolean
   onClick: () => void
   children: ReactNode
 }) {
@@ -74,7 +80,11 @@ function IconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-lg border-2 border-border bg-paper text-ink"
+      className={`motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-icon ${
+        isDark
+          ? 'bg-white/10 text-white enabled:hover:bg-white/15'
+          : 'bg-white text-ink enabled:hover:bg-canvas'
+      }`}
     >
       {children}
     </button>
@@ -83,6 +93,7 @@ function IconButton({
 
 export function ContentHeader({
   isDesktop,
+  isDark,
   title,
   conditionLabel,
   isDrawerOpen,
@@ -90,6 +101,8 @@ export function ContentHeader({
   contentRef,
 }: {
   isDesktop: boolean
+  /** Vùng nội dung đang dùng nền navy hay nền canvas. Xem `RootLayout`. */
+  isDark: boolean
   /** Tên hội thoại đang mở, hiện ở bản rộng. */
   title: string
   /** Tên bệnh chính, hiện ở giữa thanh tiêu đề bản hẹp. */
@@ -124,13 +137,28 @@ export function ContentHeader({
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-rule bg-paper">
-      <div className="mx-auto flex w-full max-w-answer items-center gap-tight px-cozy py-tight lg:max-w-reading">
+    // Nền phải trùng nền vùng nội dung, nếu không chữ cuộn qua phía dưới sẽ lộ
+    // ra. Bo góc trái trên đi cùng với tấm canvas của `RootLayout` — thanh tiêu
+    // đề là dòng đầu tiên của chính tấm đó, không phải một dải riêng đè lên nó.
+    <header
+      className={`sticky top-0 z-30 lg:rounded-tl-card-lg ${
+        isDark ? 'bg-ink' : 'border-b border-line bg-canvas'
+      }`}
+    >
+      <div
+        className={`mx-auto flex w-full items-center gap-tight px-cozy py-tight ${
+          isDark ? 'max-w-page' : 'max-w-answer lg:max-w-reading'
+        }`}
+      >
         {isDesktop ? (
           <>
             {/* Dùng `p` chứ không dùng `h1`: mỗi màn hình đã có `h1` của riêng
                 nó, thêm một cái nữa ở khung ngoài là hai tiêu đề cấp một. */}
-            <p className="font-display min-w-0 flex-1 truncate text-app font-bold">
+            <p
+              className={`font-display min-w-0 flex-1 truncate text-app font-bold ${
+                isDark ? 'text-white' : 'text-ink'
+              }`}
+            >
               {title}
             </p>
 
@@ -138,16 +166,26 @@ export function ContentHeader({
               {/* Luôn có mặt trong DOM để `aria-live` báo được thay đổi. */}
               <p
                 role="status"
-                className="font-display min-w-0 truncate text-note text-moss"
+                className={`font-display min-w-0 truncate text-note ${
+                  isDark ? 'text-mist' : 'text-slate'
+                }`}
               >
                 {notice}
               </p>
 
-              <IconButton label="Sao chép nội dung" onClick={() => void handleCopy()}>
+              <IconButton
+                label="Sao chép nội dung"
+                isDark={isDark}
+                onClick={() => void handleCopy()}
+              >
                 <CopyIcon className="h-6 w-6" />
               </IconButton>
 
-              <IconButton label="Lưu nội dung về máy" onClick={handleSave}>
+              <IconButton
+                label="Lưu nội dung về máy"
+                isDark={isDark}
+                onClick={handleSave}
+              >
                 <SaveIcon className="h-6 w-6" />
               </IconButton>
             </div>
@@ -160,12 +198,20 @@ export function ContentHeader({
               aria-label="Mở thanh bên"
               aria-haspopup="dialog"
               aria-expanded={isDrawerOpen}
-              className="flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-lg border-2 border-border bg-paper text-ink"
+              className={`motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-icon ${
+                isDark
+                  ? 'bg-white/10 text-white enabled:hover:bg-white/15'
+                  : 'bg-white text-ink enabled:hover:bg-canvas'
+              }`}
             >
               <MenuIcon className="h-6 w-6" />
             </button>
 
-            <p className="font-display min-w-0 flex-1 truncate text-center text-app font-bold">
+            <p
+              className={`font-display min-w-0 flex-1 truncate text-center text-app font-bold ${
+                isDark ? 'text-white' : 'text-ink'
+              }`}
+            >
               {conditionLabel}
             </p>
 
@@ -173,7 +219,7 @@ export function ContentHeader({
               to="/chat"
               aria-label="Câu hỏi mới"
               title="Câu hỏi mới"
-              className="flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-lg border-2 border-medical bg-medical text-paper no-underline"
+              className="motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-pill bg-mint text-ink no-underline hover:bg-mint-press"
             >
               <PlusIcon className="h-6 w-6" />
             </Link>
