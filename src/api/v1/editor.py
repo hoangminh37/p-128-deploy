@@ -99,9 +99,6 @@ async def get_queue_item(
     )
 
 
-
-
-
 @router.post("/queue/upload", response_model=EditorQueueItemDetail, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     background_tasks: BackgroundTasks,
@@ -272,6 +269,6 @@ async def draft_out_of_scope(
 @router.post("/seed-database")
 async def seed_database_endpoint(db: AsyncSession = Depends(get_db), current_user: UserInfo = Depends(get_editor_user)):
     from scripts.init_db import init_db
+
     await init_db(reset=False)
     return {"status": "ok", "message": "Database seeded successfully"}
-

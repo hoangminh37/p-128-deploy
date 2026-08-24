@@ -90,9 +90,7 @@ async def get_learning_library(db: AsyncSession = Depends(get_db), current_user:
     if not current_user.patient_id:
         return LearningLibraryResponse(learning_paths=[], completed_articles=completed_articles)
 
-    result_patient = await db.execute(
-        select(Patient).filter(Patient.id == current_user.patient_id)
-    )
+    result_patient = await db.execute(select(Patient).filter(Patient.id == current_user.patient_id))
     patient = result_patient.scalars().first()
     if not patient:
         return LearningLibraryResponse(learning_paths=[], completed_articles=completed_articles)
@@ -101,26 +99,29 @@ async def get_learning_library(db: AsyncSession = Depends(get_db), current_user:
 
     # Join LearningPath và Article theo bệnh của bệnh nhân
     result = await db.execute(
-        select(LearningPath, Article).join(Article, LearningPath.article_id == Article.id)
+        select(LearningPath, Article)
+        .join(Article, LearningPath.article_id == Article.id)
         .filter(LearningPath.disease_category == primary_condition)
         .order_by(LearningPath.day_number)
     )
 
     paths = []
     for lp, article in result.all():
-        paths.append({
-            "day_number": lp.day_number,
-            "disease_category": lp.disease_category,
-            "article": MicroArticleSchema(
-                id=article.id,
-                title=article.title,
-                content=article.content,
-                full_content=article.full_content,
-                category=article.category,
-                quiz_data=article.quiz_data,
-                origin_source=article.origin_source,
-            )
-        })
+        paths.append(
+            {
+                "day_number": lp.day_number,
+                "disease_category": lp.disease_category,
+                "article": MicroArticleSchema(
+                    id=article.id,
+                    title=article.title,
+                    content=article.content,
+                    full_content=article.full_content,
+                    category=article.category,
+                    quiz_data=article.quiz_data,
+                    origin_source=article.origin_source,
+                ),
+            }
+        )
 
     return LearningLibraryResponse(learning_paths=paths, completed_articles=completed_articles)
 

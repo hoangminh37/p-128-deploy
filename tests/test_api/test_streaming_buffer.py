@@ -21,7 +21,6 @@ import asyncio
 import json
 import re
 import time
-from typing import AsyncGenerator
 
 import pytest
 

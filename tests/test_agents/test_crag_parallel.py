@@ -23,7 +23,6 @@ from src.agent.nodes.retrieval.crag_evaluator import (
     crag_evaluator_node,
 )
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
@@ -136,12 +135,11 @@ class TestCragParallelism:
     async def test_n_docs_chay_nhanh_hon_tuan_tu(self):
         """5 docs × 200ms phải hoàn thành dưới 350ms nếu thật sự song song."""
         docs = [_make_doc(f"doc_{i}") for i in range(self.NUM_DOCS)]
-        chain = _make_chain("relevant", delay_s=self.DELAY_PER_DOC)
 
         t0 = time.perf_counter()
         state = _make_state(docs)
         # Patch chain thực tế bằng cách mock get_fast_llm
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_llm = MagicMock()
 
@@ -177,7 +175,7 @@ class TestCragParallelism:
         docs = [_make_doc(f"doc_{i}") for i in range(5)]
         chain = _make_chain("relevant")
 
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_llm = MagicMock()
         mock_prompt_instance = MagicMock()
@@ -231,7 +229,7 @@ class TestCragEvaluatorNode:
         """Nếu có rewritten_query, phải dùng nó thay vì query gốc."""
         # Import trước khi dùng — tránh UnboundLocalError do Python
         # đánh dấu biến local khi thấy import phía dưới trong cùng scope
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         docs = [_make_doc("doc_0")]
         chain = AsyncMock()
@@ -283,7 +281,7 @@ class TestCragEvaluatorNode:
         chain = AsyncMock()
         chain.ainvoke = _selective_fail
 
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_llm = MagicMock()
         mock_prompt_instance = MagicMock()
@@ -310,7 +308,7 @@ class TestCragEvaluatorNode:
     @pytest.mark.asyncio
     async def test_loc_dung_doc_irrelevant(self):
         """Doc được đánh giá irrelevant phải bị loại khỏi relevant_strips."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         # Nhúng doc_id vào content để _selective_verdict có thể phân biệt hai doc
         docs = [
