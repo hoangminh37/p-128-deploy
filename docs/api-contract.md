@@ -705,11 +705,12 @@ cũng không báo lỗi. Bấm nhầm hai lần là chuyện thường, mà hai 
 
 ## 9. Ngoài phạm vi Gate 2
 
-Hai mục sau có trong `ARCHITECTURE.md` nhưng không thuộc hợp đồng v1, và tới nay vẫn chưa có
-dòng mã nào ở cả hai phía:
+Mục này từng liệt kê hai thứ nằm ngoài hợp đồng v1. **Cả hai nay đã có ở cả hai phía**, giữ
+lại dòng gạch để ai đọc bản cũ không hiểu nhầm:
 
-- Lộ trình học và theo dõi tiến độ
-- Quiz
+- ~~Lộ trình học và theo dõi tiến độ~~ → đã implement: `GET /learning/daily-lesson`,
+  `GET /learning/library`, `POST /learning/complete-lesson/{article_id}`
+- ~~Quiz~~ → đã implement dưới dạng **sinh động bằng LangChain**, đặc tả ở mục 13
 
 ### Ba mục từng nằm ngoài phạm vi, nay đã có
 
@@ -1054,3 +1055,279 @@ lệch đã đo được.
     hoặc body mà không đối chiếu với tài khoản đang đăng nhập, nên tài khoản A đọc và ghi đè được
     hồ sơ lẫn lịch sử hội thoại của tài khoản B. Cần backend chốt danh sách endpoint bắt buộc xác
     thực, và chốt luôn rằng `patient_id` trong request phải khớp tài khoản trong token
+
+
+---
+
+## 13. Trắc nghiệm kiến thức — Mini-Quiz Generation
+
+Chặng cuối của vòng lặp Giáo dục: **Học** (Thư viện) → **Hỏi** (Chatbot) → **Đánh giá** (mục này).
+
+Khác hẳn `quiz_data` gắn sẵn trong bảng `articles`. Cái đó là **một** câu tĩnh, sinh một lần lúc
+ETL và lộ đáp án ngay trong response. Mục này sinh **động** mỗi lần gọi, bằng LangChain, và giữ
+đáp án lại ở server.
+
+### Quy tắc chung của mục này
+
+- Mọi endpoint đều cần `Authorization: Bearer <token>`, vai trò `patient`.
+- `patient_id` **không** nằm trong request. Backend lấy từ token, và mọi truy vấn đều lọc theo
+  nó — khác với các mục trước, nơi `patient_id` đi trong path và chưa đối chiếu với token
+  (xem điểm 11 mục 12).
+- **Đáp án đúng không bao giờ đi kèm response của bước sinh đề.** Nó ở lại bảng `quiz_sessions`
+  và chỉ xuất hiện trong response của bước nộp bài. Frontend vì thế không thể tự chấm, và đó là
+  chủ ý: điểm HP của trắc nghiệm cộng vào cùng sổ với bài học hằng ngày.
+
+### POST /api/v1/quiz
+
+Sinh một bộ trắc nghiệm A/B/C/D. Đây là lời gọi chậm nhất của hệ thống (~3-6s vì có LLM ở giữa).
+
+Request — `source` quyết định lấy ngữ cảnh ở đâu:
+
+```jsonc
+{ "source": "article",      "article_id": "a_1A2B3C", "num_questions": 5 }
+{ "source": "conversation", "conversation_id": "c_9F8E7D", "num_questions": 5 }
+{ "source": "profile",      "num_questions": 5 }
+```
+
+| Trường | Bắt buộc | Ghi chú |
+|---|---|---|
+| `source` | có | `article` \| `conversation` \| `profile` \| `mistakes` |
+| `article_id` | khi `source = article` | thiếu thì 422 |
+| `conversation_id` | khi `source = conversation` | thiếu thì 422 |
+| `num_questions` | không | 3-10, mặc định 5 |
+
+Ba nguồn xử lý khác nhau vì mức tin cậy của nội dung khác nhau:
+
+- `article` — dùng thẳng `articles.full_content`. Nội dung này đã qua ETL rồi qua vòng duyệt
+  của biên tập viên, nên **không** truy xuất lại ChromaDB: làm vậy chỉ mang về những đoạn khác
+  với thứ người bệnh vừa đọc, và đề sẽ hỏi ra ngoài bài học.
+- `conversation` — lấy tối đa 8 lượt gần nhất làm chủ đề, rồi truy xuất lại tài liệu gốc từ
+  ChromaDB (`top_k = 6`) để ra đề. Lời trợ lý đã qua Self-RAG nhưng vẫn là văn bản do LLM sinh.
+- `profile` — **ôn tập tổng hợp trên hành trình học của chính người đó**, không phải ra đề
+  chung theo tên bệnh. Ngữ cảnh ghép từ hai nguồn dấu vết hệ thống đã có:
+
+  | Khối trong ngữ cảnh | Lấy từ | Vai trò |
+  |---|---|---|
+  | `[ĐÃ HỌC n — tiêu đề]` | 4 bài gần nhất trong `patient_progress.completed_articles` | **Nguồn kiến thức duy nhất** để lấy nội dung câu hỏi và đáp án |
+  | `[ĐÃ HỎI TRỢ LÝ]` | 10 câu `role="user"` gần nhất trong các `conversations` của họ | **Chỉ dấu** người học chưa chắc ở đâu — dùng để chọn chủ đề, KHÔNG được lấy làm nội dung đáp án |
+
+  Tách vai trò hai khối là chủ ý: câu người bệnh hỏi có thể chứa chính hiểu lầm của họ
+  ("uống nước dừa chữa được tiểu đường phải không?"). Lấy nó làm nguồn ra đề là dạy lại
+  cái sai mà họ đang mắc.
+
+  Người chưa học và chưa hỏi gì thì lùi về truy vấn theo tên bệnh như trước, và `topic`
+  trả về là "Kiến thức nhập môn về ...". `metadata.grounded` là `false` khi người học mới
+  chỉ hỏi mà chưa hoàn thành bài nào — lúc đó không có tài liệu đã duyệt nào để đối chiếu.
+
+Response 200:
+
+```json
+{
+  "quiz_id": "q_A1B2C3",
+  "source": "article",
+  "topic": "Chế độ ăn cho người tiểu đường típ 2",
+  "questions": [
+    {
+      "index": 0,
+      "question": "Vì sao nên chia nhỏ bữa ăn trong ngày?",
+      "options": [
+        "Giúp đường huyết ổn định hơn",
+        "Giúp ăn được nhiều hơn",
+        "Giúp giảm tiền chợ",
+        "Giúp ngủ ngon hơn"
+      ],
+      "difficulty": "easy"
+    }
+  ],
+  "disclaimer": "Bài trắc nghiệm mang tính giáo dục, dựa trên tài liệu hướng dẫn của Bộ Y tế. Không thay thế chẩn đoán hay chỉ định của bác sĩ.",
+  "citations": [
+    {
+      "id": 1,
+      "title": "Hướng dẫn chẩn đoán và điều trị đái tháo đường típ 2",
+      "issuer": "Bộ Y tế Việt Nam",
+      "doc_code": "5481/QĐ-BYT",
+      "url": null,
+      "snippet": "..."
+    }
+  ],
+  "metadata": { "latency_ms": 3210, "cached": false, "grounded": true }
+}
+```
+
+`metadata.grounded` là `false` khi kho tài liệu không trả về trích đoạn nào và đề chỉ dựa vào
+nội dung phiên chat. Frontend phải nói rõ điều đó với người học chứ không im lặng bỏ qua.
+
+`options` **luôn đúng 4 phần tử**, và `index` luôn liền mạch từ 0. Đề do LLM sinh đi qua một
+lớp kiểm định thuần luật trước khi ra khỏi backend — nó loại các câu thiếu đáp án, có đáp án
+trùng, có `correct_index` trỏ ra ngoài mảng, có đáp án kiểu "Tất cả các đáp án trên", hoặc có
+câu hỏi mang tính chẩn đoán/kê đơn. Câu hỏng bị loại chứ không kéo cả bộ đề xuống; chỉ khi số
+câu còn lại tụt dưới 3 thì backend mới gọi lại LLM (tối đa 3 lượt).
+
+Mã lỗi:
+
+| Mã | Khi nào |
+|---|---|
+| 401 | thiếu hoặc sai token |
+| 404 | không tìm thấy `article_id`/`conversation_id`, hoặc `source = profile` mà chưa khai hồ sơ |
+| 422 | thiếu `article_id`/`conversation_id` theo `source`, hoặc `num_questions` ngoài 3-10 |
+| 503 | hết 3 lượt thử mà LLM vẫn không cho ra bộ đề dùng được |
+
+### POST /api/v1/quiz/{quiz_id}/submit
+
+```json
+{ "answers": [0, 2, 1, 3, 0] }
+```
+
+`answers[i]` là lựa chọn cho câu `index = i`. Dùng `-1` cho câu bỏ trống. Độ dài mảng phải khớp
+số câu của đề, lệch thì 422.
+
+Response 200:
+
+```json
+{
+  "quiz_id": "q_A1B2C3",
+  "score": 4,
+  "total": 5,
+  "passed": true,
+  "results": [
+    {
+      "index": 0,
+      "question": "Vì sao nên chia nhỏ bữa ăn trong ngày?",
+      "options": ["...", "...", "...", "..."],
+      "your_answer": 0,
+      "correct_index": 0,
+      "is_correct": true,
+      "explanation": "Chia nhỏ bữa giúp tránh đường huyết tăng vọt sau ăn."
+    }
+  ],
+  "hp_earned": 20,
+  "stats": { "total_score": 130, "current_streak": 3, "completed_articles": ["a_1A2B3C"] }
+}
+```
+
+**Sai bài vẫn trả 200.** Sai một câu trắc nghiệm ôn tập không phải lỗi giao thức, và người học
+cần đọc được `explanation` để học lại — đó mới là điểm của vòng "Đánh giá". Chỗ này cố ý khác
+`POST /learning/complete-lesson/{article_id}`, vốn ném 400 khi trả lời sai.
+
+Quy tắc điểm:
+
+- `passed` khi đúng **từ 60% trở lên**.
+- `hp_earned` = số câu đúng x **5 HP**, và **chỉ cộng khi `passed`**. Không đạt thì bằng 0.
+- HP cộng vào `patient_progress.total_score` — cùng sổ với Thư viện học tập.
+- **Không** đụng tới `current_streak` và `last_completed_at`. Chuỗi ngày là phần thưởng cho việc
+  học bài hằng ngày, do `complete-lesson` quản. Cho trắc nghiệm cộng streak nữa thì người học
+  làm liên tiếp 5 bài trong một buổi cũng lên chuỗi, và con số đó mất hết ý nghĩa.
+
+| Mã | Khi nào |
+|---|---|
+| 401 | thiếu hoặc sai token |
+| 404 | `quiz_id` không tồn tại, hoặc thuộc bệnh nhân khác |
+| 409 | đề này đã nộp rồi — mỗi đề chỉ nộp một lần |
+| 422 | số đáp án không khớp số câu |
+
+### GET /api/v1/quiz/history
+
+Query param `limit` (1-100, mặc định 20). Trả các lượt làm bài của tài khoản đang đăng nhập,
+mới nhất trước.
+
+```json
+{
+  "items": [
+    {
+      "quiz_id": "q_A1B2C3",
+      "source": "article",
+      "topic": "Chế độ ăn cho người tiểu đường típ 2",
+      "score": 4,
+      "total": 5,
+      "created_at": "2026-08-23T14:20:00Z",
+      "submitted_at": "2026-08-23T14:23:41Z"
+    }
+  ]
+}
+```
+
+`score` và `submitted_at` là `null` với đề đã sinh nhưng người học bỏ dở chưa nộp.
+
+### Bảng `quiz_sessions`
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `id` | String | `q_` + 6 ký tự hex hoa |
+| `patient_id` | FK -> `patients.id` | có index |
+| `source` | String | `article` \| `conversation` \| `profile` |
+| `source_ref` | String, nullable | `article_id` hoặc `conversation_id` |
+| `topic` | String | |
+| `questions` | JSONB | **có** `correct_index` và `explanation` — không rời server trước lúc nộp |
+| `citations` | JSONB | |
+| `answers` | JSONB, nullable | `null` khi chưa nộp |
+| `score` | Integer, nullable | `null` khi chưa nộp |
+| `total` | Integer | |
+| `hp_earned` | Integer | |
+| `created_at` | DateTime | |
+| `submitted_at` | DateTime, nullable | |
+
+Không đánh unique lên `source_ref`: cùng một bài học có thể làm lại nhiều lần với bộ câu khác nhau.
+
+
+### POST /api/v1/quiz với `source: "mistakes"` — ôn lại chỗ chưa nắm
+
+Không cần `article_id` hay `conversation_id`. Backend tự tìm những câu người
+đang đăng nhập đã trả lời sai, rồi sinh **đề MỚI** trên cùng các khái niệm đó.
+
+**Cố ý KHÔNG hiện lại nguyên câu cũ.** Cho làm lại đúng câu cũ thì người học nhớ
+mặt đáp án chứ chưa chắc đã hiểu bài; ra câu mới mới phân biệt được hai thứ đó.
+
+Nguồn kiến thức lấy lại từ `source_ref` của lượt đã sinh ra câu sai: là
+`article_id` thì đọc lại chính bài đó — sai ở đâu ôn lại đúng chỗ ấy. Không có
+thì truy xuất ChromaDB theo nội dung các câu đã sai.
+
+404 kèm *"Bạn chưa có câu nào trả lời sai"* khi người học chưa nộp bài nào sai.
+
+### GET /api/v1/quiz/mistakes
+
+Những chỗ người đang đăng nhập chưa nắm, gom nhóm theo nội dung câu hỏi (chuẩn
+hoá bỏ dấu và hoa thường trước khi gom). Câu sai nhiều lần đứng trước.
+
+```json
+{
+  "items": [
+    {
+      "question": "Bác nên đo đường huyết lúc nào là quan trọng nhất?",
+      "options": ["Trước khi ăn sáng", "Sau ăn trưa 2 giờ", "Trước khi ngủ", "Sau tập thể dục"],
+      "correct_index": 0,
+      "explanation": "Đo lúc đói buổi sáng phản ánh khả năng kiểm soát đường huyết qua đêm.",
+      "chosen": [1, 2],
+      "times_wrong": 2,
+      "topic": "Theo dõi đường huyết tại nhà",
+      "quiz_id": "q_A1B2C3"
+    }
+  ],
+  "total_wrong": 5,
+  "sessions_scanned": 4
+}
+```
+
+| Trường | Ý nghĩa |
+|---|---|
+| `chosen` | Các đáp án người học đã chọn, **mới nhất trước**. Sai cùng một câu theo hai kiểu khác nhau nói lên nhiều hơn là chỉ biết "đã sai" |
+| `times_wrong` | Số lần sai câu này, tính cả các lượt khác nhau |
+| `total_wrong` | Tổng lượt sai kể cả lặp — khác `len(items)` vốn đã gom nhóm |
+| `sessions_scanned` | Số lượt đã nộp mà thống kê dựa vào (quét tối đa 20 lượt gần nhất) |
+
+**Endpoint này CÓ trả `correct_index` và `explanation`** — ngược với `POST /quiz`
+vốn giấu đáp án. Không mâu thuẫn: ở đây người học đã nộp bài rồi, và mục đích của
+màn ôn lại chính là cho họ thấy đáp án đúng cùng lý do.
+
+Tối đa 15 nhóm mỗi lần gọi. Không có bảng mới — dữ liệu rút thẳng từ
+`quiz_sessions.questions` ghép với `quiz_sessions.answers` theo chỉ số.
+
+### Ba tín hiệu, mạnh dần
+
+Ngữ cảnh của `source: "profile"` nay gộp cả ba, và prompt được dặn ưu tiên theo
+đúng thứ tự này:
+
+| Tín hiệu | Nghĩa |
+|---|---|
+| **đã học** | Đã đọc qua |
+| **đã hỏi** | Chưa chắc, nên mới hỏi |
+| **đã trả lời sai** | Đã kiểm tra và trượt — bằng chứng mạnh nhất |

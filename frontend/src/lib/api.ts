@@ -24,7 +24,7 @@ import {
   patientProfileResponseSchema,
   patientProfileSchema,
   dailyLessonResponseSchema,
-  gamificationStatsSchema,
+  completeLessonResponseSchema,
   type ChatRequest,
   type ChatResponse,
   type ConversationDetail,
@@ -40,10 +40,20 @@ import {
   type OutOfScopeList,
   type PatientProfileResponse,
   type DailyLessonResponse,
-  type GamificationStats,
   type LearningLibraryResponse,
   type CompleteLessonRequest,
+  type CompleteLessonResponse,
   learningLibraryResponseSchema,
+  quizResponseSchema,
+  quizSubmitResponseSchema,
+  quizHistoryResponseSchema,
+  quizMistakesResponseSchema,
+  type QuizMistakesResponse,
+  type QuizRequest as QuizRequestPayload,
+  type QuizResponse,
+  type QuizSubmitRequest,
+  type QuizSubmitResponse,
+  type QuizHistoryResponse,
 } from './schemas'
 
 // ---------------------------------------------------------------------------
@@ -812,12 +822,77 @@ export function getLearningLibrary(): Promise<LearningLibraryResponse> {
 export function completeLesson(
   articleId: string,
   payload: CompleteLessonRequest,
-): Promise<GamificationStats> {
+): Promise<CompleteLessonResponse> {
   return request({
     path: `/learning/complete-lesson/${encodeURIComponent(articleId)}`,
     method: 'POST',
-    schema: gamificationStatsSchema,
+    schema: completeLessonResponseSchema,
     body: payload,
   })
 }
-export type { DailyLessonResponse, GamificationStats, LearningLibraryResponse, CompleteLessonRequest } from './schemas'
+export type {
+  DailyLessonResponse,
+  GamificationStats,
+  LearningLibraryResponse,
+  CompleteLessonRequest,
+  CompleteLessonResponse,
+} from './schemas'
+
+// ---------------------------------------------------------------------------
+// Mục 13: Trắc nghiệm kiến thức (Mini-Quiz Generation)
+// ---------------------------------------------------------------------------
+
+/**
+ * Sinh đề mới. Đây là lời gọi CHẬM nhất của ứng dụng (~3-6s vì có LLM ở giữa),
+ * nên chỗ gọi phải hiện trạng thái chờ tử tế thay vì để màn hình đứng im.
+ */
+export function generateQuiz(payload: QuizRequestPayload): Promise<QuizResponse> {
+  return request({
+    path: `/quiz`,
+    method: 'POST',
+    schema: quizResponseSchema,
+    body: payload,
+  })
+}
+
+/** Nộp bài. Sai hết vẫn trả 200 kèm giải thích từng câu — xem hợp đồng mục 13. */
+export function submitQuiz(
+  quizId: string,
+  payload: QuizSubmitRequest,
+): Promise<QuizSubmitResponse> {
+  return request({
+    path: `/quiz/${encodeURIComponent(quizId)}/submit`,
+    method: 'POST',
+    schema: quizSubmitResponseSchema,
+    body: payload,
+  })
+}
+
+export function getQuizHistory(): Promise<QuizHistoryResponse> {
+  return request({
+    path: `/quiz/history`,
+    method: 'GET',
+    schema: quizHistoryResponseSchema,
+  })
+}
+
+/** Những chỗ người học đã trả lời sai, gom nhóm, câu sai nhiều lần đứng trước. */
+export function getQuizMistakes(): Promise<QuizMistakesResponse> {
+  return request({
+    path: `/quiz/mistakes`,
+    method: 'GET',
+    schema: quizMistakesResponseSchema,
+  })
+}
+
+export type {
+  QuizSource,
+  QuizQuestion,
+  QuizResponse,
+  QuizResult,
+  QuizSubmitRequest,
+  QuizSubmitResponse,
+  QuizHistoryResponse,
+  QuizMistake,
+  QuizMistakesResponse,
+} from './schemas'

@@ -48,6 +48,7 @@ export function Sidebar({
 
   const isProfileOpen = pathname === '/profile'
   const isLearningOpen = pathname === '/learning'
+  const isQuizOpen = pathname === '/quiz'
   const isPatient = user?.role === 'patient'
 
   const profileSubline =
@@ -96,6 +97,18 @@ export function Sidebar({
             }`}
           >
             📚 Thư viện học tập
+          </Link>
+
+          <Link
+            to="/quiz"
+            onClick={onNavigate}
+            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-lg border-2 px-cozy text-input font-bold no-underline ${
+              isQuizOpen
+                ? 'border-medical bg-medical text-paper'
+                : 'border-border bg-paper text-ink hover:bg-rule'
+            }`}
+          >
+            🎯 Trắc nghiệm kiến thức
           </Link>
         </div>
       )}
