@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getDailyLesson, getLearningLibrary, completeLesson, type DailyLessonResponse, type GamificationStats, type LearningLibraryResponse, type CompleteLessonRequest } from '../lib/api'
+import { getDailyLesson, getLearningLibrary, completeLesson, type DailyLessonResponse, type LearningLibraryResponse, type CompleteLessonRequest, type CompleteLessonResponse } from '../lib/api'
 
 export const learningKeys = {
   all: ['learning'] as const,
@@ -26,10 +26,12 @@ export function useLearningLibrary() {
 export function useCompleteLesson() {
   const queryClient = useQueryClient()
 
-  return useMutation<GamificationStats, Error, { articleId: string, payload: CompleteLessonRequest }>({
+  return useMutation<CompleteLessonResponse, Error, { articleId: string, payload: CompleteLessonRequest }>({
     mutationFn: ({ articleId, payload }) => completeLesson(articleId, payload),
-    onSuccess: () => {
-      // Refresh the daily lesson when completed
+    onSuccess: (data) => {
+      // Trả lời sai vẫn là 200 nhưng KHÔNG có gì đổi trong DB — nạp lại lúc đó
+      // chỉ tốn hai request và làm nhấp nháy banner đang hiển thị giải thích.
+      if (!data.is_correct) return
       queryClient.invalidateQueries({ queryKey: learningKeys.dailyLesson() })
       queryClient.invalidateQueries({ queryKey: learningKeys.library() })
     },

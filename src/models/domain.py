@@ -131,3 +131,34 @@ class PatientProgress(Base):
     last_completed_at = Column(DateTime, nullable=True)
 
     patient = relationship("Patient")
+
+
+class QuizSession(Base):
+    """Một lượt làm bài trắc nghiệm sinh động (Mini-Quiz Generation).
+
+    ``questions`` giữ NGUYÊN VĂN đề đã sinh, kể cả ``correct_index`` và
+    ``explanation`` — hai trường này không bao giờ đi ra khỏi server trước lúc
+    nộp bài. Bảng này vì thế vừa là nơi chấm điểm vừa là bản ghi để đối chiếu
+    khi người học thắc mắc "sao câu này lại sai".
+
+    Đề được sinh mới mỗi lần gọi nên không đánh unique lên ``source_ref``: cùng
+    một bài học có thể làm lại nhiều lần với bộ câu hỏi khác nhau.
+    """
+
+    __tablename__ = "quiz_sessions"
+
+    id = Column(String, primary_key=True, default=lambda: f"q_{uuid.uuid4().hex[:6].upper()}")
+    patient_id = Column(String, ForeignKey("patients.id"), index=True)
+    source = Column(String, nullable=False)  # "article" | "conversation" | "profile"
+    source_ref = Column(String, nullable=True)  # article_id hoặc conversation_id
+    topic = Column(String, nullable=False)
+    questions = Column(JSONB, default=list)  # [{question, options, correct_index, explanation, difficulty}]
+    citations = Column(JSONB, default=list)
+    answers = Column(JSONB, nullable=True)  # [int] — null khi chưa nộp
+    score = Column(Integer, nullable=True)  # null khi chưa nộp
+    total = Column(Integer, nullable=False, default=0)
+    hp_earned = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    submitted_at = Column(DateTime, nullable=True)
+
+    patient = relationship("Patient")

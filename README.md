@@ -20,7 +20,7 @@ Xây dựng một Trợ lý Giáo dục Sức khỏe AI chuyên biệt, TUYỆT 
 ## 🛠 Tech Stack
 | Layer | Technology |
 |-------|-----------|
-| **AI Agent** | LangGraph + LangChain + Groq (Llama-3) |
+| **AI Agent** | LangGraph + LangChain + Groq (`openai/gpt-oss-120b`) |
 | **Backend** | FastAPI + Python 3.11+ + SQLAlchemy |
 | **Frontend** | React/Next.js + TypeScript + Tailwind CSS |
 | **Database** | SQLite (Dev) / PostgreSQL (Prod) |
@@ -41,7 +41,9 @@ cp .env.example .env
 
 **Các biến môi trường quan trọng:**
 - `OPENAI_API_KEY`: Dùng cho Embedding (text-embedding-3-small).
-- `GROQ_API_KEY`: Dùng cho model chính (Llama-3) để sinh văn bản.
+- `GROQ_API_KEY`: Dùng cho model chính để sinh văn bản. Xem `MODEL_NAME` trong `.env.example`
+  — Groq đổi danh mục model khá thường xuyên, chạy `python scripts/list_groq_models.py`
+  để biết key của bạn đang dùng được những model nào.
 - `LANGCHAIN_API_KEY` / `LANGCHAIN_TRACING_V2`: Dùng cho LangSmith (Tracing/Debug).
 
 ### 3. Cài đặt Backend

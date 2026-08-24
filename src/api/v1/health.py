@@ -12,8 +12,20 @@ router = APIRouter()
 @router.get("/health", summary="Health check")
 async def health() -> dict:
     """Kiểm tra app đang chạy."""
+    from src.main import check_vectorstore
+
     settings = get_settings()
-    return {"status": "ok", "env": settings.app_env, "app": settings.app_name}
+    rag_ready, chunk_count, note = check_vectorstore()
+
+    # "degraded" chứ không phải "ok": app sống nhưng tính năng lõi đã chết. Trả
+    # "ok" ở tình trạng này là lý do lỗi kho rỗng nằm im mà không ai biết.
+    return {
+        "status": "ok" if rag_ready else "degraded",
+        "env": settings.app_env,
+        "app": settings.app_name,
+        "model": settings.model_name,
+        "rag": {"ready": rag_ready, "chunks": chunk_count, "note": note},
+    }
 
 
 @router.get("/status", summary="Agent status")

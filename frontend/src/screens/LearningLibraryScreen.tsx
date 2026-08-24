@@ -14,14 +14,18 @@
  * BA TRẠNG THÁI của một chặng, mỗi trạng thái nói bằng HAI kênh cùng lúc — màu
  * khối biểu tượng, và chữ trong khối đó:
  *
- *   đã xong   — khối mint, dấu tick.         Bấm được, mở lại để đọc.
- *   sắp tới   — khối ink, số chặng màu mint.  Bấm được, đây là việc tiếp theo.
- *   chưa mở   — khối canvas, số chặng slate.  KHÔNG bấm được.
+ *   đã xong   — khối mint, dấu tick.         Mở lại để đọc.
+ *   sắp tới   — khối ink, số chặng màu mint.  Đây là việc tiếp theo.
+ *   chưa đọc  — khối canvas, số chặng slate.  Vẫn đọc được.
  *
- * Chặng chưa mở dùng `disabled` thật chứ không phải `aria-disabled`: khác với
- * nút Duyệt ở màn biên tập, ở đây KHÔNG có dòng giải thích nào cần người dùng
- * bàn phím nghe được — lý do đã in thẳng vào chính thẻ ("hoàn thành các chặng
- * trước"), nên bỏ nó khỏi thứ tự Tab là đúng.
+ * KHÔNG CÒN KHOÁ TUẦN TỰ (bỏ 24/08/2026). Trạng thái thứ ba trước đây là "chưa
+ * mở" và `disabled` thật. Nhưng cách DUY NHẤT hoàn thành một chặng là qua banner
+ * "Bài học hôm nay" ở màn hỏi đáp, và banner đó chỉ cho làm một bài mỗi ngày —
+ * nên lộ trình 21 bài cần đúng 21 ngày mới mở hết, người mới vào chỉ thấy một ô
+ * sáng và hai mươi ô xám. Thứ tự vẫn còn nguyên ý nghĩa, và khối "Bài học hôm
+ * nay" vẫn chỉ vào chặng kế, nhưng nó là GỢI Ý chứ không phải rào chắn. Đây là
+ * tài liệu giáo dục sức khoẻ: người vừa được chẩn đoán cao huyết áp cần bài về
+ * đo huyết áp tại nhà HÔM NAY, không phải sau mười một ngày.
  *
  * KHÔNG đổi một lời gọi API nào so với bản trước: vẫn đúng `useLearningLibrary`,
  * vẫn đọc `learning_paths` và `completed_articles` từ cùng một response.
@@ -44,7 +48,7 @@ import { DocumentStack, ReadingPerson } from '../ui/illustrations'
 const STATE_SKIN = {
   done: 'bg-mint text-mint-deep',
   next: 'bg-ink text-mint',
-  locked: 'bg-canvas text-slate',
+  todo: 'bg-canvas text-slate',
 } as const
 
 type ChapterState = keyof typeof STATE_SKIN
@@ -74,22 +78,14 @@ function ChapterCard({
   state: ChapterState
   onOpen: () => void
 }) {
-  const isClickable = state !== 'locked'
-
   return (
     <li>
       <button
         type="button"
-        disabled={!isClickable}
         onClick={onOpen}
-        // `motion-lift` chỉ gắn cho chặng bấm được. Một chặng chưa mở mà vẫn
-        // nhấc lên dưới con trỏ là lời mời bấm vào thứ không bấm được.
-        //
         // `h-full` để mọi thẻ trong một hàng của lưới cao bằng nhau, bất kể
         // tiêu đề dài ngắn — thiếu nó thì hàng nào cũng so le.
-        className={`flex h-full w-full flex-col rounded-card p-cozy text-left ${
-          isClickable ? 'motion-lift bg-surface' : 'cursor-not-allowed bg-surface/60'
-        }`}
+        className="motion-lift flex h-full w-full flex-col rounded-card bg-surface p-cozy text-left"
       >
         <span className="flex items-center gap-snug">
           <ChapterMark state={state} day={item.day_number} />
@@ -106,12 +102,10 @@ function ChapterCard({
         </span>
 
         <span className="font-display mt-tight block line-clamp-3 text-question text-slate">
-          {isClickable
-            ? item.article.content
-            : 'Hoàn thành các chặng trước để mở khoá nội dung này.'}
+          {item.article.content}
         </span>
 
-        {isClickable && item.article.quiz_data && (
+        {item.article.quiz_data && (
           <span className="font-display mt-cozy flex w-fit items-center rounded-pill bg-sand px-snug py-hair text-question font-semibold text-sand-deep">
             Có bài trắc nghiệm, +10 điểm
           </span>
@@ -149,17 +143,17 @@ export function LearningLibraryScreen() {
   const completed = data?.completed_articles ?? []
 
   /**
-   * Chặng "sắp tới": chặng chưa xong đầu tiên mà chặng ngay trước nó đã xong.
+   * Chặng "sắp tới": chặng chưa xong đầu tiên.
    *
    * Tính đúng một lần ở đây rồi truyền xuống, thay vì để mỗi thẻ tự dò lại
    * mảng — cùng một luật nằm ở một chỗ thì khối nổi bật trên đầu và thẻ trong
    * lưới không bao giờ nói hai điều khác nhau về cùng một chặng.
+   *
+   * Vế "và chặng ngay trước nó đã xong" đã bỏ cùng lúc với khoá tuần tự. Giữ
+   * lại thì một người nhảy cóc đọc chặng 5 trước sẽ thấy khối "Bài học hôm nay"
+   * đứng im ở chặng 1 mãi.
    */
-  const nextIndex = paths.findIndex(
-    (path, index) =>
-      !completed.includes(path.article.id) &&
-      (index === 0 || completed.includes(paths[index - 1].article.id)),
-  )
+  const nextIndex = paths.findIndex((path) => !completed.includes(path.article.id))
   const featured = nextIndex >= 0 ? paths[nextIndex] : null
 
   return (
@@ -258,7 +252,7 @@ export function LearningLibraryScreen() {
                       ? 'done'
                       : index === nextIndex
                         ? 'next'
-                        : 'locked'
+                        : 'todo'
                   }
                   onOpen={() => navigate(`/learning/${path.article.id}`)}
                 />

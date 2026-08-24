@@ -47,6 +47,8 @@ import { OutOfScopeScreen } from './screens/OutOfScopeScreen'
 import { ProfileScreen } from './screens/ProfileScreen'
 import { LearningLibraryScreen } from './screens/LearningLibraryScreen'
 import { ArticleDetailScreen } from './screens/ArticleDetailScreen'
+import { QuizScreen } from './screens/QuizScreen'
+import { MistakesScreen } from './screens/MistakesScreen'
 
 /**
  * Hai đường dẫn cùng dẫn tới màn hỏi đáp:
@@ -176,6 +178,24 @@ function App() {
                     element={
                       <RequireRole role="patient">
                         <ArticleDetailScreen />
+                      </RequireRole>
+                    }
+                  />
+                  {/* Chặng "Đánh giá" của vòng lặp giáo dục. Nguồn ra đề nằm ở
+                      query string (`?source=article&ref=...`), xem QuizScreen. */}
+                  <Route
+                    path="quiz"
+                    element={
+                      <RequireRole role="patient">
+                        <QuizScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="quiz/mistakes"
+                    element={
+                      <RequireRole role="patient">
+                        <MistakesScreen />
                       </RequireRole>
                     }
                   />

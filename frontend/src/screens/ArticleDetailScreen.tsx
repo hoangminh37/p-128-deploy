@@ -21,6 +21,7 @@ import { useLearningLibrary } from '../app/learning'
 import { EmptyState } from '../ui/EmptyState'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { CheckIcon, ChevronLeftIcon, LibraryIcon } from '../ui/icons'
+import { QuizPanel } from '../ui/QuizPanel'
 
 export function ArticleDetailScreen() {
   const { articleId } = useParams<{ articleId: string }>()
@@ -139,56 +140,48 @@ export function ArticleDetailScreen() {
         </div>
       )}
 
-      {/* Trắc nghiệm ôn tập.
-          Đây là bản ĐÃ LỘ ĐÁP ÁN, để ôn lại — không phải bài chấm điểm. Bài
-          chấm điểm nằm ở màn hỏi đáp, và dòng lưu ý cuối khối nói rõ điều đó. */}
-      {article.quiz_data && (
-        <div className="mt-block rounded-card-lg bg-surface p-cozy">
-          <h2 className="text-empty font-semibold text-body">Ôn tập nhanh</h2>
-          <p className="font-display mt-hair text-question text-slate">
-            Kiểm tra kiến thức bạn vừa học. Đáp án đúng đã được đánh dấu sẵn.
-          </p>
+      {/* Ôn tập nhanh — HAI CÂU SINH TỪ CHÍNH BÀI VỪA ĐỌC.
 
-          <p className="font-display mt-cozy text-input font-semibold text-body">
-            {article.quiz_data.question}
-          </p>
+          Khối cũ ở đây lấy `article.quiz_data` rồi tô sẵn "— đáp án đúng", nên
+          người đọc không phải trả lời gì. Tệ hơn: nó lộ đáp án của ĐÚNG câu hỏi
+          mà banner "Bài học hôm nay" ở màn hỏi đáp dùng để chấm 10 điểm. Cả
+          khối vừa không dạy được gì, vừa làm hỏng chỗ duy nhất đang chấm điểm.
 
-          <ul className="mt-snug space-y-tight">
-            {article.quiz_data.options.map((opt, idx) => {
-              const isCorrect = idx === article.quiz_data!.correct_index
-              return (
-                <li
-                  key={idx}
-                  className={`flex items-start gap-snug rounded-card p-snug ${
-                    isCorrect ? 'bg-mint text-ink' : 'bg-canvas text-body'
-                  }`}
-                >
-                  <span
-                    className={`font-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-icon text-question font-semibold ${
-                      isCorrect ? 'bg-ink text-mint' : 'bg-surface text-slate'
-                    }`}
-                  >
-                    {String.fromCharCode(65 + idx)}
-                  </span>
-                  <span className="font-display min-w-0 flex-1 text-question">
-                    {opt}
-                    {isCorrect && (
-                      <span className="font-semibold"> — đáp án đúng</span>
-                    )}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
+          Hai câu chứ không phải năm: đây là chỗ ngay sau khi đọc xong 800 chữ,
+          hai câu là mức người đọc còn chịu làm. Ai muốn kỹ hơn thì có đường dẫn
+          xuống bài đầy đủ ngay bên dưới. */}
+      <div className="mt-block">
+        <QuizPanel
+          source="article"
+          articleId={article.id}
+          numQuestions={2}
+          title="Ôn tập nhanh"
+          hint="Hai câu hỏi soạn từ chính bài bạn vừa đọc. Chọn đáp án rồi nộp — mỗi câu sẽ có lời giải thích ngắn."
+          ctaLabel="Ôn tập nhanh (2 câu)"
+        />
+      </div>
 
-          <p className="font-display mt-cozy border-t border-line pt-snug text-question text-slate">
-            Bạn chỉ được cộng 10 điểm khi trả lời đúng câu hỏi này ở phần{' '}
-            <Link to="/chat" className="font-semibold text-body underline">
-              Bài học hôm nay
-            </Link>{' '}
-            trên màn hỏi đáp, mỗi ngày một lần.
-          </p>
-        </div>
+      <p className="font-display mt-cozy text-question text-slate">
+        Muốn kiểm tra kỹ hơn?{' '}
+        <Link
+          to={`/quiz?source=article&ref=${encodeURIComponent(article.id)}`}
+          className="font-semibold text-body underline"
+        >
+          Làm bài đầy đủ 5 câu về bài học này
+        </Link>
+      </p>
+
+      {/* Nhắc chỗ cộng điểm. Cố ý KHÔNG in câu hỏi ra đây — in ra là lộ lại
+          đúng cái vừa gỡ đi ở trên. */}
+      {article.quiz_data && !isCompleted && (
+        <p className="font-display mt-block border-t border-line pt-snug text-question text-slate">
+          Bài này có một câu hỏi cộng 10 điểm. Bạn trả lời nó ở phần{' '}
+          <Link to="/chat" className="font-semibold text-body underline">
+            Bài học hôm nay
+          </Link>{' '}
+          trên màn hỏi đáp, mỗi ngày một lần. Trả lời sai vẫn xem được lời giải
+          thích và làm lại được.
+        </p>
       )}
     </div>
   )

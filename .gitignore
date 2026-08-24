@@ -34,6 +34,25 @@ data/raw/*
 !data/raw/.gitkeep
 data/interim/*
 !data/interim/.gitkeep
+# Kho vector KHÔNG commit — nhưng hãy đọc hết đoạn này trước khi đổi ý.
+#
+# VẤN ĐỀ ĐANG BỎ NGỎ: CI deploy chạy `checkout` rồi push sang repo mirror cho
+# Railway build, nên thứ gì không nằm trong git thì không lên production. Kho
+# rỗng trên production nghĩa là hybrid_retrieval trả 0 doc và MỌI câu hỏi giáo
+# dục rơi xuống doctor_referral. Trước 24/08/2026 chuyện đó xảy ra suốt mà
+# không ai thấy lỗi ở đâu — nay `check_vectorstore()` trong src/main.py kêu to
+# lúc khởi động, và /health trả "degraded". Đó là cảnh báo, không phải bản vá.
+#
+# CÁCH SỬA ĐÚNG: khai Railway volume + một bước nạp kho lúc build. Chưa làm.
+#
+# NẾU AI ĐÓ ĐỊNH COMMIT KHO VÀO ĐÂY, phải mở luật cho ĐỦ HAI thứ, mở thiếu một
+# cái là commit vào 4MB index rỗng nghĩa:
+#   1. data/vectorstore/chroma.sqlite3  (28MB, chứa TOÀN BỘ 1088 chunk) —
+#      đang bị luật `*.sqlite3` bên dưới chặn, nên `!data/vectorstore/**` một
+#      mình KHÔNG đủ.
+#   2. đúng thư mục segment đang sống — tên nó là segment id trong bảng
+#      `segments` của chroma.sqlite3, KHÔNG phải collection id, và các thư mục
+#      UUID còn lại trên đĩa là rác của những lần nạp cũ.
 data/vectorstore/*
 !data/vectorstore/.gitkeep
 data/processed/*
@@ -53,6 +72,9 @@ data/uploads.json
 # Logs
 logs/
 *.log
+# Bãi rác gỡ lỗi do llm_generate.py ghi khi LLM ném lỗi. Thuộc về máy đang chạy,
+# và có thể dính nguyên văn thông báo lỗi từ nhà cung cấp.
+llm_error.txt
 
 # Test coverage
 htmlcov/

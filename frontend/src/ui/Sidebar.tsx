@@ -55,6 +55,8 @@ export function Sidebar({
 
   const isProfileOpen = pathname === '/profile'
   const isLearningOpen = pathname.startsWith('/learning')
+  // startsWith chứ không phải ===, để /quiz/mistakes cũng sáng mục Trắc nghiệm.
+  const isQuizOpen = pathname.startsWith('/quiz')
   const isPatient = user?.role === 'patient'
 
   const profileSubline =
@@ -109,6 +111,22 @@ export function Sidebar({
           >
             <LibraryIcon className="h-5 w-5 shrink-0" />
             Thư viện học tập
+          </Link>
+
+          {/* Cùng ngôn ngữ hình với "Thư viện học tập" ngay trên: hai mục này
+              là hai chặng của cùng một vòng học, tách kiểu là tách nhầm. */}
+          <Link
+            to="/quiz"
+            onClick={onNavigate}
+            aria-current={isQuizOpen ? 'page' : undefined}
+            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-pill px-cozy text-input font-semibold no-underline ${
+              isQuizOpen
+                ? 'bg-white/10 text-white hover:bg-white/15'
+                : 'border-2 border-mist text-mist hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            <span aria-hidden="true">🎯</span>
+            Trắc nghiệm kiến thức
           </Link>
         </div>
       )}

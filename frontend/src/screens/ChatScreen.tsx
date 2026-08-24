@@ -11,6 +11,7 @@ import {
   getConversationDetail,
   streamChatMessage,
   type ApiError,
+  type CompleteLessonResponse,
   type StreamStepEvent,
 } from '../lib/api'
 import {
@@ -24,6 +25,7 @@ import { ChatComposer } from '../ui/ChatComposer'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { LibraryIcon } from '../ui/icons'
 import { Mascot } from '../ui/Mascot'
+import { QuizPanel } from '../ui/QuizPanel'
 import { SuggestedQuestions } from '../ui/SuggestedQuestions'
 
 /**
@@ -105,6 +107,17 @@ function MissingProfileBand() {
   )
 }
 
+/**
+ * Banner "Bài học hôm nay" — nơi duy nhất cộng 10 điểm.
+ *
+ * TRẢ LỜI SAI KHÔNG CÒN LÀ NGÕ CỤT (sửa 24/08/2026).
+ *
+ * Trước đây chọn sai thì backend ném 400 và banner hiện đúng một dòng đỏ "Sai
+ * đáp án, không được cộng điểm!". Người học không biết đáp án đúng là gì, cũng
+ * không biết mình nhầm ở đâu — đúng lúc họ sẵn sàng học nhất thì hệ thống chỉ
+ * nói "sai" rồi im. Nay mọi lượt trả lời đều nhận lại: đáp án đúng, đáp án mình
+ * đã chọn, và một câu giải thích ngắn. Sai thì chọn lại được ngay.
+ */
 function DailyLessonBanner() {
   const { data, isPending } = useDailyLesson()
   const completeMutation = useCompleteLesson()
@@ -112,36 +125,36 @@ function DailyLessonBanner() {
   const [showQuiz, setShowQuiz] = useState(false)
   const [selectedOption, setSelectedOption] = useState<number | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<CompleteLessonResponse | null>(null)
 
   if (isPending || hidden || !data || !data.lesson) return null
 
-  const handleComplete = () => {
-    const quizData = data.lesson!.quiz_data
-    if (quizData) {
-      if (!showQuiz) {
-        setShowQuiz(true)
-        return
-      }
-      
-      if (selectedOption === null) {
-        setErrorMsg('Vui lòng chọn một đáp án!')
-        return
-      }
+  const lesson = data.lesson
+  const quizData = lesson.quiz_data
 
-      completeMutation.mutate(
-        { articleId: data.lesson!.id, payload: { answer_index: selectedOption } },
-        {
-          onSuccess: () => setHidden(true),
-          onError: (err) => setErrorMsg(err.message || 'Sai đáp án, thử lại nhé!')
-        }
-      )
-    } else {
-      // Fallback cho bài không có quiz
-      completeMutation.mutate(
-        { articleId: data.lesson!.id, payload: { answer_index: 0 } },
-        { onSuccess: () => setHidden(true) }
-      )
+  const handleComplete = () => {
+    if (quizData && !showQuiz) {
+      setShowQuiz(true)
+      return
     }
+
+    if (quizData && selectedOption === null) {
+      setErrorMsg('Bạn chọn một đáp án đã nhé.')
+      return
+    }
+
+    completeMutation.mutate(
+      { articleId: lesson.id, payload: { answer_index: selectedOption ?? 0 } },
+      {
+        onSuccess: (result) => {
+          setErrorMsg(null)
+          // Bài không có câu hỏi thì đóng luôn, không có gì để giải thích.
+          if (!quizData) setHidden(true)
+          else setFeedback(result)
+        },
+        onError: (err) => setErrorMsg(err.message || 'Gửi không được, bạn thử lại nhé.'),
+      },
+    )
   }
 
   return (
@@ -154,24 +167,31 @@ function DailyLessonBanner() {
           <p className="font-display text-note font-semibold text-slate">
             Bài học ngày {data.day_number}
           </p>
-          <h2 className="text-empty font-semibold text-body">{data.lesson.title}</h2>
+          <h2 className="text-empty font-semibold text-body">{lesson.title}</h2>
         </div>
       </div>
 
-      {!showQuiz ? (
-        <p className="mt-cozy text-answer text-body">{data.lesson.content}</p>
+      {feedback !== null && quizData ? (
+        <DailyQuizFeedback
+          feedback={feedback}
+          options={quizData.options}
+          question={quizData.question}
+          yourAnswer={selectedOption ?? -1}
+        />
+      ) : !showQuiz ? (
+        <p className="mt-cozy text-answer text-body">{lesson.content}</p>
       ) : (
-        data.lesson.quiz_data && (
+        quizData && (
           <div className="mt-cozy border-t border-line pt-snug">
             <p className="font-display text-input font-semibold text-body">
-              {data.lesson.quiz_data.question}
+              {quizData.question}
             </p>
 
             {/* Ô chọn là `bg-canvas`, ô đã chọn đổi sang `bg-mint`. Chữ giữ
                 nguyên `ink` ở cả hai: 14.22:1 trên canvas và 7.95:1 trên mint,
                 nên trạng thái chọn đọc được mà không phải đổi màu chữ. */}
             <div className="mt-snug flex flex-col gap-tight">
-              {data.lesson.quiz_data.options.map((opt, idx) => (
+              {quizData.options.map((opt, idx) => (
                 <label
                   key={idx}
                   // Màu chữ đặt ở ĐÂY chứ không ở thẻ con: nền ô đổi từ
@@ -209,18 +229,129 @@ function DailyLessonBanner() {
         )
       )}
 
-      <button
-        type="button"
-        onClick={handleComplete}
-        disabled={completeMutation.isPending}
-        className="font-display mt-cozy min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-ink disabled:bg-canvas disabled:font-normal disabled:text-slate"
+      <div className="mt-cozy flex flex-wrap items-center gap-snug">
+        {feedback !== null ? (
+          feedback.is_correct ? (
+            <button
+              type="button"
+              onClick={() => setHidden(true)}
+              className="motion-press font-display min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-ink"
+            >
+              Xong rồi
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedback(null)
+                  setSelectedOption(null)
+                }}
+                className="motion-press font-display min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-ink"
+              >
+                Chọn lại
+              </button>
+              <Link
+                to={`/learning/${lesson.id}`}
+                className="font-display flex min-h-touch items-center text-input font-semibold text-body underline"
+              >
+                Đọc lại bài học
+              </Link>
+            </>
+          )
+        ) : (
+          <button
+            type="button"
+            onClick={handleComplete}
+            disabled={completeMutation.isPending}
+            className="motion-press font-display min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-ink disabled:bg-canvas disabled:font-normal disabled:text-slate"
+          >
+            {completeMutation.isPending
+              ? 'Đang gửi…'
+              : showQuiz
+                ? 'Trả lời và nhận điểm'
+                : 'Làm bài trắc nghiệm (+10 điểm)'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Kết quả một câu của bài học hằng ngày: đáp án đúng, lựa chọn của bạn, vì sao.
+ *
+ * MÀU KHÔNG PHẢI KÊNH DUY NHẤT. Ô đúng tô mint, ô mình chọn sai viền alert,
+ * nhưng cả hai đều kèm chữ ("đáp án đúng" / "bạn đã chọn") vì đây là ứng dụng
+ * cho người 45–70 tuổi, trong đó tỉ lệ khó phân biệt màu là đáng kể.
+ *
+ * Nhãn "Đúng rồi" dùng `text-body` chứ không phải một màu xanh: mint đủ tương
+ * phản khi làm NỀN, không đủ khi làm CHỮ trên canvas sáng. Vế "chưa đúng" thì
+ * `alert` có sẵn hai giá trị cho hai chế độ nên dùng thẳng được.
+ */
+function DailyQuizFeedback({
+  feedback,
+  options,
+  question,
+  yourAnswer,
+}: {
+  feedback: CompleteLessonResponse
+  options: string[]
+  question: string
+  yourAnswer: number
+}) {
+  const { is_correct, correct_index, explanation, hp_earned } = feedback
+
+  return (
+    <div className="mt-cozy border-t border-line pt-snug">
+      <p className="font-display text-input font-semibold text-body">{question}</p>
+
+      <ul className="mt-snug flex flex-col gap-tight">
+        {options.map((opt, idx) => {
+          const dung = idx === correct_index
+          const cuaBan = idx === yourAnswer
+          const tone = dung
+            ? 'bg-mint text-ink'
+            : cuaBan
+              ? 'border-2 border-alert bg-canvas text-body'
+              : 'bg-canvas text-body'
+
+          return (
+            <li key={idx} className={`flex items-start gap-snug rounded-card p-snug ${tone}`}>
+              <span
+                className={`font-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-icon text-question font-semibold ${
+                  dung ? 'bg-ink text-mint' : 'bg-surface text-slate'
+                }`}
+              >
+                {String.fromCharCode(65 + idx)}
+              </span>
+              <span className="font-display min-w-0 flex-1 text-question">
+                {opt}
+                {dung && <span className="font-semibold"> — đáp án đúng</span>}
+                {cuaBan && !dung && <span className="font-semibold"> — bạn đã chọn</span>}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+
+      <p
+        role="status"
+        className="font-display mt-snug rounded-card bg-canvas p-snug text-question text-body"
       >
-        {completeMutation.isPending
-          ? 'Đang gửi…'
-          : showQuiz
-            ? 'Trả lời và nhận điểm'
-            : 'Làm bài trắc nghiệm (+10 điểm)'}
-      </button>
+        <span className={`font-semibold ${is_correct ? 'text-body' : 'text-alert'}`}>
+          {is_correct ? 'Đúng rồi. ' : 'Chưa đúng. '}
+        </span>
+        {explanation}
+      </p>
+
+      {is_correct && (
+        <p className="font-display mt-tight text-question font-semibold text-body">
+          {hp_earned > 0
+            ? `+${hp_earned} điểm đã cộng cho bạn.`
+            : 'Hôm nay bạn đã nhận điểm rồi, nên lần này chỉ tính là hoàn thành bài.'}
+        </p>
+      )}
     </div>
   )
 }
@@ -355,6 +486,19 @@ export function ChatScreen({
   const isAfterRedFlag =
     lastTurn?.status === 'red_flag' && !isStreaming && streamError === null
 
+  /**
+   * Chỉ mời làm trắc nghiệm sau một lượt trả lời có NỘI DUNG GIÁO DỤC.
+   *
+   * Ba trạng thái còn lại đều không có gì để kiểm tra, và mời sai lúc thì phản
+   * cảm: `red_flag` là lúc người bệnh cần đi cấp cứu chứ không phải làm bài,
+   * `refused` và `referral` thì trợ lý vừa nói thẳng là không trả lời được.
+   */
+  const canOfferQuiz =
+    conversationId !== null &&
+    !isStreaming &&
+    streamError === null &&
+    (lastTurn?.status === 'answered' || lastTurn?.status === 'partial')
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="flex-1 pb-turn">
@@ -440,6 +584,16 @@ export function ChatScreen({
               onRetry={() => {
                 if (pendingQuestion !== null) void ask(pendingQuestion)
               }}
+            />
+          </div>
+        )}
+
+        {canOfferQuiz && conversationId !== null && (
+          <div className="mb-turn">
+            <QuizPanel
+              source="conversation"
+              conversationId={conversationId}
+              ctaLabel="Kiểm tra kiến thức vừa trao đổi"
             />
           </div>
         )}

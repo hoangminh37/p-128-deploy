@@ -23,6 +23,41 @@ crag_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
+# ── CRAG theo lô: chấm TẤT CẢ tài liệu trong MỘT lượt gọi ───────────────────
+#
+# Bản một-doc-một-lượt ở trên chạy song song nên nhanh, nhưng vẫn là 8 request
+# rời rạc cho một câu hỏi (top_k=8), và tăng lên 12 rồi 16 ở các vòng retry.
+# Cộng với 5 lượt của các node khác thì một câu hỏi ngốn 13-45 lượt gọi — đủ để
+# đâm vào hạn mức của Groq ngay khi có vài người dùng cùng lúc.
+#
+# Chấm theo lô đưa con số đó về 1. Đánh đổi: mô hình phải giữ nhiều tài liệu
+# trong đầu cùng lúc nên độ chính xác nhích xuống — chấp nhận được, vì đây là
+# bộ lọc thô và selfrag_verifier phía sau mới là chốt chặn thật.
+CRAG_BATCH_SYSTEM = """Bạn là chuyên gia đánh giá tài liệu y tế.
+
+Nhiệm vụ: với MỖI tài liệu được đánh số dưới đây, quyết định nó có liên quan đến
+câu hỏi hay không.
+
+Chỉ trả về DANH SÁCH SỐ THỨ TỰ của những tài liệu LIÊN QUAN, cách nhau bằng dấu phẩy.
+Ví dụ hợp lệ: 1,3,4
+Không tài liệu nào liên quan thì trả về đúng một chữ: none
+
+TUYỆT ĐỐI không giải thích, không viết gì khác ngoài dãy số hoặc chữ none.
+Khi phân vân thì GIỮ LẠI tài liệu đó — bỏ sót nguồn tốn kém hơn nhiều so với giữ thừa."""
+
+CRAG_BATCH_HUMAN = """Câu hỏi: {query}
+
+{documents}
+
+Số thứ tự các tài liệu liên quan:"""
+
+crag_batch_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", CRAG_BATCH_SYSTEM),
+        ("human", CRAG_BATCH_HUMAN),
+    ]
+)
+
 # ── LLM Generate: CoT + XML-tags output ─────────────────────────────────────
 GENERATE_SYSTEM = """Bạn là trợ lý y tế chuyên nghiệp. Nhiệm vụ của bạn là trả lời câu hỏi
 dựa HOÀN TOÀN vào các tài liệu được cung cấp. Không bịa đặt thông tin ngoài tài liệu.

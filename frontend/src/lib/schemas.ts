@@ -540,6 +540,8 @@ export const quizDataSchema = z.object({
   question: z.string(),
   options: z.array(z.string()),
   correct_index: z.number().int(),
+  /** Bài sinh trước 24/08/2026 chưa có trường này — backend tự vá khi chấm. */
+  explanation: z.string().nullable().optional(),
 })
 
 export const microArticleSchema = z.object({
@@ -556,6 +558,15 @@ export const gamificationStatsSchema = z.object({
   total_score: z.number().int(),
   current_streak: z.number().int(),
   completed_articles: z.array(z.string()),
+})
+
+/** Kết quả chấm câu hỏi bài học hằng ngày. Trả 200 cho cả đúng lẫn sai. */
+export const completeLessonResponseSchema = z.object({
+  is_correct: z.boolean(),
+  correct_index: z.number().int(),
+  explanation: z.string(),
+  hp_earned: z.number().int(),
+  stats: gamificationStatsSchema,
 })
 
 export const dailyLessonResponseSchema = z.object({
@@ -586,3 +597,130 @@ export type DailyLessonResponse = z.infer<typeof dailyLessonResponseSchema>
 export type LearningPathItem = z.infer<typeof learningPathItemSchema>
 export type LearningLibraryResponse = z.infer<typeof learningLibraryResponseSchema>
 export type CompleteLessonRequest = z.infer<typeof completeLessonRequestSchema>
+export type CompleteLessonResponse = z.infer<typeof completeLessonResponseSchema>
+
+// ---------------------------------------------------------------------------
+// Mục 13: Trắc nghiệm kiến thức (Mini-Quiz Generation)
+// ---------------------------------------------------------------------------
+
+/** Ba nguồn ngữ cảnh mà backend dựa vào để ra đề. */
+export const quizSourceSchema = z.enum(['article', 'conversation', 'profile', 'mistakes'])
+
+export const quizDifficultySchema = z.enum(['easy', 'medium', 'hard'])
+
+/**
+ * Một câu trong đề CHƯA nộp.
+ *
+ * Cố ý KHÔNG có `correct_index`: backend giữ đáp án lại và chấm ở server, nên
+ * schema này phải phản ánh đúng điều đó. Thêm trường đó vào đây, dù chỉ là
+ * optional, là mở đường cho một bản backend tương lai lỡ tay trả đáp án về mà
+ * không ai phát hiện.
+ */
+export const quizQuestionSchema = z.object({
+  index: z.number().int(),
+  question: z.string(),
+  options: z.array(z.string()).length(4),
+  difficulty: quizDifficultySchema,
+})
+
+export const quizMetadataSchema = z.object({
+  latency_ms: z.number().int(),
+  cached: z.boolean(),
+  /** `false` khi đề chỉ dựa vào hồ sơ vì kho tài liệu không trả về trích đoạn nào. */
+  grounded: z.boolean(),
+})
+
+export const quizResponseSchema = z.object({
+  quiz_id: z.string(),
+  source: quizSourceSchema,
+  topic: z.string(),
+  questions: z.array(quizQuestionSchema),
+  disclaimer: z.string(),
+  citations: z.array(citationSchema),
+  metadata: quizMetadataSchema,
+})
+
+export const quizRequestSchema = z.object({
+  source: quizSourceSchema,
+  article_id: z.string().optional(),
+  conversation_id: z.string().optional(),
+  num_questions: z.number().int().min(2).max(10).optional(),
+})
+
+/** Kết quả một câu, chỉ có sau khi nộp bài. Đây mới là chỗ `correct_index` xuất hiện. */
+export const quizResultSchema = z.object({
+  index: z.number().int(),
+  question: z.string(),
+  options: z.array(z.string()),
+  your_answer: z.number().int(),
+  correct_index: z.number().int(),
+  is_correct: z.boolean(),
+  explanation: z.string(),
+})
+
+export const quizSubmitRequestSchema = z.object({
+  answers: z.array(z.number().int()),
+})
+
+export const quizSubmitResponseSchema = z.object({
+  quiz_id: z.string(),
+  score: z.number().int(),
+  total: z.number().int(),
+  passed: z.boolean(),
+  results: z.array(quizResultSchema),
+  hp_earned: z.number().int(),
+  stats: gamificationStatsSchema,
+})
+
+export const quizHistoryItemSchema = z.object({
+  quiz_id: z.string(),
+  source: quizSourceSchema,
+  topic: z.string(),
+  score: z.number().int().nullable(),
+  total: z.number().int(),
+  created_at: z.string(),
+  submitted_at: z.string().nullable(),
+})
+
+export const quizHistoryResponseSchema = z.object({
+  items: z.array(quizHistoryItemSchema),
+})
+
+export type QuizSource = z.infer<typeof quizSourceSchema>
+export type QuizDifficulty = z.infer<typeof quizDifficultySchema>
+export type QuizQuestion = z.infer<typeof quizQuestionSchema>
+export type QuizResponse = z.infer<typeof quizResponseSchema>
+export type QuizRequest = z.infer<typeof quizRequestSchema>
+export type QuizResult = z.infer<typeof quizResultSchema>
+export type QuizSubmitRequest = z.infer<typeof quizSubmitRequestSchema>
+export type QuizSubmitResponse = z.infer<typeof quizSubmitResponseSchema>
+export type QuizHistoryItem = z.infer<typeof quizHistoryItemSchema>
+export type QuizHistoryResponse = z.infer<typeof quizHistoryResponseSchema>
+
+/**
+ * Một chỗ người học chưa nắm.
+ *
+ * Khác `quizQuestionSchema`, schema này CÓ `correct_index` và `explanation` —
+ * và điều đó là đúng. Người học đã nộp bài rồi; mục đích của màn ôn lại chính
+ * là cho họ thấy đáp án đúng cùng lý do.
+ */
+export const quizMistakeSchema = z.object({
+  question: z.string(),
+  options: z.array(z.string()),
+  correct_index: z.number().int(),
+  explanation: z.string(),
+  /** Các đáp án đã chọn, mới nhất trước. */
+  chosen: z.array(z.number().int()),
+  times_wrong: z.number().int(),
+  topic: z.string(),
+  quiz_id: z.string(),
+})
+
+export const quizMistakesResponseSchema = z.object({
+  items: z.array(quizMistakeSchema),
+  total_wrong: z.number().int(),
+  sessions_scanned: z.number().int(),
+})
+
+export type QuizMistake = z.infer<typeof quizMistakeSchema>
+export type QuizMistakesResponse = z.infer<typeof quizMistakesResponseSchema>
