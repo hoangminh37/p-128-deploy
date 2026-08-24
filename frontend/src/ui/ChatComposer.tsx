@@ -19,7 +19,8 @@
  *    `min-h-dvh` (dynamic viewport) nên co theo, và sticky bám đáy khung đã co
  *    — ô nhập nổi lên trên bàn phím thay vì bị che.
  *
- * Nền `bg-paper` là bắt buộc: thiếu nó thì chữ cuộn qua phía dưới sẽ lộ ra.
+ * Nền `bg-canvas` là bắt buộc: thiếu nó thì chữ cuộn qua phía dưới sẽ lộ ra.
+ * Thanh thì trắng, còn dải nền quanh thanh phải trùng nền vùng nội dung.
  */
 import { useId, useRef, type FormEvent } from 'react'
 
@@ -61,10 +62,10 @@ export function ChatComposer({
     <form
       onSubmit={handleSubmit}
       // Đệm dưới cộng thêm vùng an toàn của máy có thanh gạt dưới màn hình.
-      className="sticky bottom-0 bg-paper pt-snug pb-[calc(var(--spacing-snug)+env(safe-area-inset-bottom))]"
+      className="sticky bottom-0 bg-canvas pt-snug pb-[calc(var(--spacing-snug)+env(safe-area-inset-bottom))]"
     >
       {/* Nét kẻ tách khỏi phần nội dung cuộn phía trên. */}
-      <div className="border-t border-rule pt-snug">
+      <div className="border-t border-line pt-snug">
         {/* Nhãn ẩn: kính lúp và chữ gợi ý đã nói rõ ô này để làm gì, nhưng trình
             đọc màn hình không thấy hình, và `placeholder` biến mất ngay khi gõ
             chữ đầu tiên nên không thay được nhãn. */}
@@ -74,8 +75,8 @@ export function ChatComposer({
 
         {/* Viền focus vẽ trên cả thanh chứ không riêng ô `input`: một khung chữ
             nhật nằm lọt trong một thanh bo tròn trông như lỗi hiển thị. */}
-        <div className="flex items-center gap-tight rounded-full border-2 border-border bg-paper pr-tight pl-cozy focus-within:outline-3 focus-within:outline-medical focus-within:outline-offset-2">
-          <SearchIcon className="h-6 w-6 shrink-0 text-moss" />
+        <div className="flex items-center gap-tight rounded-pill bg-white pr-tight pl-cozy focus-within:outline-3 focus-within:outline-mint focus-within:outline-offset-2">
+          <SearchIcon className="h-6 w-6 shrink-0 text-slate" />
 
           <input
             id={inputId}
@@ -88,7 +89,7 @@ export function ChatComposer({
             autoComplete="off"
             placeholder="Hỏi tiếp về bệnh của bạn"
             aria-describedby={showHint ? hintId : undefined}
-            className="font-body min-h-touch w-full min-w-0 flex-1 bg-transparent text-input text-ink placeholder:text-moss focus:outline-none disabled:text-moss"
+            className="font-body min-h-touch w-full min-w-0 flex-1 bg-transparent text-input text-ink placeholder:text-slate focus:outline-none disabled:text-slate"
           />
 
           {!isEmpty && (
@@ -97,7 +98,7 @@ export function ChatComposer({
               disabled={disabled || isTooShort}
               aria-label="Gửi câu hỏi"
               title="Gửi câu hỏi"
-              className="flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-full bg-medical text-paper disabled:bg-transparent disabled:text-moss"
+              className="motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-full bg-mint text-ink enabled:hover:bg-mint-press disabled:bg-canvas disabled:text-slate"
             >
               <SendIcon className="h-6 w-6" />
             </button>
@@ -110,7 +111,7 @@ export function ChatComposer({
           <p
             id={hintId}
             role="status"
-            className="font-display mt-tight text-question text-moss"
+            className="font-display mt-tight text-question text-slate"
           >
             Câu hỏi cần ít nhất {MIN_QUERY_LENGTH} ký tự để trợ lý biết bạn đang
             hỏi điều gì.

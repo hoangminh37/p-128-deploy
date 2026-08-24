@@ -85,10 +85,15 @@ export function LandingRedirect() {
   }
 
   if (profileState === 'loading') {
+    // Màn này đứng NGOÀI khung ứng dụng (xem `RootRoute` ở `App.tsx`), nên nó
+    // phải tự lo lấy nền của mình. Nền navy giống hệt màn đăng nhập vừa rời
+    // khỏi, để nhịp chờ này không loé lên một màn trắng ở giữa.
     return (
-      <p role="status" className="font-display max-w-answer text-notice text-moss">
-        Đang mở hồ sơ của bạn…
-      </p>
+      <div className="flex min-h-dvh items-center justify-center bg-ink px-cozy">
+        <p role="status" className="font-display max-w-answer text-notice text-mist">
+          Đang mở hồ sơ của bạn…
+        </p>
+      </div>
     )
   }
 

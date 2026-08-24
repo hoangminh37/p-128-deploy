@@ -77,11 +77,17 @@ const POINTS: readonly IntroPoint[] = [
 
 export function ProfileIntro() {
   return (
-    <div className="max-w-answer">
+    <div className="max-w-answer rounded-card-lg bg-white p-cozy">
       <ul className="space-y-cozy">
         {POINTS.map(({ id, Icon, body }) => (
           <li key={id} className="flex items-start gap-snug">
-            <Icon className="mt-tight h-7 w-7 shrink-0 text-medical" />
+            {/* Khối biểu tượng nền `sand`, chữ `sand-deep` (7.79:1). Sand chứ
+                không phải mint: mint là màu của HÀNH ĐỘNG trong ứng dụng này
+                (nút, marker, nhãn nguồn), còn ba điều ở đây là lời dặn — chúng
+                không được trông như thứ bấm được. */}
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-icon bg-sand text-sand-deep">
+              <Icon className="h-6 w-6" />
+            </span>
             <p className="text-question text-ink">{body}</p>
           </li>
         ))}
@@ -89,7 +95,7 @@ export function ProfileIntro() {
 
       {/* Ràng buộc PII của brief, gói trong một câu. Người sắp phải điền thông
           tin sức khỏe cần được trấn an TRƯỚC khi điền, và một câu là đủ. */}
-      <p className="font-display mt-snug text-note text-moss">
+      <p className="font-display mt-cozy border-t border-line pt-snug text-note text-slate">
         Ứng dụng không hỏi và không lưu tên, số điện thoại hay giấy tờ của bạn.
       </p>
     </div>

@@ -1,6 +1,31 @@
+/**
+ * Tải lên tài liệu y khoa, đường dẫn `/editor/upload`.
+ *
+ * Nền canvas — màn LÀM VIỆC. Form nằm trong một thẻ trắng bo 18px, mọi ô nhập
+ * viền `slate` (4.96:1 trên trắng, vượt ngưỡng 3:1 của WCAG 1.4.11).
+ *
+ * Khối lỗi dùng nền `sand` chứ không phải nền `alert` đặc: đây là lỗi nhập
+ * liệu, người dùng sửa được ngay tại chỗ. Nền alert đặc chỉ dành cho khối
+ * `red_flag` ở luồng bệnh nhân — xem `ResponseStates.tsx`.
+ */
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+
 import { uploadDocument, ApiError } from '../lib/api'
+
+/** Nhãn của một trường. Tối thiểu 17px theo sàn cỡ chữ nội dung. */
+const LABEL_CLASS = 'font-display block text-input font-semibold text-ink'
+const INPUT_CLASS =
+  'font-body mt-tight min-h-touch w-full rounded-card border-2 border-slate bg-white p-snug text-input text-ink'
+
+/** Dấu bắt buộc. Chữ `alert` trên nền trắng đạt 6.54:1. */
+function Required() {
+  return (
+    <span className="text-alert" aria-hidden="true">
+      {' *'}
+    </span>
+  )
+}
 
 export function EditorUploadScreen() {
   const navigate = useNavigate()
@@ -11,14 +36,16 @@ export function EditorUploadScreen() {
     e.preventDefault()
     setIsSubmitting(true)
     setError(null)
-    
+
     const form = e.currentTarget
     const formData = new FormData(form)
-    
+
     // Đảm bảo diseases (bệnh) không rỗng
     const diseases = formData.get('diseases')
     if (!diseases) {
-      setError("Vui lòng nhập ít nhất một loại bệnh (ví dụ: hypertension, type2_diabetes)")
+      setError(
+        'Bạn hãy nhập ít nhất một loại bệnh, ví dụ hypertension hoặc type2_diabetes.',
+      )
       setIsSubmitting(false)
       return
     }
@@ -39,86 +66,161 @@ export function EditorUploadScreen() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Tải lên Tài liệu Y khoa</h1>
-        <button
-          onClick={() => navigate('/editor/dashboard')}
-          className="text-sm font-medium text-slate-500 hover:text-slate-900"
-        >
-          &larr; Quay lại
-        </button>
-      </div>
+    <div className="w-full max-w-reading">
+      <h1 className="text-ask font-semibold text-ink">Tải lên tài liệu y khoa</h1>
+      <p className="mt-snug max-w-answer text-notice text-ink">
+        Tài liệu tải lên sẽ vào hàng đợi duyệt, không vào thẳng thư viện trích
+        dẫn. Người duyệt vẫn phải mở từng mục và gắn bệnh áp dụng.
+      </p>
 
-      {error && (
-        <div className="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-700">
+      {error !== null && (
+        <p
+          role="alert"
+          className="font-display mt-block rounded-card bg-sand p-cozy text-notice text-sand-deep"
+        >
           {error}
-        </div>
+        </p>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <form
+        onSubmit={handleSubmit}
+        className="mt-block space-y-cozy rounded-card-lg bg-white p-cozy"
+      >
         <div>
-          <label htmlFor="file" className="block text-sm font-medium text-slate-700">Tài liệu PDF <span className="text-red-500">*</span></label>
+          <label htmlFor="file" className={LABEL_CLASS}>
+            Tài liệu PDF
+            <Required />
+          </label>
           <input
             type="file"
             id="file"
             name="file"
             accept="application/pdf"
             required
-            className="mt-1 block w-full text-sm text-slate-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+            className="font-display mt-tight block w-full text-question text-ink file:mr-cozy file:rounded-pill file:border-0 file:bg-mint file:px-cozy file:py-tight file:text-question file:font-semibold file:text-ink"
           />
         </div>
 
         <div>
-          <label htmlFor="title" className="block text-sm font-medium text-slate-700">Tiêu đề <span className="text-red-500">*</span></label>
-          <input type="text" id="title" name="title" required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" placeholder="VD: Hướng dẫn chẩn đoán và điều trị tăng huyết áp" />
+          <label htmlFor="title" className={LABEL_CLASS}>
+            Tiêu đề
+            <Required />
+          </label>
+          <input
+            type="text"
+            id="title"
+            name="title"
+            required
+            className={INPUT_CLASS}
+            placeholder="Ví dụ: Hướng dẫn chẩn đoán và điều trị tăng huyết áp"
+          />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-cozy sm:grid-cols-2">
           <div>
-            <label htmlFor="issuer" className="block text-sm font-medium text-slate-700">Nơi ban hành <span className="text-red-500">*</span></label>
-            <input type="text" id="issuer" name="issuer" required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" placeholder="VD: Bộ Y Tế" />
+            <label htmlFor="issuer" className={LABEL_CLASS}>
+              Nơi ban hành
+              <Required />
+            </label>
+            <input
+              type="text"
+              id="issuer"
+              name="issuer"
+              required
+              className={INPUT_CLASS}
+              placeholder="Ví dụ: Bộ Y tế"
+            />
           </div>
           <div>
-            <label htmlFor="published" className="block text-sm font-medium text-slate-700">Năm/Ngày ban hành <span className="text-red-500">*</span></label>
-            <input type="text" id="published" name="published" required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" placeholder="VD: 2024" />
+            <label htmlFor="published" className={LABEL_CLASS}>
+              Năm hoặc ngày ban hành
+              <Required />
+            </label>
+            <input
+              type="text"
+              id="published"
+              name="published"
+              required
+              className={INPUT_CLASS}
+              placeholder="Ví dụ: 2024"
+            />
           </div>
         </div>
 
         <div>
-          <label htmlFor="diseases" className="block text-sm font-medium text-slate-700">Chỉ định bệnh (cách nhau dấu phẩy) <span className="text-red-500">*</span></label>
-          <input type="text" id="diseases" name="diseases" required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" placeholder="VD: hypertension, type2_diabetes" />
+          <label htmlFor="diseases" className={LABEL_CLASS}>
+            Chỉ định bệnh, cách nhau bằng dấu phẩy
+            <Required />
+          </label>
+          <input
+            type="text"
+            id="diseases"
+            name="diseases"
+            required
+            className={INPUT_CLASS}
+            placeholder="hypertension, type2_diabetes"
+          />
         </div>
 
         <div>
-          <label htmlFor="doc_code" className="block text-sm font-medium text-slate-700">Mã tài liệu (tuỳ chọn)</label>
-          <input type="text" id="doc_code" name="doc_code" className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" placeholder="VD: 3192/QĐ-BYT" />
+          <label htmlFor="doc_code" className={LABEL_CLASS}>
+            Mã tài liệu (không bắt buộc)
+          </label>
+          <input
+            type="text"
+            id="doc_code"
+            name="doc_code"
+            className={INPUT_CLASS}
+            placeholder="Ví dụ: 3192/QĐ-BYT"
+          />
         </div>
 
         <div>
-          <label htmlFor="url" className="block text-sm font-medium text-slate-700">Đường dẫn gốc (tuỳ chọn)</label>
-          <input type="url" id="url" name="url" className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" placeholder="https://" />
+          <label htmlFor="url" className={LABEL_CLASS}>
+            Đường dẫn gốc (không bắt buộc)
+          </label>
+          <input
+            type="url"
+            id="url"
+            name="url"
+            className={INPUT_CLASS}
+            placeholder="https://"
+          />
         </div>
 
         <div>
-          <label htmlFor="notes" className="block text-sm font-medium text-slate-700">Ghi chú (tuỳ chọn)</label>
-          <textarea id="notes" name="notes" rows={3} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" placeholder="Ghi chú thêm cho người duyệt..." />
+          <label htmlFor="notes" className={LABEL_CLASS}>
+            Ghi chú (không bắt buộc)
+          </label>
+          <textarea
+            id="notes"
+            name="notes"
+            rows={3}
+            className={INPUT_CLASS}
+            placeholder="Ghi chú thêm cho người duyệt…"
+          />
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-          <button
-            type="button"
-            onClick={() => navigate('/editor/dashboard')}
-            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Huỷ
-          </button>
+        <div className="flex flex-wrap gap-snug border-t border-line pt-cozy">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-400"
+            className="motion-press font-display min-h-call flex-1 rounded-pill bg-mint px-cozy text-input font-bold text-mint-deep enabled:hover:bg-mint-press disabled:bg-canvas disabled:font-normal disabled:text-slate"
           >
-            {isSubmitting ? 'Đang tải lên...' : 'Tải lên tài liệu'}
+            {isSubmitting ? 'Đang tải lên…' : 'Tải lên tài liệu'}
+          </button>
+
+          <button
+            type="button"
+            // Giữ nguyên đích của bản trước, kể cả khi nó không khớp route nào:
+            // `/editor/dashboard` rơi vào nhánh `*` rồi được đưa về `/`, và
+            // `LandingRedirect` mới đẩy tiếp sang `/editor`. Đợt này chỉ đổi lớp
+            // trình bày nên không sửa đường dẫn — nhưng đây là một lỗi thật, đi
+            // vòng hai lần chuyển hướng cho một cú bấm Huỷ.
+            onClick={() => navigate('/editor/dashboard')}
+            className="motion-press font-display min-h-call rounded-pill border-2 border-slate bg-white px-cozy text-input font-semibold text-ink enabled:hover:bg-canvas"
+          >
+            Huỷ
           </button>
         </div>
       </form>

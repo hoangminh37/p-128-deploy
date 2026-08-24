@@ -36,19 +36,35 @@ function StrokeIcon({ className, children }: IconProps & { children: ReactNode }
   )
 }
 
-/** Dấu hiệu của ứng dụng: chữ thập y tế trong một ô bo góc. */
+/**
+ * Dấu hiệu của ứng dụng: chữ thập y tế trong một ô bo góc.
+ *
+ * Ô lấy màu chữ của chỗ đặt nó (`currentColor`, thường là `mint`), còn chữ
+ * thập luôn là `ink`. Cặp mint / ink đạt 7.95:1, nên dấu hiệu đọc được cả
+ * khi nó nằm trên nền navy lẫn trên nền sáng — chỉ cần đổi một class màu ở
+ * chỗ gọi thay vì phải có hai bản hình.
+ */
 export function AppMark({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className={className}>
-      <rect x="1" y="1" width="22" height="22" rx="6" fill="currentColor" />
+      <rect x="1" y="1" width="22" height="22" rx="7" fill="currentColor" />
       <path
         d="M12 6.5v11M6.5 12h11"
         fill="none"
-        stroke="var(--color-paper)"
+        stroke="var(--color-ink)"
         strokeWidth={2.5}
         strokeLinecap="round"
       />
     </svg>
+  )
+}
+
+/** Mũi tên chỉ sang phải: mở một mục trong danh sách. */
+export function ChevronRightIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M9 5l7 7-7 7" />
+    </StrokeIcon>
   )
 }
 

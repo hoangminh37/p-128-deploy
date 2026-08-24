@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom'
 import { useInvalidateEditorData, useOutOfScopeLogs } from '../app/editor'
 import { createDraftFromLog } from '../lib/api'
 import { formatDateTime } from '../lib/datetime'
+import { EmptyState } from '../ui/EmptyState'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { PlusIcon } from '../ui/icons'
 
@@ -39,14 +40,14 @@ export function OutOfScopeScreen() {
 
   return (
     <div className="max-w-reading">
-      <h1 className="font-display text-ask font-bold">Câu hỏi chưa trả lời được</h1>
+      <h1 className="text-ask font-semibold text-ink">Câu hỏi chưa trả lời được</h1>
       <p className="mt-snug max-w-answer text-notice text-ink">
         Bệnh nhân đã hỏi những câu này nhưng thư viện chưa có tài liệu để trích
         dẫn. Xếp theo số lượt hỏi giảm dần — trên cùng là chỗ thiếu nhiều nhất.
       </p>
 
       {isPending && (
-        <p role="status" className="font-display mt-block text-notice text-moss">
+        <p role="status" className="font-display mt-block text-notice text-slate">
           Đang đọc danh sách…
         </p>
       )}
@@ -81,10 +82,12 @@ export function OutOfScopeScreen() {
           ghi log chưa chạy. Câu thứ hai chỉ mô tả phạm vi của danh sách, không
           suy ra điều gì từ việc nó rỗng. */}
       {!isPending && !isError && logs.length === 0 && (
-        <p className="font-display mt-block text-notice text-moss">
-          Danh sách hiện không có mục nào. Chỗ này chỉ hiện những câu hỏi mà trợ
-          lý đã phải trả lời rằng chưa có tài liệu để trích dẫn.
-        </p>
+        <div className="mt-block">
+          <EmptyState
+            title="Danh sách hiện không có mục nào"
+            body="Chỗ này chỉ hiện những câu hỏi mà trợ lý đã phải trả lời rằng chưa có tài liệu để trích dẫn."
+          />
+        </div>
       )}
 
       {logs.length > 0 && (
@@ -95,35 +98,50 @@ export function OutOfScopeScreen() {
             return (
               <li
                 key={log.log_id}
-                className="rounded-lg border-2 border-border p-cozy"
+                className="flex items-start gap-snug rounded-card bg-white p-cozy"
               >
-                <p className="text-notice text-ink">{log.question}</p>
+                {/* Khối số lượt hỏi, vuông bo góc, số bằng Lora.
+                    NỀN CORAL khi chưa ai tạo bài, NỀN SAND khi đã tạo. Đây là
+                    thứ tự ưu tiên của cả màn hình gói vào một ô: quét dọc cột
+                    trái, ô nào còn coral là ô còn việc. Cùng cặp màu với khối
+                    nguồn gốc ở hàng đợi duyệt, và cùng một nghĩa — coral là
+                    "có người đang chờ". */}
+                <span
+                  className={`flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-chip ${
+                    log.drafted ? 'bg-sand text-sand-deep' : 'bg-coral text-coral-deep'
+                  }`}
+                >
+                  <span className="text-heading font-semibold">{log.ask_count}</span>
+                  <span className="font-display text-note">lượt</span>
+                </span>
 
-                <p className="font-display mt-snug text-question text-moss">
-                  <span className="font-mono text-ink">{log.ask_count}</span> lượt hỏi
-                  {' · '}
-                  gần nhất {formatDateTime(log.last_asked_at)}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-notice text-ink">{log.question}</p>
 
-                <div className="mt-snug">
-                  {log.drafted && log.drafted_item_id !== null ? (
-                    <Link
-                      to={`/editor/queue/${encodeURIComponent(log.drafted_item_id)}`}
-                      className="font-display inline-flex min-h-touch items-center gap-tight rounded-lg border-2 border-border px-cozy text-input font-semibold text-ink no-underline"
-                    >
-                      Đã tạo bài · mở mục nháp
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={isDrafting}
-                      onClick={() => draft.mutate(log.log_id)}
-                      className="font-display flex min-h-touch items-center gap-tight rounded-lg border-2 border-medical bg-medical px-cozy text-input font-bold text-paper disabled:border-rule disabled:bg-transparent disabled:font-normal disabled:text-moss"
-                    >
-                      <PlusIcon className="h-5 w-5 shrink-0" />
-                      {isDrafting ? 'Đang tạo…' : 'Thêm bài'}
-                    </button>
-                  )}
+                  <p className="font-display mt-snug text-question text-slate">
+                    Gần nhất {formatDateTime(log.last_asked_at)}
+                  </p>
+
+                  <div className="mt-snug">
+                    {log.drafted && log.drafted_item_id !== null ? (
+                      <Link
+                        to={`/editor/queue/${encodeURIComponent(log.drafted_item_id)}`}
+                        className="motion-press font-display inline-flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate px-cozy text-input font-semibold text-ink no-underline hover:bg-canvas"
+                      >
+                        Đã tạo bài · mở mục nháp
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isDrafting}
+                        onClick={() => draft.mutate(log.log_id)}
+                        className="motion-press font-display flex min-h-touch items-center gap-tight rounded-pill bg-ink px-cozy text-input font-bold text-white enabled:hover:bg-ink-press disabled:bg-canvas disabled:font-normal disabled:text-slate"
+                      >
+                        <PlusIcon className="h-5 w-5 shrink-0" />
+                        {isDrafting ? 'Đang tạo…' : 'Thêm bài'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </li>
             )

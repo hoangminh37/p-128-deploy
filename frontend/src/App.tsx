@@ -33,7 +33,9 @@ import {
 import { PatientProvider } from './patient/PatientProvider'
 import { ExpiredSessionWatcher } from './session/ExpiredSessionWatcher'
 import { SessionProvider } from './session/SessionProvider'
+import { useSession } from './session/context'
 import { RootLayout } from './ui/RootLayout'
+import { LandingScreen } from './screens/LandingScreen'
 import { ChatScreen } from './screens/ChatScreen'
 import { EditorDashboardScreen } from './screens/EditorDashboardScreen'
 import { EditorItemScreen } from './screens/EditorItemScreen'
@@ -78,6 +80,25 @@ function ChatRoute() {
   return <ChatScreen key={opened ?? location.key} openedConversationId={opened} />
 }
 
+/**
+ * Đường dẫn gốc, hai mặt.
+ *
+ * Chưa đăng nhập thì đây là TRANG GIỚI THIỆU — màn duy nhất trong ứng dụng
+ * mà người chưa có tài khoản xem được. Trước bản này, `/` nằm hẳn trong
+ * `RequireAuth` nên khách lạ bị ném thẳng sang `/login` mà không biết mình
+ * vừa mở cái gì.
+ *
+ * Đã đăng nhập thì LOGIC RẼ ĐƯỜNG KHÔNG ĐỔI MỘT LY: vẫn đúng
+ * `LandingRedirect` cũ, vẫn rẽ theo vai trò rồi theo hồ sơ. Chỉ khác chỗ nó
+ * đứng — nay ở ngoài route layout, nên `RootLayout` không phải dựng cả thanh
+ * bên chỉ để hiển thị một thẻ `Navigate`.
+ */
+function RootRoute() {
+  const { isAuthenticated } = useSession()
+
+  return isAuthenticated ? <LandingRedirect /> : <LandingScreen />
+}
+
 function App() {
   // Tạo trong state để StrictMode gọi render hai lần vẫn dùng chung một client,
   // nếu không cache sẽ bị vứt đi ngay sau lần render đầu.
@@ -93,6 +114,10 @@ function App() {
             <ExpiredSessionWatcher />
 
             <Routes>
+              {/* Đứng NGOÀI `RequireAuth`: đây là màn duy nhất người chưa
+                  đăng nhập được xem. Xem `RootRoute`. */}
+              <Route path="/" element={<RootRoute />} />
+
               <Route
                 path="/login"
                 element={
@@ -109,9 +134,6 @@ function App() {
                   </RequireAuth>
                 }
               >
-                {/* Đường dẫn gốc không còn màn nào của riêng nó — chỉ rẽ đường. */}
-                <Route index element={<LandingRedirect />} />
-
                 <Route
                   path="profile"
                   element={
