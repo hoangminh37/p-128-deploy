@@ -1,9 +1,12 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, relationship
+
+# JSON_TYPE uses PostgreSQL JSONB when available, with SQLite JSON fallback
+JSON_TYPE = JSON().with_variant(JSONB, "postgresql")
 
 Base = declarative_base()
 
@@ -26,7 +29,7 @@ class Patient(Base):
     user_id = Column(String, ForeignKey("users.id"), unique=True)
     age = Column(Integer, nullable=False)
     primary_condition = Column(String, nullable=False)
-    comorbidities = Column(JSONB, default=list)
+    comorbidities = Column(JSON_TYPE, default=list)
     diagnosed_at = Column(String, nullable=True)
     asking_as = Column(String, default="self")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -56,10 +59,10 @@ class Message(Base):
     role = Column(String, nullable=False)  # "user" or "assistant"
     status = Column(String, nullable=True)  # "answered", "partial", etc.
     content = Column(Text, nullable=False)
-    citations = Column(JSONB, default=list)
+    citations = Column(JSON_TYPE, default=list)
     support_level = Column(String, nullable=True)
     disclaimer = Column(String, nullable=True)
-    meta_data = Column(JSONB, nullable=True)  # metadata is reserved word in SQLAlchemy Base
+    meta_data = Column(JSON_TYPE, nullable=True)  # metadata is reserved word in SQLAlchemy Base
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="messages")
@@ -71,13 +74,13 @@ class EditorQueueItem(Base):
     id = Column(String, primary_key=True, default=lambda: f"e_{uuid.uuid4().hex[:6].upper()}")
     title = Column(String, nullable=False)
     origin = Column(String, nullable=False)  # "question_log" or "editor_upload"
-    topics = Column(JSONB, default=list)
+    topics = Column(JSON_TYPE, default=list)
     status = Column(String, nullable=False, default="draft")  # draft, pending, approved, rejected
     content = Column(Text, nullable=False, default="")
     source_url = Column(String, nullable=True)
     issuer = Column(String, nullable=True)
     doc_code = Column(String, nullable=True)
-    conditions = Column(JSONB, default=list)
+    conditions = Column(JSON_TYPE, default=list)
     review_note = Column(Text, nullable=True)
     reject_reason = Column(Text, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
@@ -104,7 +107,7 @@ class Article(Base):
     content = Column(Text, nullable=False)
     full_content = Column(Text, nullable=True)
     category = Column(String, nullable=False)
-    quiz_data = Column(JSONB, nullable=True)
+    quiz_data = Column(JSON_TYPE, nullable=True)
     origin_source = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -127,7 +130,7 @@ class PatientProgress(Base):
     patient_id = Column(String, ForeignKey("patients.id"), unique=True)
     total_score = Column(Integer, default=0)
     current_streak = Column(Integer, default=0)
-    completed_articles = Column(JSONB, default=list)  # list of article_ids
+    completed_articles = Column(JSON_TYPE, default=list)  # list of article_ids
     last_completed_at = Column(DateTime, nullable=True)
 
     patient = relationship("Patient")
@@ -152,9 +155,9 @@ class QuizSession(Base):
     source = Column(String, nullable=False)  # "article" | "conversation" | "profile"
     source_ref = Column(String, nullable=True)  # article_id hoặc conversation_id
     topic = Column(String, nullable=False)
-    questions = Column(JSONB, default=list)  # [{question, options, correct_index, explanation, difficulty}]
-    citations = Column(JSONB, default=list)
-    answers = Column(JSONB, nullable=True)  # [int] — null khi chưa nộp
+    questions = Column(JSON_TYPE, default=list)  # [{question, options, correct_index, explanation, difficulty}]
+    citations = Column(JSON_TYPE, default=list)
+    answers = Column(JSON_TYPE, nullable=True)  # [int] — null khi chưa nộp
     score = Column(Integer, nullable=True)  # null khi chưa nộp
     total = Column(Integer, nullable=False, default=0)
     hp_earned = Column(Integer, default=0)
