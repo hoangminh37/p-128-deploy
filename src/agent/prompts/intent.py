@@ -16,7 +16,18 @@ Nhiệm vụ: Phân loại câu hỏi của người dùng thành MỘT trong n�
 
 Quy tắc:
 1. Ưu tiên "red_flag" nếu có dấu hiệu nguy hiểm (khó thở, đau ngực, mất ý thức, v.v.)
-2. Ưu tiên "diagnosis" nếu người dùng muốn biết họ bị bệnh gì hoặc cần thuốc gì
+2. Ưu tiên "diagnosis" khi người dùng XIN MỘT KẾT LUẬN hoặc XIN THUỐC:
+   - "tôi bị bệnh gì", "có phải tôi bị tiểu đường không", "chẩn đoán giúp tôi"
+   - "uống thuốc gì", "liều bao nhiêu", "cho tôi xin đơn thuốc"
+
+   MÔ TẢ TRIỆU CHỨNG KHÔNG PHẢI LÀ XIN CHẨN ĐOÁN. Người bệnh kể "tôi đau bụng",
+   "mấy hôm nay tôi mệt", "bụng tôi đau âm ỉ" là đang KỂ TÌNH TRẠNG, không đòi
+   kết luận. Những câu như vậy:
+   - có dấu hiệu nguy hiểm  -> "red_flag"
+   - còn lại                -> "education" (giải thích kiến thức, kèm khuyến cáo đi khám)
+
+   Xếp chúng vào "diagnosis" là đẩy sang luồng từ chối, khiến người bệnh kể bệnh
+   xong lại nhận câu "tôi không thể chẩn đoán" — họ có hỏi chẩn đoán đâu.
 3. Chọn "greeting" nếu chỉ chào hỏi hoặc hỏi về chính trợ lý, không hỏi gì về sức khỏe
 4. Chọn "profile" nếu người dùng hỏi về thông tin cá nhân của họ dựa trên hồ sơ
 5. Chọn "out_of_domain" nếu hỏi một chủ đề thật nhưng nằm ngoài lĩnh vực y tế

@@ -1,12 +1,40 @@
-import os
+"""ETL nền: bóc tách PDF đã tải lên thành bài học chờ biên tập viên duyệt.
+
+CẢNH BÁO HIỆU NĂNG — CHƯA SỬA, đã báo cho người phụ trách deploy (24/08/2026):
+
+``editor.py`` gọi hàm này qua ``BackgroundTasks`` của FastAPI. Đó KHÔNG phải một
+hàng đợi — nó chạy trong CÙNG process, CÙNG event loop với API, ngay sau khi
+response được trả về.
+
+Cộng thêm ``loader.load_and_split()`` ở dưới là code ĐỒNG BỘ gọi thẳng trong
+coroutine, nên trong lúc bóc tách một PDF vài chục trang, **event loop bị chặn
+hoàn toàn** — mọi bệnh nhân đang chat đều đứng hình, không phải chậm mà là đứng.
+
+Hai cách xử lý, theo thứ tự công sức:
+
+1. Bọc ``load_and_split()`` trong ``asyncio.to_thread`` — một dòng, gỡ được phần
+   chặn nặng nhất. Các lượt gọi LLM phía sau vốn đã là ``await`` nên không chặn.
+2. Đưa hẳn ra worker riêng (Celery/RQ/arq) nếu thư viện mở rộng thật.
+"""
+
 from pathlib import Path
 
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
+from src.core.config import get_settings
 from src.core.database import async_session_maker
+from src.core.exceptions import LLMError
 from src.models.domain import EditorQueueItem
+from src.services.llm.factory import get_quality_llm
+
+#: Số chunk đầu tiên của tài liệu được đưa qua LLM.
+#:
+#: Đây từng là biến `test_limit = 5` viết thẳng trong hàm — một giới hạn đặt ra
+#: để chạy thử cho nhanh, rồi ở lại thành hành vi thật. Hệ quả: tài liệu Bộ Y tế
+#: vài trăm trang chỉ được đọc 5 chunk đầu, phần còn lại không bao giờ thành bài
+#: học. Nay là tham số của hàm, giá trị dưới chỉ là mặc định.
+DEFAULT_CHUNK_LIMIT = 5
 
 
 class MicroArticle(BaseModel):
@@ -19,7 +47,7 @@ class ArticleBatch(BaseModel):
     articles: list[MicroArticle]
 
 
-async def process_pdf_background(file_path: str, category: str):
+async def process_pdf_background(file_path: str, category: str, chunk_limit: int = DEFAULT_CHUNK_LIMIT):
     """
     Background task to parse PDF, split to chunks, generate micro-articles,
     and save them as 'EditorQueueItem' for HITL review.
@@ -34,18 +62,20 @@ async def process_pdf_background(file_path: str, category: str):
         print(f"[ETL Background] Lỗi đọc PDF: {e}")
         return
 
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("[ETL Background] Lỗi: Thiếu OPENAI_API_KEY")
+    # Đi qua factory thay vì dựng ChatOpenAI thẳng: bản trước khoá cứng vào
+    # OpenAI nên bỏ qua LLM_PROVIDER, và cả luồng ETL chết theo hạn mức OpenAI
+    # trong khi phần còn lại của hệ thống vẫn chạy ngon trên Groq.
+    settings = get_settings()
+    try:
+        structured_llm = get_quality_llm().with_structured_output(ArticleBatch)
+    except LLMError as exc:
+        print(f"[ETL Background] Không khởi tạo được LLM: {exc}")
         return
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
-    structured_llm = llm.with_structured_output(ArticleBatch)
-
-    test_limit = 5  # Giới hạn 5 chunk để tiết kiệm thời gian test
     generated_items = []
 
-    print("[ETL Background] Đang chạy LLM gpt-4o-mini để sinh bài học...")
-    for i, doc in enumerate(docs[:test_limit]):
+    print(f"[ETL Background] Đang chạy {settings.model_name} để sinh bài học...")
+    for i, doc in enumerate(docs[:chunk_limit]):
         prompt = f"""
 Bạn là một chuyên gia giáo dục y tế tận tâm đang biên soạn "Sách giáo khoa mini" cho bệnh nhân.
 Trích đoạn gốc từ Bộ Y Tế:

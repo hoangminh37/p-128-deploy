@@ -52,12 +52,28 @@ def route_crag(state: AgentState) -> str:
 def route_selfrag(state: AgentState) -> str:
     """Route sau selfrag_verifier.
 
-    Hai đường dẫn tới doctor_referral — đều là "kho tài liệu không đủ để trả lời":
-    - answers_question = False: có tài liệu, có nguồn, nhưng nói sang chuyện khác.
-      Thà nhận là không biết còn hơn đưa người bệnh một câu trả lời lạc đề.
-    - no_support: câu trả lời không dựa được vào tài liệu nào.
-    Trước đây no_support chỉ bị gắn thêm disclaimer rồi vẫn gửi đi, nghĩa là
-    người bệnh vẫn đọc phải nội dung y khoa không có nguồn.
+    QUYẾT ĐỊNH SẢN PHẨM, đổi ngày 24/08/2026 theo yêu cầu của chủ dự án:
+
+    ``no_support`` nay đi qua ``safety_disclaimer`` thay vì ``doctor_referral``.
+    Nghĩa là câu trả lời VẪN ĐƯỢC GỬI ĐI, kèm cảnh báo nặng, thay vì bị vứt bỏ.
+
+    Vì sao đổi: một câu hỏi thật đã sinh ra 2654 ký tự kèm 3 trích dẫn rồi bị
+    loại sạch, và người bệnh nhận về "thư viện chưa có tài liệu về chủ đề này"
+    — trong khi thư viện CÓ tài liệu về cao huyết áp và tiểu đường, chỉ thiếu
+    phần bệnh tim và người dưới 18 tuổi. Thông báo đó vừa sai vừa làm sản phẩm
+    vô dụng với phần lớn câu hỏi có nhiều bệnh cùng lúc.
+
+    LƯU Ý: điều này NGƯỢC với ràng buộc số 1 trong docs/gate1/brief.md, mục
+    "Ràng buộc an toàn — không thương lượng". Chủ dự án đã biết và vẫn quyết
+    như vậy, với lập luận: người dùng nào cũng phải được phục vụ, và cảnh báo
+    "chỉ mang tính tham khảo" là đủ cho nội dung giáo dục.
+
+    HAI LẰN RANH GIỮ NGUYÊN, KHÔNG ĐỔI:
+
+    - Cấp cứu (``is_red_flag``) vẫn ngắt luồng trước mọi thứ — xem ``route_intent``.
+    - Xin chẩn đoán hay kê đơn vẫn bị từ chối — xem ``route_intent``.
+    - ``answers_question = False`` vẫn sang ``doctor_referral``: câu trả lời nói
+      sang chuyện khác thì gửi đi cũng không giúp được ai, chỉ gây nhiễu.
     """
     if not state.get("answers_question", True):
         return "doctor_referral"
@@ -65,9 +81,9 @@ def route_selfrag(state: AgentState) -> str:
     level = state.get("support_level", "fully")
     if level == "fully":
         return "memory_checkpoint"
-    if level == "partially":
-        return "safety_disclaimer"
-    return "doctor_referral"  # no_support
+    # partially VÀ no_support đều gửi đi kèm cảnh báo. Mức cảnh báo khác nhau —
+    # xem safety_disclaimer_node.
+    return "safety_disclaimer"
 
 
 def route_partial(state: AgentState) -> str:
