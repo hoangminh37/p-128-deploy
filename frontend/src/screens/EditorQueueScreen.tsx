@@ -16,6 +16,7 @@ import { formatDateTime } from '../lib/datetime'
 import type { EditorItemStatus, EditorQueueItem } from '../lib/schemas'
 import { OriginIconBox, StatusBadge, TopicTags } from '../ui/EditorBadges'
 import { EmptyState } from '../ui/EmptyState'
+import { DocumentStack } from '../ui/illustrations'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { ChevronRightIcon } from '../ui/icons'
 
@@ -78,12 +79,12 @@ function QueueRow({ item }: { item: EditorQueueItem }) {
     <li>
       <Link
         to={`/editor/queue/${encodeURIComponent(item.item_id)}`}
-        className="motion-lift flex min-h-touch items-start gap-snug rounded-card bg-white p-cozy no-underline"
+        className="motion-lift flex min-h-touch items-start gap-snug rounded-card bg-surface p-cozy no-underline"
       >
         <OriginIconBox origin={item.origin} />
 
         <div className="min-w-0 flex-1">
-          <p className="font-display text-notice font-semibold text-ink">
+          <p className="font-display text-notice font-semibold text-body">
             {item.title}
           </p>
 
@@ -125,8 +126,8 @@ export function EditorQueueScreen() {
 
   return (
     <div className="max-w-reading">
-      <h1 className="text-ask font-semibold text-ink">Hàng đợi duyệt</h1>
-      <p className="mt-snug max-w-answer text-notice text-ink">
+      <h1 className="text-ask font-semibold text-body">Hàng đợi duyệt</h1>
+      <p className="mt-snug max-w-answer text-notice text-body">
         Nội dung chờ vào thư viện trích dẫn. Mở một mục để xem toàn văn, chỉnh sửa
         rồi duyệt hoặc từ chối.
       </p>
@@ -151,7 +152,7 @@ export function EditorQueueScreen() {
               className={`motion-press font-display min-h-touch rounded-pill px-cozy text-input ${
                 isActive
                   ? 'bg-ink font-semibold text-white enabled:hover:bg-ink-press'
-                  : 'bg-white text-ink enabled:hover:bg-canvas'
+                  : 'bg-surface text-body enabled:hover:bg-canvas'
               }`}
             >
               {candidate.label}
@@ -178,7 +179,11 @@ export function EditorQueueScreen() {
 
       {!isPending && failed === undefined && items.length === 0 && (
         <div className="mt-block">
-          <EmptyState title="Không có mục nào" body={filter.empty} />
+          <EmptyState
+            illustration={<DocumentStack size={128} />}
+            title="Không có mục nào"
+            body={filter.empty}
+          />
         </div>
       )}
 

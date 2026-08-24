@@ -147,13 +147,13 @@ export function ErrorNotice({
       heading={advice.heading}
       icon={<AlertIcon className="h-7 w-7" />}
     >
-      <p className="font-display text-notice text-ink">{advice.action}</p>
+      <p className="font-display text-notice text-body">{advice.action}</p>
 
       {advice.retryable && (
         <button
           type="button"
           onClick={onRetry}
-          className="motion-press font-display mt-cozy min-h-touch rounded-pill border-2 border-slate px-cozy text-input font-semibold text-ink enabled:hover:bg-canvas"
+          className="motion-press font-display mt-cozy min-h-touch rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
         >
           {retryLabel}
         </button>

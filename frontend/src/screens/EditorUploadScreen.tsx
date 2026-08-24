@@ -14,9 +14,9 @@ import { useNavigate } from 'react-router-dom'
 import { uploadDocument, ApiError } from '../lib/api'
 
 /** Nhãn của một trường. Tối thiểu 17px theo sàn cỡ chữ nội dung. */
-const LABEL_CLASS = 'font-display block text-input font-semibold text-ink'
+const LABEL_CLASS = 'font-display block text-input font-semibold text-body'
 const INPUT_CLASS =
-  'font-body mt-tight min-h-touch w-full rounded-card border-2 border-slate bg-white p-snug text-input text-ink'
+  'font-body mt-tight min-h-touch w-full rounded-card border-2 border-slate bg-surface p-snug text-input text-body'
 
 /** Dấu bắt buộc. Chữ `alert` trên nền trắng đạt 6.54:1. */
 function Required() {
@@ -67,8 +67,8 @@ export function EditorUploadScreen() {
 
   return (
     <div className="w-full max-w-reading">
-      <h1 className="text-ask font-semibold text-ink">Tải lên tài liệu y khoa</h1>
-      <p className="mt-snug max-w-answer text-notice text-ink">
+      <h1 className="text-ask font-semibold text-body">Tải lên tài liệu y khoa</h1>
+      <p className="mt-snug max-w-answer text-notice text-body">
         Tài liệu tải lên sẽ vào hàng đợi duyệt, không vào thẳng thư viện trích
         dẫn. Người duyệt vẫn phải mở từng mục và gắn bệnh áp dụng.
       </p>
@@ -82,11 +82,15 @@ export function EditorUploadScreen() {
         </p>
       )}
 
+      {/* Lưới hai cột từ 640px cho những ô NGẮN, một cột cho ô dài.
+          `sm:col-span-2` là cách nói "ô này cần cả hàng" — tiêu đề, chỉ định
+          bệnh, đường dẫn và ghi chú đều dài, ép chúng vào nửa hàng thì chữ
+          trong ô bị cắt ngay khi vừa gõ. */}
       <form
         onSubmit={handleSubmit}
-        className="mt-block space-y-cozy rounded-card-lg bg-white p-cozy"
+        className="mt-block grid gap-cozy rounded-card-lg bg-surface p-cozy sm:grid-cols-2"
       >
-        <div>
+        <div className="sm:col-span-2">
           <label htmlFor="file" className={LABEL_CLASS}>
             Tài liệu PDF
             <Required />
@@ -97,11 +101,11 @@ export function EditorUploadScreen() {
             name="file"
             accept="application/pdf"
             required
-            className="font-display mt-tight block w-full text-question text-ink file:mr-cozy file:rounded-pill file:border-0 file:bg-mint file:px-cozy file:py-tight file:text-question file:font-semibold file:text-ink"
+            className="font-display mt-tight block w-full text-question text-body file:mr-cozy file:rounded-pill file:border-0 file:bg-mint file:px-cozy file:py-tight file:text-question file:font-semibold file:text-ink"
           />
         </div>
 
-        <div>
+        <div className="sm:col-span-2">
           <label htmlFor="title" className={LABEL_CLASS}>
             Tiêu đề
             <Required />
@@ -116,7 +120,7 @@ export function EditorUploadScreen() {
           />
         </div>
 
-        <div className="grid gap-cozy sm:grid-cols-2">
+        <>
           <div>
             <label htmlFor="issuer" className={LABEL_CLASS}>
               Nơi ban hành
@@ -145,9 +149,9 @@ export function EditorUploadScreen() {
               placeholder="Ví dụ: 2024"
             />
           </div>
-        </div>
+        </>
 
-        <div>
+        <div className="sm:col-span-2">
           <label htmlFor="diseases" className={LABEL_CLASS}>
             Chỉ định bệnh, cách nhau bằng dấu phẩy
             <Required />
@@ -175,7 +179,7 @@ export function EditorUploadScreen() {
           />
         </div>
 
-        <div>
+        <div className="sm:col-span-2">
           <label htmlFor="url" className={LABEL_CLASS}>
             Đường dẫn gốc (không bắt buộc)
           </label>
@@ -188,7 +192,7 @@ export function EditorUploadScreen() {
           />
         </div>
 
-        <div>
+        <div className="sm:col-span-2">
           <label htmlFor="notes" className={LABEL_CLASS}>
             Ghi chú (không bắt buộc)
           </label>
@@ -201,7 +205,7 @@ export function EditorUploadScreen() {
           />
         </div>
 
-        <div className="flex flex-wrap gap-snug border-t border-line pt-cozy">
+        <div className="flex flex-wrap gap-snug border-t border-line pt-cozy sm:col-span-2">
           <button
             type="submit"
             disabled={isSubmitting}
@@ -218,7 +222,7 @@ export function EditorUploadScreen() {
             // trình bày nên không sửa đường dẫn — nhưng đây là một lỗi thật, đi
             // vòng hai lần chuyển hướng cho một cú bấm Huỷ.
             onClick={() => navigate('/editor/dashboard')}
-            className="motion-press font-display min-h-call rounded-pill border-2 border-slate bg-white px-cozy text-input font-semibold text-ink enabled:hover:bg-canvas"
+            className="motion-press font-display min-h-call rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
           >
             Huỷ
           </button>

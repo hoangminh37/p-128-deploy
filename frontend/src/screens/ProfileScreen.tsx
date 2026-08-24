@@ -368,7 +368,7 @@ function ChoiceOption({
           nào đang được chọn — không phải dò một nét viền. */}
       <span
         className="
-          motion-lift font-display flex min-h-touch items-center gap-snug rounded-card-lg bg-white p-cozy text-ink
+          motion-lift font-display flex min-h-touch items-center gap-snug rounded-card-lg bg-surface p-cozy text-body
           peer-checked:bg-ink peer-checked:font-semibold peer-checked:text-white
           peer-checked:hover:bg-ink-press
           peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-mint
@@ -418,13 +418,13 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 }
 
 /** Nhãn của một trường. Tối thiểu 17px theo sàn cỡ chữ. */
-const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-ink'
+const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-body'
 
 /** Ô nhập một dòng: số, tháng năm. Cao tối thiểu 44px như mọi vùng chạm khác.
  * Viền `slate` (4.96:1 trên trắng) cho ngưỡng 3:1 của WCAG 1.4.11 — `line`
  * KHÔNG dùng được ở đây, xem cảnh báo trong `index.css`. */
 const FIELD_INPUT_CLASS =
-  'font-body mt-snug min-h-touch w-full rounded-card border-2 border-slate bg-white p-snug text-input text-ink'
+  'font-body mt-snug min-h-touch w-full rounded-card border-2 border-slate bg-surface p-snug text-input text-body'
 
 /**
  * Ô số để trống trả về chuỗi rỗng, mà hợp đồng chờ `null` — đổi ngay ở đây.
@@ -601,14 +601,20 @@ export function ProfileScreen() {
   // Đang đọc hồ sơ cũ thì chưa dựng form, tránh cảnh ô trống rồi nhảy số.
   if (profileState === 'loading') {
     return (
-      <p role="status" className="font-display max-w-answer text-notice text-slate">
+      <p
+        role="status"
+        className="font-display mx-auto max-w-answer text-notice text-slate"
+      >
         Đang mở hồ sơ của bạn…
       </p>
     )
   }
 
   return (
-    <div className="max-w-answer">
+    // `mx-auto`: đây là một cột form hẹp nằm trong vùng nội dung rộng 878px.
+    // Dính lề trái thì hơn 300px bên phải bỏ trống, và mắt phải nhảy chéo từ
+    // cuối một dòng nhãn sang đầu ô nhập tiếp theo.
+    <div className="mx-auto w-full max-w-answer">
       {isEditing && lessonData?.stats && (
         <div className="mb-block flex gap-snug">
           <div className="flex-1 rounded-card bg-mint p-cozy text-center">
@@ -630,7 +636,7 @@ export function ProfileScreen() {
         </div>
       )}
 
-      <h1 className="text-ask font-semibold text-ink">
+      <h1 className="text-ask font-semibold text-body">
         {isEditing ? 'Sửa hồ sơ sức khỏe' : 'Trước khi bắt đầu'}
       </h1>
 
@@ -842,7 +848,7 @@ export function ProfileScreen() {
             <button
               type="button"
               onClick={goBack}
-              className="motion-press font-display min-h-touch rounded-pill border-2 border-slate bg-white px-cozy text-input font-semibold text-ink enabled:hover:bg-canvas"
+              className="motion-press font-display min-h-touch rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
             >
               Quay lại
             </button>
@@ -864,7 +870,7 @@ export function ProfileScreen() {
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="motion-press font-display min-h-call flex-1 rounded-pill bg-ink px-cozy text-input font-bold text-white enabled:hover:bg-ink-press disabled:bg-white disabled:font-normal disabled:text-slate"
+              className="motion-press font-display min-h-call flex-1 rounded-pill bg-ink px-cozy text-input font-bold text-white enabled:hover:bg-ink-press disabled:bg-surface disabled:font-normal disabled:text-slate"
             >
               {mutation.isPending
                 ? 'Đang lưu…'
@@ -887,7 +893,7 @@ export function ProfileScreen() {
             <button
               type="button"
               onClick={skipProfile}
-              className="font-display flex min-h-touch items-center text-input font-semibold text-ink underline underline-offset-4"
+              className="font-display flex min-h-touch items-center text-input font-semibold text-body underline underline-offset-4"
             >
               Bỏ qua, tôi muốn thử hỏi một câu trước
             </button>

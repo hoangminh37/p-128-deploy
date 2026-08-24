@@ -35,6 +35,7 @@ import { ExpiredSessionWatcher } from './session/ExpiredSessionWatcher'
 import { SessionProvider } from './session/SessionProvider'
 import { useSession } from './session/context'
 import { RootLayout } from './ui/RootLayout'
+import { ThemeProvider } from './ui/ThemeProvider'
 import { LandingScreen } from './screens/LandingScreen'
 import { ChatScreen } from './screens/ChatScreen'
 import { EditorDashboardScreen } from './screens/EditorDashboardScreen'
@@ -105,125 +106,130 @@ function App() {
   const [queryClient] = useState(createQueryClient)
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SessionProvider>
-        <PatientProvider>
-          <BrowserRouter>
-            {/* Không render gì, chỉ nối 401 của lớp api với việc xoá phiên, dọn
-                cache và đưa về màn đăng nhập. Phải nằm trong `BrowserRouter`. */}
-            <ExpiredSessionWatcher />
+    // `ThemeProvider` bọc ngoài cùng và KHÔNG phụ thuộc gì vào ba provider kia:
+    // chế độ hiển thị là thiết lập của cái máy này, có mặt cả khi chưa đăng
+    // nhập, và trang giới thiệu ngoài `RequireAuth` cũng cần nó.
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <SessionProvider>
+          <PatientProvider>
+            <BrowserRouter>
+              {/* Không render gì, chỉ nối 401 của lớp api với việc xoá phiên, dọn
+                  cache và đưa về màn đăng nhập. Phải nằm trong `BrowserRouter`. */}
+              <ExpiredSessionWatcher />
 
-            <Routes>
-              {/* Đứng NGOÀI `RequireAuth`: đây là màn duy nhất người chưa
-                  đăng nhập được xem. Xem `RootRoute`. */}
-              <Route path="/" element={<RootRoute />} />
+              <Routes>
+                {/* Đứng NGOÀI `RequireAuth`: đây là màn duy nhất người chưa
+                    đăng nhập được xem. Xem `RootRoute`. */}
+                <Route path="/" element={<RootRoute />} />
 
-              <Route
-                path="/login"
-                element={
-                  <RedirectIfAuthenticated>
-                    <LoginScreen />
-                  </RedirectIfAuthenticated>
-                }
-              />
-
-              <Route
-                element={
-                  <RequireAuth>
-                    <RootLayout />
-                  </RequireAuth>
-                }
-              >
                 <Route
-                  path="profile"
+                  path="/login"
                   element={
-                    <RequireRole role="patient">
-                      <ProfileScreen />
-                    </RequireRole>
-                  }
-                />
-                <Route
-                  path="chat"
-                  element={
-                    <RequireRole role="patient">
-                      <ChatRoute />
-                    </RequireRole>
-                  }
-                />
-                <Route
-                  path="chat/:conversationId"
-                  element={
-                    <RequireRole role="patient">
-                      <ChatRoute />
-                    </RequireRole>
-                  }
-                />
-                <Route
-                  path="learning"
-                  element={
-                    <RequireRole role="patient">
-                      <LearningLibraryScreen />
-                    </RequireRole>
-                  }
-                />
-                <Route
-                  path="learning/:articleId"
-                  element={
-                    <RequireRole role="patient">
-                      <ArticleDetailScreen />
-                    </RequireRole>
-                  }
-                />
-                {/* Bốn màn của khu vực biên tập, cùng một guard vai trò. */}
-                <Route
-                  path="editor"
-                  element={
-                    <RequireRole role="editor">
-                      <EditorDashboardScreen />
-                    </RequireRole>
-                  }
-                />
-                <Route
-                  path="editor/upload"
-                  element={
-                    <RequireRole role="editor">
-                      <EditorUploadScreen />
-                    </RequireRole>
-                  }
-                />
-                <Route
-                  path="editor/queue"
-                  element={
-                    <RequireRole role="editor">
-                      <EditorQueueScreen />
-                    </RequireRole>
-                  }
-                />
-                <Route
-                  path="editor/queue/:itemId"
-                  element={
-                    <RequireRole role="editor">
-                      <EditorItemScreen />
-                    </RequireRole>
-                  }
-                />
-                <Route
-                  path="editor/out-of-scope"
-                  element={
-                    <RequireRole role="editor">
-                      <OutOfScopeScreen />
-                    </RequireRole>
+                    <RedirectIfAuthenticated>
+                      <LoginScreen />
+                    </RedirectIfAuthenticated>
                   }
                 />
 
-                {/* Đường dẫn lạ thì đưa về gốc, để guard ở gốc tự quyết đi đâu. */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
-        </PatientProvider>
-      </SessionProvider>
-    </QueryClientProvider>
+                <Route
+                  element={
+                    <RequireAuth>
+                      <RootLayout />
+                    </RequireAuth>
+                  }
+                >
+                  <Route
+                    path="profile"
+                    element={
+                      <RequireRole role="patient">
+                        <ProfileScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="chat"
+                    element={
+                      <RequireRole role="patient">
+                        <ChatRoute />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="chat/:conversationId"
+                    element={
+                      <RequireRole role="patient">
+                        <ChatRoute />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="learning"
+                    element={
+                      <RequireRole role="patient">
+                        <LearningLibraryScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="learning/:articleId"
+                    element={
+                      <RequireRole role="patient">
+                        <ArticleDetailScreen />
+                      </RequireRole>
+                    }
+                  />
+                  {/* Bốn màn của khu vực biên tập, cùng một guard vai trò. */}
+                  <Route
+                    path="editor"
+                    element={
+                      <RequireRole role="editor">
+                        <EditorDashboardScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="editor/upload"
+                    element={
+                      <RequireRole role="editor">
+                        <EditorUploadScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="editor/queue"
+                    element={
+                      <RequireRole role="editor">
+                        <EditorQueueScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="editor/queue/:itemId"
+                    element={
+                      <RequireRole role="editor">
+                        <EditorItemScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="editor/out-of-scope"
+                    element={
+                      <RequireRole role="editor">
+                        <OutOfScopeScreen />
+                      </RequireRole>
+                    }
+                  />
+
+                  {/* Đường dẫn lạ thì đưa về gốc, để guard ở gốc tự quyết đi đâu. */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          </PatientProvider>
+        </SessionProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }
 

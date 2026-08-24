@@ -28,7 +28,7 @@ import { Mascot } from './Mascot'
  *   dark:  white 15.39:1 và mist 6.80:1 trên ink.
  */
 const TONE = {
-  light: { title: 'text-ink', body: 'text-slate' },
+  light: { title: 'text-body', body: 'text-slate' },
   dark: { title: 'text-white', body: 'text-mist' },
 } as const
 
@@ -36,6 +36,7 @@ export function EmptyState({
   title,
   body,
   action,
+  illustration,
   tone = 'light',
   /** `true` cho những khoảng hẹp như thanh bên, nơi linh vật 96px không vừa. */
   compact = false,
@@ -44,6 +45,19 @@ export function EmptyState({
   body: string
   /** Nút hoặc liên kết đặt dưới đoạn giải thích. Phần lớn chỗ không cần. */
   action?: ReactNode
+  /**
+   * Hình thay cho linh vật.
+   *
+   * Mặc định là linh vật Sen bản `muted` — trạng thái rỗng là một trong bốn chỗ
+   * nó được phép xuất hiện (xem `Mascot.tsx`). Nhưng linh vật là nhân vật của
+   * LUỒNG BỆNH NHÂN; ở khu vực biên tập nó lạc chỗ, vì người đọc màn đó là dược
+   * sĩ hoặc bác sĩ đang làm việc chứ không phải người bệnh đang lo lắng. Những
+   * chỗ đó truyền vào một minh họa từ `ui/illustrations` thay thế.
+   *
+   * TUYỆT ĐỐI KHÔNG truyền hình nào vào một trạng thái rỗng đứng cạnh cảnh báo
+   * cấp cứu — cùng một luật với linh vật.
+   */
+  illustration?: ReactNode
   tone?: keyof typeof TONE
   compact?: boolean
 }) {
@@ -55,7 +69,7 @@ export function EmptyState({
         compact ? 'px-snug py-cozy' : 'px-cozy py-block'
       }`}
     >
-      <Mascot variant="muted" size={compact ? 64 : 96} />
+      {illustration ?? <Mascot variant="muted" size={compact ? 64 : 96} />}
 
       <p
         className={`font-display font-semibold ${colors.title} ${

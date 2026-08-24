@@ -25,19 +25,19 @@ import type { EditorQueueItemDetail } from '../lib/schemas'
 import { OriginBadge, StatusBadge, TopicTags } from '../ui/EditorBadges'
 import { ErrorNotice } from '../ui/ErrorNotice'
 
-const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-ink'
+const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-body'
 
 /** Ô soạn thảo. Viền `slate` (4.96:1 trên trắng) cho ngưỡng 3:1 của WCAG
  * 1.4.11 — `line` KHÔNG dùng được ở đây, xem cảnh báo trong `index.css`. */
 const FIELD_TEXTAREA_CLASS =
-  'font-body mt-snug w-full rounded-card border-2 border-slate bg-white p-snug text-ink'
+  'font-body mt-snug w-full rounded-card border-2 border-slate bg-surface p-snug text-body'
 
 /** Một dòng siêu dữ liệu. Nhãn và giá trị xếp dọc để không vỡ trên màn hẹp. */
 function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="border-t border-line pt-snug">
       <dt className="font-display text-question text-slate">{label}</dt>
-      <dd className="font-display mt-hair text-input text-ink">{children}</dd>
+      <dd className="font-display mt-hair text-input text-body">{children}</dd>
     </div>
   )
 }
@@ -80,12 +80,12 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
     <div className="max-w-reading">
       <Link
         to="/editor/queue"
-        className="font-display inline-flex min-h-touch items-center text-input font-semibold text-ink underline underline-offset-4"
+        className="font-display inline-flex min-h-touch items-center text-input font-semibold text-body underline underline-offset-4"
       >
         Về hàng đợi
       </Link>
 
-      <h1 className="mt-snug text-ask font-semibold text-ink">{item.title}</h1>
+      <h1 className="mt-snug text-ask font-semibold text-body">{item.title}</h1>
 
       <div className="mt-snug flex flex-wrap items-center gap-tight">
         <OriginBadge origin={item.origin} />
@@ -95,7 +95,7 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
             thứ người duyệt đối chiếu với bản gốc, nên nó phải nằm trong tầm mắt
             cùng lúc với tên mục. */}
         {item.doc_code !== null && (
-          <span className="font-mono rounded-pill bg-canvas px-snug py-hair text-question text-ink">
+          <span className="font-mono rounded-pill bg-canvas px-snug py-hair text-question text-body">
             {item.doc_code}
           </span>
         )}
@@ -115,7 +115,7 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
               href={item.source_url}
               target="_blank"
               rel="noreferrer"
-              className="font-display inline-flex min-h-touch items-center break-all text-ink underline underline-offset-4"
+              className="font-display inline-flex min-h-touch items-center break-all text-body underline underline-offset-4"
             >
               {item.source_url}
             </a>
@@ -157,8 +157,8 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
 
       {/* ---- Kết quả đã chốt, nếu có ---- */}
       {isSettled && (
-        <div className="mt-block rounded-card bg-white p-cozy">
-          <p className="font-display text-input font-semibold text-ink">
+        <div className="mt-block rounded-card bg-surface p-cozy">
+          <p className="font-display text-input font-semibold text-body">
             Mục này đã {STATUS_LABEL[item.status].toLowerCase()}
           </p>
           <p className="font-display mt-hair text-question text-slate">
@@ -166,10 +166,10 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
             {item.reviewed_by !== null && `Người xử lý: ${item.reviewed_by}.`}
           </p>
           {item.review_note !== null && (
-            <p className="mt-snug text-notice text-ink">{item.review_note}</p>
+            <p className="mt-snug text-notice text-body">{item.review_note}</p>
           )}
           {item.reject_reason !== null && (
-            <p className="mt-snug text-notice text-ink">{item.reject_reason}</p>
+            <p className="mt-snug text-notice text-body">{item.reject_reason}</p>
           )}
         </div>
       )}
@@ -222,7 +222,7 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
             <p
               id="approve-blocked"
               role="alert"
-              className="font-display mt-block rounded-card border-2 border-l-8 border-alert bg-white p-cozy text-notice text-ink"
+              className="font-display mt-block rounded-card border-2 border-l-8 border-alert bg-surface p-cozy text-notice text-body"
             >
               Chưa gắn bệnh nào nên không duyệt được. Trợ lý chỉ tra tài liệu theo
               bệnh trong hồ sơ bệnh nhân, nên nội dung không gắn bệnh sẽ nằm trong
@@ -272,7 +272,7 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
             <button
               type="button"
               onClick={() => setRejecting(true)}
-              className="motion-press font-display min-h-call flex-1 rounded-pill bg-white px-cozy text-input font-semibold text-ink enabled:hover:bg-canvas"
+              className="motion-press font-display min-h-call flex-1 rounded-pill bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
             >
               Từ chối
             </button>
@@ -322,7 +322,7 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
                 <button
                   type="button"
                   onClick={() => setRejecting(false)}
-                  className="motion-press font-display min-h-touch rounded-pill bg-white px-cozy text-input font-semibold text-ink enabled:hover:bg-canvas"
+                  className="motion-press font-display min-h-touch rounded-pill bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
                 >
                   Huỷ
                 </button>
@@ -341,7 +341,10 @@ export function EditorItemScreen() {
 
   if (isPending) {
     return (
-      <p role="status" className="font-display text-notice text-slate">
+      <p
+        role="status"
+        className="font-display mx-auto max-w-answer text-notice text-slate"
+      >
         Đang mở mục…
       </p>
     )
@@ -349,7 +352,13 @@ export function EditorItemScreen() {
 
   if (isError) {
     return (
-      <ErrorNotice error={error} retryLabel="Mở lại mục" onRetry={() => void refetch()} />
+      <div className="mx-auto w-full max-w-answer">
+        <ErrorNotice
+          error={error}
+          retryLabel="Mở lại mục"
+          onRetry={() => void refetch()}
+        />
+      </div>
     )
   }
 

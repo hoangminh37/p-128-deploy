@@ -18,6 +18,7 @@ import { Link } from 'react-router-dom'
 
 import { copyTextToClipboard, downloadText } from '../lib/transcript'
 import { CopyIcon, MenuIcon, PlusIcon, SaveIcon } from './icons'
+import { ThemeToggle } from './ThemeToggle'
 import { useTransientNotice } from './shellHooks'
 
 /**
@@ -83,7 +84,7 @@ function IconButton({
       className={`motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-icon ${
         isDark
           ? 'bg-white/10 text-white enabled:hover:bg-white/15'
-          : 'bg-white text-ink enabled:hover:bg-canvas'
+          : 'bg-surface text-body enabled:hover:bg-canvas'
       }`}
     >
       {children}
@@ -156,7 +157,7 @@ export function ContentHeader({
                 nó, thêm một cái nữa ở khung ngoài là hai tiêu đề cấp một. */}
             <p
               className={`font-display min-w-0 flex-1 truncate text-app font-bold ${
-                isDark ? 'text-white' : 'text-ink'
+                isDark ? 'text-white' : 'text-body'
               }`}
             >
               {title}
@@ -172,6 +173,8 @@ export function ContentHeader({
               >
                 {notice}
               </p>
+
+              <ThemeToggle tone={isDark ? 'shell' : 'surface'} />
 
               <IconButton
                 label="Sao chép nội dung"
@@ -201,7 +204,7 @@ export function ContentHeader({
               className={`motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-icon ${
                 isDark
                   ? 'bg-white/10 text-white enabled:hover:bg-white/15'
-                  : 'bg-white text-ink enabled:hover:bg-canvas'
+                  : 'bg-surface text-body enabled:hover:bg-canvas'
               }`}
             >
               <MenuIcon className="h-6 w-6" />
@@ -209,20 +212,24 @@ export function ContentHeader({
 
             <p
               className={`font-display min-w-0 flex-1 truncate text-center text-app font-bold ${
-                isDark ? 'text-white' : 'text-ink'
+                isDark ? 'text-white' : 'text-body'
               }`}
             >
               {conditionLabel}
             </p>
 
-            <Link
-              to="/chat"
-              aria-label="Câu hỏi mới"
-              title="Câu hỏi mới"
-              className="motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-pill bg-mint text-ink no-underline hover:bg-mint-press"
-            >
-              <PlusIcon className="h-6 w-6" />
-            </Link>
+            <div className="flex shrink-0 items-center gap-tight">
+              <ThemeToggle tone={isDark ? 'shell' : 'surface'} />
+
+              <Link
+                to="/chat"
+                aria-label="Câu hỏi mới"
+                title="Câu hỏi mới"
+                className="motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-pill bg-mint text-ink no-underline hover:bg-mint-press"
+              >
+                <PlusIcon className="h-6 w-6" />
+              </Link>
+            </div>
           </>
         )}
       </div>

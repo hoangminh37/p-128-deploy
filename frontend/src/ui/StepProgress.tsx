@@ -41,7 +41,7 @@ export function StepProgress({
       <p role="status" className="font-display mt-snug text-question text-slate">
         Bước {current} trên {total}
       </p>
-      <h2 className="mt-hair text-heading font-semibold text-ink">{title}</h2>
+      <h2 className="mt-hair text-heading font-semibold text-body">{title}</h2>
     </div>
   )
 }
