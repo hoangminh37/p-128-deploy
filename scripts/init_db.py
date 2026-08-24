@@ -26,7 +26,7 @@ async def init_db(reset: bool = False):
     async with async_session_maker() as session:
         import json
         from sqlalchemy import select
-        from src.models.domain import Article, LearningPath
+        from src.models.domain import Article, EditorQueueItem, LearningPath, OutOfScopeLog
 
         res_user = await session.execute(select(User).limit(1))
         if not res_user.scalars().first() or reset:
@@ -98,6 +98,68 @@ async def init_db(reset: bool = False):
                     print(f"  -> Seeded {len(articles_data)} articles for {cat}")
                 else:
                     print(f"Bỏ qua dữ liệu seed cho {cat} vì không tìm thấy file {fname}")
+
+        res_eq = await session.execute(select(EditorQueueItem).limit(1))
+        if not res_eq.scalars().first() or reset:
+            print("Seeding editor queue items and out-of-scope logs...")
+            eq1 = EditorQueueItem(
+                id="e_01HQZ1",
+                title="Hướng dẫn dinh dưỡng cho người đái tháo đường kèm tăng huyết áp (2026)",
+                origin="editor_upload",
+                topics=["Dinh dưỡng", "Đái tháo đường", "Tăng huyết áp"],
+                status="pending",
+                content="Chế độ ăn cho bệnh nhân đái tháo đường kết hợp tăng huyết áp cần hạn chế muối dưới 5g/ngày và kiểm soát chỉ số đường huyết thực phẩm (GI). Ưu tiên các loại rau xanh, ngũ cốc nguyên hạt và cá béo giàu omega-3.",
+                source_url="https://moh.gov.vn/huong-dan-dieu-tri-t2dm",
+                issuer="Bộ Y tế",
+                doc_code="QĐ 5481/QĐ-BYT",
+                conditions=["type2_diabetes", "hypertension"],
+                review_note="Tài liệu cập nhật phác đồ mới nhất từ Vụ Điều trị.",
+            )
+            eq2 = EditorQueueItem(
+                id="e_01HQZ2",
+                title="Khuyến cáo hoạt động thể lực cho người cao tuổi có bệnh tim mạch",
+                origin="editor_upload",
+                topics=["Vận động", "Tim mạch"],
+                status="pending",
+                content="Bệnh nhân cao tuổi tăng huyết áp nên duy trì đi bộ nhẹ nhàng 30 phút mỗi ngày, tránh các bài tập gắng sức đột ngột.",
+                source_url="https://vnha.org.vn",
+                issuer="Hội Tim mạch học Việt Nam",
+                doc_code="VNHA-2025-04",
+                conditions=["hypertension"],
+                review_note="Cần bác sĩ chuyên khoa tim mạch thẩm định trước khi duyệt.",
+            )
+            eq3 = EditorQueueItem(
+                id="e_01HQZ3",
+                title="Lưu ý khi sử dụng Metformin lúc đói",
+                origin="question_log",
+                topics=["Thuốc", "Đái tháo đường"],
+                status="draft",
+                content="Tài liệu dự thảo từ các câu hỏi người dùng thường gặp về tác dụng phụ tiêu hóa của Metformin.",
+                issuer="Bệnh viện Bạch Mai",
+                conditions=["type2_diabetes"],
+            )
+            session.add_all([eq1, eq2, eq3])
+
+            oos1 = OutOfScopeLog(
+                id="o_01HQZ1",
+                question="Bị đau mắt đỏ thì nhỏ thuốc gì nhanh khỏi nhất?",
+                ask_count=5,
+                drafted=False,
+            )
+            oos2 = OutOfScopeLog(
+                id="o_01HQZ2",
+                question="Trẻ em 3 tuổi bị sốt phát ban cần kiêng những gì?",
+                ask_count=3,
+                drafted=False,
+            )
+            oos3 = OutOfScopeLog(
+                id="o_01HQZ3",
+                question="Có nên nhổ răng khôn mọc lệch khi đang cho con bú không?",
+                ask_count=2,
+                drafted=False,
+            )
+            session.add_all([oos1, oos2, oos3])
+            print("  -> Seeded 3 editor queue items and 3 out-of-scope logs.")
 
         await session.commit()
 

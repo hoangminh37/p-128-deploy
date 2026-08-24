@@ -90,11 +90,10 @@ function DemoAccountsPanel({
   return (
     <div className="mt-block rounded-card bg-sand p-cozy">
       <p className="font-display text-input font-semibold text-sand-deep">
-        Bản demo Gate 2
+        Tài khoản mẫu (Development)
       </p>
       <p className="font-display mt-hair text-question text-sand-deep">
-        Backend chưa có endpoint đăng nhập. Màn này đang chạy trên một máy chủ giả
-        ngay trong trình duyệt của bạn. Bấm một tài khoản bên dưới để điền sẵn.
+        Bấm một tài khoản bên dưới để tự động điền thông tin đăng nhập vào hệ thống:
       </p>
 
       <ul className="mt-snug space-y-tight">
