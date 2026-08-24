@@ -38,6 +38,7 @@ import {
 import { patientProfileQueryKey, usePatient } from '../patient/context'
 import { useDailyLesson } from '../app/learning'
 import { ErrorNotice } from '../ui/ErrorNotice'
+import { CheckIcon } from '../ui/icons'
 import { ProfileIntro } from '../ui/ProfileIntro'
 import { StepProgress } from '../ui/StepProgress'
 
@@ -356,15 +357,41 @@ function ChoiceOption({
       />
       {/* Mọi biến thể `peer-*` phải nằm trên chính thẻ ANH EM của input — biến
           thể sinh ra selector `.peer:checked ~ &`, nên đặt xuống thẻ con bên
-          trong là không bao giờ khớp. Vì vậy cả nền, viền, màu chữ lẫn độ đậm
-          đều gom hết lên thẻ này rồi để thẻ con thừa kế. */}
+          trong là không bao giờ khớp. Vì vậy cả nền, màu chữ lẫn độ đậm đều gom
+          hết lên thẻ này rồi để thẻ con thừa kế; khối biểu tượng bên trong đổi
+          màu bằng `peer-checked:` viết trên chính nó, và nó vẫn là em của input
+          nên selector khớp.
+
+          ĐÃ CHỌN: nền navy, chữ trắng (15.39:1), khối biểu tượng mint.
+          CHƯA CHỌN: nền trắng, chữ ink (15.39:1), khối biểu tượng sand.
+          Hai trạng thái đảo ngược hẳn sáng tối, nên nhìn lướt cũng ra ngay ô
+          nào đang được chọn — không phải dò một nét viền. */}
       <span
         className="
-          font-display block min-h-touch rounded-lg border-2 border-border p-cozy text-ink
-          peer-checked:border-medical peer-checked:bg-medical peer-checked:font-semibold peer-checked:text-paper
-          peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-medical
+          motion-lift font-display flex min-h-touch items-center gap-snug rounded-card-lg bg-surface p-cozy text-body
+          peer-checked:bg-ink peer-checked:font-semibold peer-checked:text-white
+          peer-checked:hover:bg-ink-press
+          peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-mint
         "
       >
+        {/* Khối biểu tượng tô màu bằng PROP `checked`, không bằng `peer-checked:`.
+            Biến thể `peer-*` sinh ra selector `.peer:checked ~ &`, tức nó chỉ
+            khớp với thẻ ANH EM của input — mà khối này là thẻ CON của span bên
+            ngoài, nên viết `peer-checked:` ở đây sẽ không bao giờ khớp và khối
+            đứng im một màu.
+
+            Dùng prop được vì đây là input có kiểm soát: `checked` truyền vào
+            chính là trạng thái thật của nó, không phải một bản sao có thể lệch.
+            Còn `peer-checked:` ở span ngoài thì vẫn đúng — nó là anh em. */}
+        <span
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-icon ${
+            checked ? 'bg-mint text-mint-deep' : 'bg-sand text-sand-deep'
+          }`}
+        >
+          {/* Ô chưa chọn để TRỐNG chứ không hiện dấu tick mờ: một dấu tick nằm
+              sẵn trong ô chưa chọn là tín hiệu ngược hẳn với nghĩa của nó. */}
+          {checked && <CheckIcon className="h-6 w-6" />}
+        </span>
         <span className="block text-notice">{label}</span>
       </span>
     </label>
@@ -374,7 +401,7 @@ function ChoiceOption({
 /** Dòng giải thích ngắn dưới nhãn: vì sao ứng dụng cần thông tin này. */
 function FieldHint({ id, children }: { id: string; children: ReactNode }) {
   return (
-    <p id={id} className="font-display mt-hair text-question text-moss">
+    <p id={id} className="font-display mt-hair text-question text-slate">
       {children}
     </p>
   )
@@ -391,11 +418,13 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 }
 
 /** Nhãn của một trường. Tối thiểu 17px theo sàn cỡ chữ. */
-const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-ink'
+const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-body'
 
-/** Ô nhập một dòng: số, tháng năm. Cao tối thiểu 44px như mọi vùng chạm khác. */
+/** Ô nhập một dòng: số, tháng năm. Cao tối thiểu 44px như mọi vùng chạm khác.
+ * Viền `slate` (4.96:1 trên trắng) cho ngưỡng 3:1 của WCAG 1.4.11 — `line`
+ * KHÔNG dùng được ở đây, xem cảnh báo trong `index.css`. */
 const FIELD_INPUT_CLASS =
-  'font-body mt-snug min-h-touch w-full rounded-lg border-2 border-border bg-paper p-snug text-input text-ink'
+  'font-body mt-snug min-h-touch w-full rounded-card border-2 border-slate bg-surface p-snug text-input text-body'
 
 /**
  * Ô số để trống trả về chuỗi rỗng, mà hợp đồng chờ `null` — đổi ngay ở đây.
@@ -572,28 +601,42 @@ export function ProfileScreen() {
   // Đang đọc hồ sơ cũ thì chưa dựng form, tránh cảnh ô trống rồi nhảy số.
   if (profileState === 'loading') {
     return (
-      <p role="status" className="font-display max-w-answer text-notice text-moss">
+      <p
+        role="status"
+        className="font-display mx-auto max-w-answer text-notice text-slate"
+      >
         Đang mở hồ sơ của bạn…
       </p>
     )
   }
 
   return (
-    <div className="max-w-answer">
+    // `mx-auto`: đây là một cột form hẹp nằm trong vùng nội dung rộng 878px.
+    // Dính lề trái thì hơn 300px bên phải bỏ trống, và mắt phải nhảy chéo từ
+    // cuối một dòng nhãn sang đầu ô nhập tiếp theo.
+    <div className="mx-auto w-full max-w-answer">
       {isEditing && lessonData?.stats && (
-        <div className="mb-6 flex gap-4">
-          <div className="flex-1 rounded-lg border-2 border-medical/20 bg-medical/5 p-4 text-center">
-            <div className="text-3xl font-bold text-medical">{lessonData.stats.total_score}</div>
-            <div className="text-sm font-semibold text-moss">Điểm số (HP)</div>
+        <div className="mb-block flex gap-snug">
+          <div className="flex-1 rounded-card bg-mint p-cozy text-center">
+            <p className="text-metric font-semibold text-mint-deep">
+              {lessonData.stats.total_score}
+            </p>
+            <p className="font-display mt-hair text-question font-semibold text-mint-deep">
+              Điểm đã tích được
+            </p>
           </div>
-          <div className="flex-1 rounded-lg border-2 border-orange-500/20 bg-orange-500/5 p-4 text-center">
-            <div className="text-3xl font-bold text-orange-600">{lessonData.stats.current_streak} 🔥</div>
-            <div className="text-sm font-semibold text-moss">Chuỗi ngày học</div>
+          <div className="flex-1 rounded-card bg-coral p-cozy text-center">
+            <p className="text-metric font-semibold text-coral-deep">
+              {lessonData.stats.current_streak}
+            </p>
+            <p className="font-display mt-hair text-question font-semibold text-coral-deep">
+              Ngày học liền nhau
+            </p>
           </div>
         </div>
       )}
 
-      <h1 className="font-display text-ask font-bold">
+      <h1 className="text-ask font-semibold text-body">
         {isEditing ? 'Sửa hồ sơ sức khỏe' : 'Trước khi bắt đầu'}
       </h1>
 
@@ -805,7 +848,7 @@ export function ProfileScreen() {
             <button
               type="button"
               onClick={goBack}
-              className="font-display min-h-touch rounded-lg border-2 border-border px-cozy text-input font-semibold text-ink"
+              className="motion-press font-display min-h-touch rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
             >
               Quay lại
             </button>
@@ -815,7 +858,7 @@ export function ProfileScreen() {
             <button
               type="button"
               onClick={() => void goNext()}
-              className="font-display min-h-touch flex-1 rounded-lg border-2 border-medical bg-medical px-cozy text-input font-bold text-paper"
+              className="motion-press font-display min-h-call flex-1 rounded-pill bg-ink px-cozy text-input font-bold text-white enabled:hover:bg-ink-press"
             >
               Tiếp tục
             </button>
@@ -827,7 +870,7 @@ export function ProfileScreen() {
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="font-display min-h-touch flex-1 rounded-lg border-2 border-medical bg-medical px-cozy text-input font-bold text-paper disabled:border-rule disabled:bg-transparent disabled:font-normal disabled:text-moss"
+              className="motion-press font-display min-h-call flex-1 rounded-pill bg-ink px-cozy text-input font-bold text-white enabled:hover:bg-ink-press disabled:bg-surface disabled:font-normal disabled:text-slate"
             >
               {mutation.isPending
                 ? 'Đang lưu…'
@@ -839,22 +882,22 @@ export function ProfileScreen() {
         </div>
 
         {mutation.isPending && (
-          <p role="status" className="font-display mt-tight text-question text-moss">
+          <p role="status" className="font-display mt-tight text-question text-slate">
             Đang lưu hồ sơ…
           </p>
         )}
 
         {/* ---- Đường thoát, chỉ ở bước 1 ---- */}
         {step === 0 && !isEditing && (
-          <div className="mt-block border-t border-rule pt-snug">
+          <div className="mt-block border-t border-line pt-snug">
             <button
               type="button"
               onClick={skipProfile}
-              className="font-display flex min-h-touch items-center text-input font-semibold text-medical underline underline-offset-4"
+              className="font-display flex min-h-touch items-center text-input font-semibold text-body underline underline-offset-4"
             >
               Bỏ qua, tôi muốn thử hỏi một câu trước
             </button>
-            <p className="font-display mt-hair text-question text-moss">
+            <p className="font-display mt-hair text-question text-slate">
               Bạn vẫn hỏi được ngay. Chỉ là câu trả lời chưa đặt được vào bệnh và
               tuổi của bạn, nên sẽ chung chung hơn. Khai hồ sơ lúc nào cũng được.
             </p>

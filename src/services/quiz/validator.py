@@ -138,9 +138,7 @@ def validate_quiz(raw_questions: list[dict], min_questions: int) -> list[dict]:
             logger.warning("[quiz_validator] loại câu hỏi: %s", exc)
 
     if len(valid) < min_questions:
-        raise QuizValidationError(
-            f"Chỉ có {len(valid)}/{len(raw_questions)} câu hợp lệ, cần tối thiểu {min_questions}"
-        )
+        raise QuizValidationError(f"Chỉ có {len(valid)}/{len(raw_questions)} câu hợp lệ, cần tối thiểu {min_questions}")
 
     for index, question in enumerate(valid):
         question["index"] = index

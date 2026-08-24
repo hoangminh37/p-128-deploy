@@ -124,17 +124,17 @@ export function QuizPanel({
   // ── Đang làm bài ─────────────────────────────────────────────────────────
   if (quiz) {
     return (
-      <section className="mb-block max-w-answer rounded-lg border-2 border-medical/40 bg-medical/5 p-cozy">
-        <header className="mb-snug border-b border-rule pb-snug">
-          <p className="font-display text-note font-bold uppercase tracking-widest text-medical">
+      <section className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
+        <header className="mb-snug border-b border-line pb-snug">
+          <p className="font-display text-note font-semibold uppercase tracking-widest text-slate">
             {title}
           </p>
-          <h3 className="font-display text-heading font-bold text-ink">{quiz.topic}</h3>
-          <p className="mt-hair font-display text-note text-moss">
+          <h3 className="text-heading font-semibold text-body">{quiz.topic}</h3>
+          <p className="mt-hair font-display text-note text-slate">
             {hint ?? SOURCE_HINTS[quiz.source]}
             {!quiz.metadata.grounded && ' (chưa đối chiếu được với tài liệu gốc)'}
           </p>
-          <p className="mt-tight font-display text-note text-moss" aria-live="polite">
+          <p className="mt-tight font-display text-note text-slate" aria-live="polite">
             Đã trả lời {answeredCount}/{quiz.questions.length} câu
           </p>
         </header>
@@ -143,7 +143,7 @@ export function QuizPanel({
           {quiz.questions.map((question) => (
             <li key={question.index}>
               <fieldset>
-                <legend className="font-display text-question font-semibold text-ink">
+                <legend className="font-display text-question font-semibold text-body">
                   Câu {question.index + 1}. {question.question}
                 </legend>
                 <div className="mt-tight flex flex-col gap-tight">
@@ -152,10 +152,8 @@ export function QuizPanel({
                     return (
                       <label
                         key={optionIndex}
-                        className={`flex min-h-touch cursor-pointer items-center gap-tight rounded-lg border-2 p-tight transition-colors ${
-                          checked
-                            ? 'border-medical bg-medical/15'
-                            : 'border-rule bg-paper hover:border-border'
+                        className={`flex min-h-touch cursor-pointer items-center gap-snug rounded-card p-snug transition-colors ${
+                          checked ? 'bg-mint text-ink' : 'bg-canvas text-body hover:bg-canvas/70'
                         }`}
                       >
                         <input
@@ -169,14 +167,14 @@ export function QuizPanel({
                           }}
                         />
                         <span
-                          className={`font-display flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-note font-bold ${
-                            checked ? 'bg-medical text-paper' : 'bg-rule/50 text-moss'
+                          className={`font-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-icon text-question font-semibold ${
+                            checked ? 'bg-ink text-mint' : 'bg-surface text-slate'
                           }`}
                           aria-hidden="true"
                         >
                           {OPTION_LABELS[optionIndex]}
                         </span>
-                        <span className="font-display text-input text-ink">{option}</span>
+                        <span className="font-display text-question">{option}</span>
                       </label>
                     )
                   })}
@@ -202,21 +200,21 @@ export function QuizPanel({
           type="button"
           onClick={handleSubmit}
           disabled={submit.isPending}
-          className="font-display mt-cozy min-h-touch w-full rounded-lg bg-medical px-cozy text-input font-semibold text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="motion-press font-display mt-cozy min-h-touch w-full rounded-pill bg-mint px-cozy text-input font-bold text-ink disabled:bg-canvas disabled:font-normal disabled:text-slate"
         >
           {submit.isPending ? 'Đang chấm bài…' : 'Nộp bài'}
         </button>
 
-        <p className="mt-tight font-display text-note text-moss">{quiz.disclaimer}</p>
+        <p className="mt-tight font-display text-note text-slate">{quiz.disclaimer}</p>
       </section>
     )
   }
 
   // ── Chưa bắt đầu ─────────────────────────────────────────────────────────
   return (
-    <section className="mb-block max-w-answer rounded-lg border-2 border-medical/40 bg-medical/5 p-cozy">
-      <h3 className="font-display text-heading font-bold text-ink">{title}</h3>
-      <p className="mt-hair font-display text-question text-moss">
+    <section className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
+      <h3 className="text-heading font-semibold text-body">{title}</h3>
+      <p className="mt-hair font-display text-question text-slate">
         {hint ?? SOURCE_HINTS[source]} Trả lời đúng từ 60% trở lên để nhận điểm HP.
       </p>
 
@@ -230,12 +228,12 @@ export function QuizPanel({
         type="button"
         onClick={startQuiz}
         disabled={generate.isPending}
-        className="font-display mt-snug inline-flex min-h-touch items-center gap-tight rounded-lg bg-medical px-cozy text-input font-semibold text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="motion-press font-display mt-snug inline-flex min-h-touch items-center gap-tight rounded-pill bg-mint px-cozy text-input font-bold text-ink disabled:bg-canvas disabled:font-normal disabled:text-slate"
       >
         {generate.isPending ? (
           <>
             <span
-              className="h-4 w-4 animate-spin rounded-full border-2 border-paper/40 border-t-paper"
+              className="h-4 w-4 animate-spin rounded-full border-2 border-ink/30 border-t-ink"
               aria-hidden="true"
             />
             Đang soạn đề cho bạn…
@@ -246,7 +244,7 @@ export function QuizPanel({
       </button>
 
       {generate.isPending && (
-        <p className="mt-tight font-display text-note text-moss" aria-live="polite">
+        <p className="mt-tight font-display text-note text-slate" aria-live="polite">
           Trợ lý đang đọc lại tài liệu và soạn {numQuestions} câu hỏi. Mất khoảng vài giây.
         </p>
       )}
@@ -270,16 +268,16 @@ function QuizResultView({
   isRetrying: boolean
 }) {
   return (
-    <section className="mb-block max-w-answer rounded-lg border-2 border-medical/40 bg-medical/5 p-cozy">
-      <header className="mb-snug border-b border-rule pb-snug">
-        <p className="font-display text-note font-bold uppercase tracking-widest text-medical">
+    <section className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
+      <header className="mb-snug border-b border-line pb-snug">
+        <p className="font-display text-note font-semibold uppercase tracking-widest text-slate">
           {title} — kết quả
         </p>
-        <h3 className="font-display text-heading font-bold text-ink">{topic}</h3>
-        <p className="mt-tight font-display text-ask font-bold text-ink">
+        <h3 className="text-heading font-semibold text-body">{topic}</h3>
+        <p className="mt-tight text-ask font-semibold text-body">
           {result.score}/{result.total} câu đúng
         </p>
-        <p className="mt-hair font-display text-question text-moss">
+        <p className="mt-hair font-display text-question text-slate">
           {result.passed
             ? `Bạn nắm bài tốt. Được cộng ${result.hp_earned} HP, tổng điểm hiện tại ${result.stats.total_score}.`
             : 'Chưa đạt 60% nên lần này chưa cộng HP. Đọc lại phần giải thích rồi thử lại nhé.'}
@@ -289,9 +287,9 @@ function QuizResultView({
       <ol className="flex flex-col gap-para">
         {result.results.map((item) => (
           <li key={item.index}>
-            <p className="font-display text-question font-semibold text-ink">
+            <p className="font-display text-question font-semibold text-body">
               <span
-                className={`mr-tight font-bold ${item.is_correct ? 'text-medical' : 'text-alert'}`}
+                className={`mr-tight font-bold ${item.is_correct ? 'text-body' : 'text-alert'}`}
                 aria-hidden="true"
               >
                 {item.is_correct ? '✓' : '✗'}
@@ -304,29 +302,25 @@ function QuizResultView({
                 const isCorrect = optionIndex === item.correct_index
                 const isYours = optionIndex === item.your_answer
                 const tone = isCorrect
-                  ? 'border-medical bg-medical/15 text-ink'
+                  ? 'bg-mint text-ink'
                   : isYours
-                    ? 'border-alert bg-alert/10 text-ink'
-                    : 'border-transparent text-moss'
+                    ? 'border-2 border-alert bg-canvas text-body'
+                    : 'bg-canvas text-body'
 
                 return (
                   <p
                     key={optionIndex}
-                    className={`font-display flex items-start gap-tight rounded-lg border-2 p-tight text-input ${tone}`}
+                    className={`font-display flex items-start gap-snug rounded-card p-snug text-question ${tone}`}
                   >
                     <span className="font-bold" aria-hidden="true">
                       {OPTION_LABELS[optionIndex]}
                     </span>
                     <span className="flex-1">{option}</span>
                     {isCorrect && (
-                      <span className="font-display text-note font-bold text-medical">
-                        Đáp án đúng
-                      </span>
+                      <span className="font-display text-note font-semibold">Đáp án đúng</span>
                     )}
                     {isYours && !isCorrect && (
-                      <span className="font-display text-note font-bold text-alert">
-                        Bạn đã chọn
-                      </span>
+                      <span className="font-display text-note font-semibold text-alert">Bạn đã chọn</span>
                     )}
                   </p>
                 )
@@ -337,12 +331,12 @@ function QuizResultView({
                 Người đoán mò mà trúng cũng chưa hiểu gì hơn người sai — giấu
                 phần này của họ là để họ mang cái không-hiểu đó đi tiếp. */}
             <p
-              className={`mt-tight rounded-lg border-l-4 p-tight font-display text-note text-moss ${
-                item.is_correct ? 'border-medical bg-medical/5' : 'border-alert bg-alert/5'
+              className={`mt-snug rounded-card p-snug font-display text-question text-body ${
+                item.is_correct ? 'bg-canvas' : 'border-2 border-alert bg-canvas'
               }`}
             >
               <span
-                className={`font-semibold ${item.is_correct ? 'text-medical' : 'text-alert'}`}
+                className={`font-semibold ${item.is_correct ? 'text-body' : 'text-alert'}`}
               >
                 {item.is_correct ? 'Đúng rồi. ' : 'Chưa đúng. '}
               </span>
@@ -356,7 +350,7 @@ function QuizResultView({
         type="button"
         onClick={onRetry}
         disabled={isRetrying}
-        className="font-display mt-cozy min-h-touch w-full rounded-lg border-2 border-medical px-cozy text-input font-semibold text-medical transition-colors hover:bg-medical/10 disabled:opacity-50"
+        className="motion-press font-display mt-cozy min-h-touch w-full rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body enabled:hover:bg-canvas disabled:opacity-50"
       >
         {isRetrying ? 'Đang soạn đề mới…' : 'Làm bộ câu hỏi khác'}
       </button>

@@ -14,8 +14,11 @@ import { Link } from 'react-router-dom'
 import { useEditorQueues } from '../app/editor'
 import { formatDateTime } from '../lib/datetime'
 import type { EditorItemStatus, EditorQueueItem } from '../lib/schemas'
-import { OriginBadge, StatusBadge, TopicTags } from '../ui/EditorBadges'
+import { OriginIconBox, StatusBadge, TopicTags } from '../ui/EditorBadges'
+import { EmptyState } from '../ui/EmptyState'
+import { DocumentStack } from '../ui/illustrations'
 import { ErrorNotice } from '../ui/ErrorNotice'
+import { ChevronRightIcon } from '../ui/icons'
 
 type QueueFilter = {
   id: string
@@ -58,29 +61,49 @@ const FILTERS: readonly QueueFilter[] = [
   },
 ]
 
+/**
+ * Một dòng của hàng đợi: khối biểu tượng bên trái, nội dung ở giữa, mũi tên
+ * bên phải.
+ *
+ * Khối biểu tượng mang màu NGUỒN GỐC (coral cho câu hỏi bệnh nhân, sand cho
+ * mục biên tập viên tự thêm), nên quét dọc mép trái danh sách là thấy ngay
+ * dòng nào có người đang chờ. Nhãn nguồn gốc dạng chữ vì thế bỏ đi được: hai
+ * thứ nói cùng một điều, mà khối màu nói nhanh hơn.
+ *
+ * Mũi tên KHÔNG mang thông tin — cả dòng đã là một liên kết và trình đọc màn
+ * hình đọc ra điều đó — nên nó `aria-hidden`. Nó ở đây để mắt biết dòng này bấm
+ * được, việc mà một thẻ trắng phẳng không tự nói ra.
+ */
 function QueueRow({ item }: { item: EditorQueueItem }) {
   return (
     <li>
       <Link
         to={`/editor/queue/${encodeURIComponent(item.item_id)}`}
-        className="block min-h-touch rounded-lg border-2 border-border p-cozy no-underline"
+        className="motion-lift flex min-h-touch items-start gap-snug rounded-card bg-surface p-cozy no-underline"
       >
-        <p className="font-display text-notice font-semibold text-ink">{item.title}</p>
+        <OriginIconBox origin={item.origin} />
 
-        <div className="mt-snug flex flex-wrap items-center gap-tight">
-          <OriginBadge origin={item.origin} />
-          <StatusBadge status={item.status} />
+        <div className="min-w-0 flex-1">
+          <p className="font-display text-notice font-semibold text-body">
+            {item.title}
+          </p>
+
+          <div className="mt-snug flex flex-wrap items-center gap-tight">
+            <StatusBadge status={item.status} />
+          </div>
+
+          {item.topics.length > 0 && (
+            <div className="mt-snug">
+              <TopicTags topics={item.topics} />
+            </div>
+          )}
+
+          <p className="font-display mt-snug text-question text-slate">
+            Tạo lúc {formatDateTime(item.created_at)}
+          </p>
         </div>
 
-        {item.topics.length > 0 && (
-          <div className="mt-snug">
-            <TopicTags topics={item.topics} />
-          </div>
-        )}
-
-        <p className="font-display mt-snug text-question text-moss">
-          Tạo lúc {formatDateTime(item.created_at)}
-        </p>
+        <ChevronRightIcon className="mt-snug h-6 w-6 shrink-0 text-slate" />
       </Link>
     </li>
   )
@@ -103,8 +126,8 @@ export function EditorQueueScreen() {
 
   return (
     <div className="max-w-reading">
-      <h1 className="font-display text-ask font-bold">Hàng đợi duyệt</h1>
-      <p className="mt-snug max-w-answer text-notice text-ink">
+      <h1 className="text-ask font-semibold text-body">Hàng đợi duyệt</h1>
+      <p className="mt-snug max-w-answer text-notice text-body">
         Nội dung chờ vào thư viện trích dẫn. Mở một mục để xem toàn văn, chỉnh sửa
         rồi duyệt hoặc từ chối.
       </p>
@@ -123,10 +146,13 @@ export function EditorQueueScreen() {
               type="button"
               aria-pressed={isActive}
               onClick={() => setFilterId(candidate.id)}
-              className={`font-display min-h-touch rounded-full border-2 px-cozy text-input ${
+              // Viên thuốc đang chọn: nền ink chữ trắng (15.39:1). Chưa chọn:
+              // nền trắng chữ ink (15.39:1). Hai trạng thái đảo ngược sáng tối
+              // nên nhận ra được mà không cần đọc `aria-pressed`.
+              className={`motion-press font-display min-h-touch rounded-pill px-cozy text-input ${
                 isActive
-                  ? 'border-medical bg-medical font-semibold text-paper'
-                  : 'border-border text-ink'
+                  ? 'bg-ink font-semibold text-white enabled:hover:bg-ink-press'
+                  : 'bg-surface text-body enabled:hover:bg-canvas'
               }`}
             >
               {candidate.label}
@@ -136,7 +162,7 @@ export function EditorQueueScreen() {
       </div>
 
       {isPending && (
-        <p role="status" className="font-display mt-block text-notice text-moss">
+        <p role="status" className="font-display mt-block text-notice text-slate">
           Đang đọc hàng đợi…
         </p>
       )}
@@ -152,7 +178,13 @@ export function EditorQueueScreen() {
       )}
 
       {!isPending && failed === undefined && items.length === 0 && (
-        <p className="font-display mt-block text-notice text-moss">{filter.empty}</p>
+        <div className="mt-block">
+          <EmptyState
+            illustration={<DocumentStack size={128} />}
+            title="Không có mục nào"
+            body={filter.empty}
+          />
+        </div>
       )}
 
       {items.length > 0 && (

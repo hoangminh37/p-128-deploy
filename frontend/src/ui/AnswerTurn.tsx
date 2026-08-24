@@ -65,9 +65,15 @@ export type Turn = {
  */
 export function QuestionHeading({ question }: { question: string }) {
   return (
-    <header className="max-w-answer border-b border-rule pb-snug">
-      <p className="font-display text-note text-moss">Câu hỏi của bạn</p>
-      <h1 className="font-body mt-hair text-ask text-ink">{question}</h1>
+    // KHÔNG nằm trong thẻ nào, và không có nét kẻ dưới. Câu hỏi đặt thẳng lên
+    // nền canvas là cách nói rằng nó là TÊN CỦA TRANG, không phải một khối nội
+    // dung ngang hàng với câu trả lời bên dưới. Thẻ trắng bọc câu trả lời mới
+    // là thứ tách hai phần ra khỏi nhau.
+    <header className="max-w-answer">
+      <p className="font-display text-note font-semibold text-slate">
+        Câu hỏi của bạn
+      </p>
+      <h1 className="mt-hair text-ask font-semibold text-body">{question}</h1>
     </header>
   )
 }
@@ -78,10 +84,16 @@ export function QuestionHeading({ question }: { question: string }) {
  * Đặt TRƯỚC câu trả lời chứ không phải sau: người bệnh cần biết mình sắp đọc
  * thứ dựa trên mấy văn bản, trước khi đọc chứ không phải sau khi đã tin.
  *
- * Trạng thái `partial` đổi cả chữ lẫn màu, nhưng đổi sang `moss` (5.53:1 trên
- * nền nhạt của chính nó) — màu chữ phụ trung tính, KHÔNG dùng `alert`. Đây là
- * ghi chú về mức độ chắc chắn, không phải cảnh báo nguy hiểm; tô đỏ chỗ này sẽ
- * làm người đang lo lắng tưởng mình vừa đọc phải điều gì đáng sợ.
+ * NỀN MINT, CHỮ INK (7.95:1) — cùng cặp màu với marker `[n]` trong dòng chữ, và
+ * đó là chủ ý: nhãn này với marker nói về cùng một thứ, nên chúng phải nhìn ra
+ * là cùng một họ.
+ *
+ * Trạng thái `partial` và trạng thái không trích nguồn nào đổi sang nền
+ * `canvas` chữ `slate` (4.58:1) — trung tính, KHÔNG dùng `alert` và không dùng
+ * `coral`. Đây là ghi chú về mức độ chắc chắn, không phải cảnh báo nguy hiểm;
+ * tô nóng chỗ này sẽ làm người đang lo lắng tưởng mình vừa đọc phải điều đáng
+ * sợ. Tín hiệu "kém chắc chắn hơn" nằm ở chỗ nó MẤT màu nhấn, không ở chỗ nó
+ * đổi sang một màu nhấn khác.
  */
 function SourceBadge({ count, status }: { count: number; status: ChatStatus }) {
   const isPartial = status === 'partial'
@@ -97,8 +109,8 @@ function SourceBadge({ count, status }: { count: number; status: ChatStatus }) {
 
   const tone =
     isPartial || count === 0
-      ? 'bg-moss/10 text-moss'
-      : 'bg-medical/10 text-medical'
+      ? 'bg-canvas text-slate'
+      : 'bg-mint text-ink font-semibold'
 
   // `w-fit` chứ KHÔNG phải `inline-block`. Tên bậc khoảng cách `--spacing-block`
   // của dự án làm Tailwind đọc được `inline-block` theo hai nghĩa: vừa là
@@ -108,7 +120,7 @@ function SourceBadge({ count, status }: { count: number; status: ChatStatus }) {
   // `index.css`. `w-fit` cho đúng bề ngang vừa nội dung mà không đụng tên nào.
   return (
     <p
-      className={`font-display mt-snug w-fit max-w-answer rounded-full px-snug py-hair text-question ${tone}`}
+      className={`font-display mt-cozy w-fit max-w-answer rounded-pill px-snug py-hair text-question ${tone}`}
     >
       {label()}
     </p>
@@ -179,7 +191,7 @@ function ActionButton({
     <button
       type="button"
       onClick={onClick}
-      className="font-display flex min-h-touch items-center gap-tight rounded-lg border-2 border-border px-cozy text-input font-semibold text-ink"
+      className="motion-press font-display flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
     >
       {children}
       {label}
@@ -223,7 +235,7 @@ function TurnActions({ turn }: { turn: Turn }) {
         </ActionButton>
       </div>
 
-      <p role="status" className="font-display mt-tight text-question text-moss">
+      <p role="status" className="font-display mt-tight text-question text-slate">
         {notice}
       </p>
     </div>
@@ -244,7 +256,11 @@ export function AnswerTurn({ turn }: { turn: Turn }) {
   const showSourceBadge = turn.status === 'answered' || turn.status === 'partial'
 
   return (
-    <article className="mb-turn animate-answer-in">
+    // KHÔNG hoạt ảnh ở lượt `red_flag`. Mọi lượt khác hiện dần từ dưới lên trong
+    // 250ms, đúng một lần; riêng lượt báo dấu hiệu cấp cứu thì có mặt ngay từ
+    // khung hình đầu. Người có thể đang đau ngực không cần chờ một hiệu ứng
+    // chạy xong mới đọc được dòng đầu tiên, và cũng không cần xem gì nhúc nhích.
+    <article className={`mb-turn ${isRedFlag ? '' : 'animate-answer-in'}`}>
       <QuestionHeading question={turn.question} />
 
       {showSourceBadge && (
@@ -252,7 +268,13 @@ export function AnswerTurn({ turn }: { turn: Turn }) {
       )}
 
       {/* `red_flag` bám sát tiêu đề hơn các trạng thái khác: một bậc `cozy` thay
-          vì `block`. Khoảng nghỉ để thở là thứ xa xỉ khi người đọc đang đau ngực. */}
+          vì `block`. Khoảng nghỉ để thở là thứ xa xỉ khi người đọc đang đau ngực.
+
+          KHÔNG bọc thêm thẻ nào ở đây. Mỗi nhánh của `ResponseBody` tự mang nền
+          của nó: `AnswerDocument` dựng thẻ trắng của riêng mình vì chính nó mới
+          biết bố cục đang là hai cột hay xếp dưới — mà hai bố cục đó cần hai bề
+          ngang khác nhau. Ba khối trạng thái kia cũng đã là thẻ có nền riêng
+          (xem `ResponseStates.tsx`). */}
       <div className={isRedFlag ? 'mt-cozy' : 'mt-block'}>
         <ResponseBody turn={turn} />
       </div>

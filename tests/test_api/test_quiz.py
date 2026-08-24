@@ -476,8 +476,7 @@ def test_cau_sai_di_vao_ngu_canh_on_tap_tong_hop():
         FakePatient(),
         [FakeArticle("a_1", "Bài", content="Nội dung")],
         [("Câu đã hỏi", "Trợ lý đáp")],
-        [Mistake(question="Chỗ đã sai", options=["A", "B", "C", "D"], correct_index=0,
-                 explanation="x", times_wrong=3)],
+        [Mistake(question="Chỗ đã sai", options=["A", "B", "C", "D"], correct_index=0, explanation="x", times_wrong=3)],
     )
     assert "ĐÃ TRẢ LỜI SAI" in ctx.context
     assert "Chỗ đã sai" in ctx.context

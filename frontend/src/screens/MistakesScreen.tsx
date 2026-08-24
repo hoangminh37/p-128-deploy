@@ -27,7 +27,7 @@ export function MistakesScreen() {
   if (isPending) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <p role="status" className="font-display text-question text-moss">
+        <p role="status" className="font-display text-question text-slate">
           Đang xem lại bài làm của bạn…
         </p>
       </div>
@@ -50,21 +50,21 @@ export function MistakesScreen() {
         <nav className="mb-block">
           <Link
             to="/quiz"
-            className="font-display inline-flex min-h-touch items-center text-input text-moss underline underline-offset-4 hover:text-ink"
+            className="font-display inline-flex min-h-touch items-center text-input font-semibold text-slate underline underline-offset-4 hover:text-body"
           >
             ← Trắc nghiệm kiến thức
           </Link>
         </nav>
 
         <header className="mb-block">
-          <h1 className="font-display text-ask font-bold text-ink">Chỗ bạn chưa nắm</h1>
+          <h1 className="text-ask font-semibold text-body">Chỗ bạn chưa nắm</h1>
           {mistakes.length > 0 ? (
-            <p className="mt-tight font-display text-question text-moss">
+            <p className="mt-snug max-w-answer text-notice text-body">
               {mistakes.length} chỗ, tổng {data?.total_wrong} lần trả lời sai, tính trên{' '}
               {data?.sessions_scanned} bài đã nộp. Câu sai nhiều lần xếp trước.
             </p>
           ) : (
-            <p className="mt-tight font-display text-question text-moss">
+            <p className="mt-snug max-w-answer text-notice text-body">
               Bạn chưa trả lời sai câu nào. Làm thêm vài bài trắc nghiệm rồi quay lại đây nhé.
             </p>
           )}
@@ -73,7 +73,7 @@ export function MistakesScreen() {
         {mistakes.length === 0 ? (
           <Link
             to="/quiz"
-            className="font-display inline-flex min-h-touch items-center rounded-lg bg-medical px-cozy text-input font-semibold text-paper no-underline hover:opacity-90"
+            className="motion-press font-display inline-flex min-h-touch items-center rounded-pill bg-mint px-cozy text-input font-bold text-ink no-underline"
           >
             Làm một bài trắc nghiệm
           </Link>
@@ -88,19 +88,19 @@ export function MistakesScreen() {
             {dangLamLai ? (
               <QuizPanel source="mistakes" ctaLabel="Bắt đầu làm lại" />
             ) : (
-              <section className="mb-block max-w-answer rounded-lg border-2 border-medical/40 bg-medical/5 p-cozy">
-                <h2 className="font-display text-heading font-bold text-ink">
+              <section className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
+                <h2 className="text-heading font-semibold text-body">
                   Thử lại những chỗ này
                 </h2>
-                <p className="mt-hair font-display text-question text-moss">
-                  Trợ lý sẽ soạn <strong className="font-semibold text-ink">câu hỏi mới</strong> về
+                <p className="mt-hair font-display text-question text-slate">
+                  Trợ lý sẽ soạn <strong className="font-semibold text-body">câu hỏi mới</strong> về
                   đúng các khái niệm trên, diễn đạt khác đi. Nhớ mặt đáp án cũ sẽ không giúp được —
                   đó mới là cách biết bạn đã thật sự hiểu.
                 </p>
                 <button
                   type="button"
                   onClick={() => setDangLamLai(true)}
-                  className="font-display mt-snug inline-flex min-h-touch items-center rounded-lg bg-medical px-cozy text-input font-semibold text-paper hover:opacity-90"
+                  className="motion-press font-display mt-snug inline-flex min-h-touch items-center rounded-pill bg-mint px-cozy text-input font-bold text-ink"
                 >
                   🎯 Làm lại bằng câu hỏi mới
                 </button>
@@ -118,50 +118,50 @@ function MistakeCard({ mistake }: { mistake: QuizMistake }) {
   const daChon = mistake.chosen[0]
 
   return (
-    <li className="rounded-lg border border-rule bg-paper p-cozy">
+    <li className="rounded-card bg-surface p-cozy">
       <div className="mb-tight flex flex-wrap items-center gap-tight">
-        <span className="font-display rounded-lg bg-alert/10 px-2 py-1 text-note font-bold text-alert">
+        <span className="font-display rounded-pill border-2 border-alert px-snug py-hair text-note font-semibold text-alert">
           Sai {mistake.times_wrong} lần
         </span>
         {mistake.topic && (
-          <span className="font-display text-note text-moss">{mistake.topic}</span>
+          <span className="font-display text-note text-slate">{mistake.topic}</span>
         )}
       </div>
 
-      <p className="font-display text-question font-semibold text-ink">{mistake.question}</p>
+      <p className="font-display text-question font-semibold text-body">{mistake.question}</p>
 
       <div className="mt-tight flex flex-col gap-hair">
         {mistake.options.map((option, index) => {
           const dung = index === mistake.correct_index
           const cuaBan = index === daChon
           const tone = dung
-            ? 'border-medical bg-medical/15 text-ink'
+            ? 'bg-mint text-ink'
             : cuaBan
-              ? 'border-alert bg-alert/10 text-ink'
-              : 'border-transparent text-moss'
+              ? 'border-2 border-alert bg-canvas text-body'
+              : 'bg-canvas text-body'
 
           return (
             <p
               key={index}
-              className={`font-display flex items-start gap-tight rounded-lg border-2 p-tight text-input ${tone}`}
+              className={`font-display flex items-start gap-snug rounded-card p-snug text-question ${tone}`}
             >
               <span className="font-bold" aria-hidden="true">
                 {OPTION_LABELS[index]}
               </span>
               <span className="flex-1">{option}</span>
               {dung && (
-                <span className="font-display text-note font-bold text-medical">Đáp án đúng</span>
+                <span className="font-display text-note font-semibold">Đáp án đúng</span>
               )}
               {cuaBan && !dung && (
-                <span className="font-display text-note font-bold text-alert">Bạn đã chọn</span>
+                <span className="font-display text-note font-semibold text-alert">Bạn đã chọn</span>
               )}
             </p>
           )
         })}
       </div>
 
-      <p className="mt-tight rounded-lg bg-medical/5 p-tight font-display text-note text-moss">
-        <span className="font-semibold text-ink">Vì sao: </span>
+      <p className="mt-snug rounded-card bg-canvas p-snug font-display text-question text-body">
+        <span className="font-semibold text-body">Vì sao: </span>
         {mistake.explanation}
       </p>
     </li>

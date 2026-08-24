@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from langchain_core.prompts import ChatPromptTemplate
 
-QUIZ_SYSTEM = """Bạn là chuyên gia giáo dục sức khoẻ, đang soạn đề trắc nghiệm ôn tập cho
+QUIZ_SYSTEM = (
+    """Bạn là chuyên gia giáo dục sức khoẻ, đang soạn đề trắc nghiệm ôn tập cho
 người bệnh mãn tính (tiểu đường típ 2, cao huyết áp) tại Việt Nam.
 
 MỤC TIÊU: đo xem người bệnh có HIỂU nội dung vừa học không — không phải đo trí nhớ máy móc.
@@ -102,7 +103,9 @@ thác các góc khác nhau: nguyên nhân, thời điểm, cách làm, lý do đ
 huống áp dụng.
 
 Trích đoạn nghèo tới mức không ra nổi câu nào thì trả về {{"questions": []}} —
-vẫn phải là JSON hợp lệ, tuyệt đối không trả về chuỗi rỗng hay lời giải thích."""""
+vẫn phải là JSON hợp lệ, tuyệt đối không trả về chuỗi rỗng hay lời giải thích."""
+    ""
+)
 
 QUIZ_HUMAN = """CHỦ ĐỀ: {topic}
 

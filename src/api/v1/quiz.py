@@ -89,9 +89,7 @@ async def create_quiz(
         if request.source == "article":
             context = await build_from_article(db, request.article_id, patient)
         elif request.source == "conversation":
-            context = await build_from_conversation(
-                db, request.conversation_id, current_user.patient_id, patient
-            )
+            context = await build_from_conversation(db, request.conversation_id, current_user.patient_id, patient)
         elif request.source == "mistakes":
             context = await build_from_mistakes(db, patient, current_user.patient_id)
         else:
@@ -125,9 +123,7 @@ async def create_quiz(
     await db.refresh(session)
 
     latency_ms = int((time.time() - started_at) * 1000)
-    logger.info(
-        "[quiz] %s | source=%s | %d câu | %dms", session.id, request.source, len(questions), latency_ms
-    )
+    logger.info("[quiz] %s | source=%s | %d câu | %dms", session.id, request.source, len(questions), latency_ms)
 
     return QuizResponse(
         quiz_id=session.id,

@@ -244,18 +244,14 @@ async def build_from_conversation(
         if message.role == "user":
             cho_tra_loi = noi_dung
         elif cho_tra_loi and message.status in USABLE_ANSWER_STATUS:
-            cap.append(
-                f"Người học hỏi: {cho_tra_loi}\n"
-                f"Trợ lý đã trả lời: {noi_dung[:MAX_ANSWER_CHARS]}"
-            )
+            cap.append(f"Người học hỏi: {cho_tra_loi}\nTrợ lý đã trả lời: {noi_dung[:MAX_ANSWER_CHARS]}")
             cho_tra_loi = None
 
     if not cap:
         # Cả phiên chỉ có từ chối, cảnh báo cấp cứu hoặc chuyển bác sĩ — không
         # có kiến thức nào để hỏi lại.
         raise QuizContextError(
-            "Cuộc trò chuyện này chưa có nội dung kiến thức để ra đề. "
-            "Hãy hỏi trợ lý một câu về bệnh của bạn trước đã."
+            "Cuộc trò chuyện này chưa có nội dung kiến thức để ra đề. Hãy hỏi trợ lý một câu về bệnh của bạn trước đã."
         )
 
     khoi = (
@@ -275,9 +271,7 @@ async def build_from_conversation(
     )
 
 
-async def build_from_profile(
-    db: AsyncSession, patient: Patient | None, patient_id: str | None
-) -> QuizContext:
+async def build_from_profile(db: AsyncSession, patient: Patient | None, patient_id: str | None) -> QuizContext:
     """Nguồn ``profile`` — ÔN TẬP TỔNG HỢP trên hành trình học của chính người này.
 
     Bản trước chỉ truy vấn ChromaDB theo tên bệnh, nên hai người cùng mắc tiểu
@@ -454,8 +448,7 @@ def _cumulative_context(
         # gửi đi khi bám được vào tài liệu đã duyệt — nó đã là nội dung có nguồn,
         # và đúng là thứ người bệnh đã đọc.
         doan = [
-            f"({i}) Người học hỏi: {hoi}\n    Trợ lý đã trả lời: {dap}"
-            for i, (hoi, dap) in enumerate(hoi_dap, start=1)
+            f"({i}) Người học hỏi: {hoi}\n    Trợ lý đã trả lời: {dap}" for i, (hoi, dap) in enumerate(hoi_dap, start=1)
         ]
         khoi.append(
             "[ĐÃ TRAO ĐỔI VỚI TRỢ LÝ — vừa là chủ đề chưa chắc, vừa là nguồn kiến thức]\n"
@@ -467,9 +460,7 @@ def _cumulative_context(
         )
 
     if da_sai:
-        dong = "\n".join(
-            f"- {m.question} (sai {m.times_wrong} lần)" for m in da_sai[:MAX_MISTAKES_IN_PROMPT]
-        )
+        dong = "\n".join(f"- {m.question} (sai {m.times_wrong} lần)" for m in da_sai[:MAX_MISTAKES_IN_PROMPT])
         khoi.append(
             "[ĐÃ TRẢ LỜI SAI — bằng chứng mạnh nhất về chỗ chưa nắm]\n"
             f"{dong}\n\n"
@@ -587,9 +578,7 @@ async def _fallback_by_condition(db: AsyncSession, patient: Patient) -> QuizCont
 # ── Nguồn thứ tư: ôn lại chỗ đã sai ──────────────────────────────────────────
 
 
-async def build_from_mistakes(
-    db: AsyncSession, patient: Patient | None, patient_id: str | None
-) -> QuizContext:
+async def build_from_mistakes(db: AsyncSession, patient: Patient | None, patient_id: str | None) -> QuizContext:
     """Nguồn ``mistakes`` — ra đề MỚI trên đúng những khái niệm người học đã sai.
 
     VÌ SAO KHÔNG HIỆN LẠI NGUYÊN CÂU CŨ:
@@ -607,9 +596,7 @@ async def build_from_mistakes(
 
     mistakes = await collect_mistakes(db, patient_id)
     if not mistakes:
-        raise QuizContextError(
-            "Bạn chưa có câu nào trả lời sai. Hãy làm một bài trắc nghiệm trước đã."
-        )
+        raise QuizContextError("Bạn chưa có câu nào trả lời sai. Hãy làm một bài trắc nghiệm trước đã.")
 
     context, citations = await _material_for_mistakes(db, mistakes)
     if not context:
@@ -622,11 +609,7 @@ async def build_from_mistakes(
         da_chon = m.options[m.chosen[0]] if m.chosen and 0 <= m.chosen[0] < len(m.options) else "bỏ trống"
         dung = m.options[m.correct_index] if 0 <= m.correct_index < len(m.options) else "?"
         lap = f" (sai {m.times_wrong} lần)" if m.times_wrong > 1 else ""
-        dong_sai.append(
-            f"- Đã hỏi: {m.question}{lap}\n"
-            f"  Người học chọn: {da_chon}\n"
-            f"  Đáp án đúng: {dung}"
-        )
+        dong_sai.append(f"- Đã hỏi: {m.question}{lap}\n  Người học chọn: {da_chon}\n  Đáp án đúng: {dung}")
 
     khoi_sai = (
         "[ĐÃ TRẢ LỜI SAI — những chỗ người học thật sự chưa nắm]\n"

@@ -6,13 +6,13 @@
  * sách thành vô dụng. Tiêu đề phiên dùng cỡ `question` 16px, nhãn nhóm và các
  * dòng trạng thái dùng cỡ `note` 15px. Không có gì nhỏ hơn.
  *
- * MÀU CHỮ: tiêu đề phiên để `ink`, nhãn nhóm để `moss`. Không dùng gì nhạt hơn
- * `moss` — `rule` chỉ đạt 1.51:1 nên nó là đường kẻ, không bao giờ là chữ.
+ * MÀU CHỮ TRÊN NỀN NAVY, đúng hai bậc: `mist` 6.80:1 cho mục chưa chọn và cho
+ * nhãn nhóm, `white` cho mục đang mở. Không có bậc thứ ba nào nhạt hơn `mist`.
  *
- * PHIÊN ĐANG MỞ: nền `rule` cộng một nét dọc `medical` bên trái. Nền thôi là
- * chưa đủ — `rule` trên `paper` chỉ chênh 1.51:1, mắt kém sẽ không thấy. Nét dọc
- * `medical` đạt 5.76:1 nên trạng thái này luôn nhìn ra được. Chữ trên nền `rule`
- * để `ink` (8.57:1); `moss` trên nền đó chỉ còn 4.20:1, không đạt 4.5:1.
+ * PHIÊN ĐANG MỞ: nền trắng mờ 10% (ra #233B58) và chữ đổi sang `white` —
+ * 11.43:1 trên chính nền đó. Hai tín hiệu cùng lúc chứ không chỉ một: nền mờ
+ * trên navy chênh rất ít, mắt kém có thể bỏ qua, nên độ sáng của chữ phải tự nó
+ * cũng nói ra được mục nào đang mở.
  */
 import { useId, useMemo } from 'react'
 import { Link } from 'react-router-dom'
@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom'
 import { useConversations } from '../app/conversations'
 import { groupConversations } from '../lib/conversationGroups'
 import { usePatient } from '../patient/context'
+import { EmptyState } from './EmptyState'
 
 /**
  * Trạng thái rỗng.
@@ -29,16 +30,18 @@ import { usePatient } from '../patient/context'
  */
 function EmptyNote() {
   return (
-    <p className="font-display px-snug py-cozy text-note text-moss">
-      Bạn chưa có hội thoại nào. Sau khi bạn hỏi câu đầu tiên, hội thoại sẽ được
-      lưu lại ở đây.
-    </p>
+    <EmptyState
+      tone="dark"
+      compact
+      title="Chưa có hội thoại nào"
+      body="Sau khi bạn hỏi câu đầu tiên, hội thoại sẽ được lưu lại ở đây."
+    />
   )
 }
 
 function LoadingNote() {
   return (
-    <p role="status" className="font-display px-snug py-cozy text-note text-moss">
+    <p role="status" className="font-display px-snug py-cozy text-note text-mist">
       Đang mở danh sách hội thoại…
     </p>
   )
@@ -54,13 +57,16 @@ function LoadingNote() {
 function ErrorNote({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="px-snug py-cozy">
-      <p className="font-display text-note text-alert">
+      {/* `alert` là màu của nền sáng, trên navy nó chỉ đạt 1.55:1 và biến mất.
+          Ở đây dùng `coral` (6.62:1 trên ink) — cùng vai "có gì đó không ổn",
+          nhưng đọc được. */}
+      <p className="font-display text-note font-semibold text-coral">
         Chưa đọc được danh sách hội thoại.
       </p>
       <button
         type="button"
         onClick={onRetry}
-        className="font-display mt-tight min-h-touch rounded-lg border-2 border-border px-snug text-note font-semibold text-ink"
+        className="motion-press font-display mt-tight min-h-touch rounded-pill border-2 border-mist px-snug text-note font-semibold text-white enabled:hover:bg-white/10"
       >
         Thử lại
       </button>
@@ -104,7 +110,7 @@ export function ConversationNav({
               tiêu đề của chính màn hình đang mở. */}
           <p
             id={headingId}
-            className="font-display px-snug pt-snug pb-hair text-note font-semibold text-moss"
+            className="font-display px-snug pt-snug pb-hair text-note font-semibold text-mist"
           >
             {group.label}
           </p>
@@ -119,12 +125,10 @@ export function ConversationNav({
                     to={`/chat/${encodeURIComponent(conversation.conversation_id)}`}
                     onClick={onNavigate}
                     aria-current={isActive ? 'page' : undefined}
-                    // `pl-tight` cộng nét dọc 4px cho ra đúng 12px như lề của
-                    // nhãn nhóm phía trên, nên chữ của cả hai thẳng một trục.
-                    className={`font-display flex min-h-touch items-center rounded-lg border-l-4 py-tight pr-snug pl-tight text-question text-ink no-underline ${
+                    className={`font-display flex min-h-touch items-center rounded-icon px-snug py-tight text-question no-underline ${
                       isActive
-                        ? 'border-medical bg-rule font-semibold'
-                        : 'border-transparent'
+                        ? 'bg-white/10 font-semibold text-white hover:bg-white/15'
+                        : 'text-mist hover:bg-white/10 hover:text-white'
                     }`}
                   >
                     {/* Cắt ở dòng thứ hai. Tiêu đề dài tới 60 ký tự theo mục 7,

@@ -33,15 +33,15 @@ export function QuizScreen() {
         <nav className="mb-block">
           <Link
             to="/learning"
-            className="font-display inline-flex min-h-touch items-center text-input text-moss underline underline-offset-4 hover:text-ink"
+            className="font-display inline-flex min-h-touch items-center text-input font-semibold text-slate underline underline-offset-4 hover:text-body"
           >
             ← Thư viện học tập
           </Link>
         </nav>
 
         <header className="mb-block">
-          <h1 className="font-display text-ask font-bold text-ink">Trắc nghiệm kiến thức</h1>
-          <p className="mt-tight font-display text-question text-moss">
+          <h1 className="text-ask font-semibold text-body">Trắc nghiệm kiến thức</h1>
+          <p className="mt-snug max-w-answer text-notice text-body">
             Đây là chặng cuối của vòng học: đọc bài trong Thư viện, hỏi trợ lý những
             chỗ chưa rõ, rồi tự kiểm tra lại xem mình đã nắm chưa. Đề được soạn riêng
             từ những bài bạn đã hoàn thành và những điều bạn từng thắc mắc.
@@ -51,7 +51,7 @@ export function QuizScreen() {
         <p className="mb-block font-display text-question">
           <Link
             to="/quiz/mistakes"
-            className="inline-flex min-h-touch items-center text-medical underline underline-offset-4"
+            className="inline-flex min-h-touch items-center font-semibold text-body underline underline-offset-4"
           >
             Xem lại những chỗ bạn chưa nắm →
           </Link>

@@ -23,6 +23,8 @@ import { usePatient } from '../patient/context'
 import { AnswerTurn, QuestionHeading, type Turn } from '../ui/AnswerTurn'
 import { ChatComposer } from '../ui/ChatComposer'
 import { ErrorNotice } from '../ui/ErrorNotice'
+import { LibraryIcon } from '../ui/icons'
+import { Mascot } from '../ui/Mascot'
 import { QuizPanel } from '../ui/QuizPanel'
 import { SuggestedQuestions } from '../ui/SuggestedQuestions'
 
@@ -54,18 +56,50 @@ function historyToTurns(messages: ConversationMessage[]): Turn[] {
 }
 
 /**
+ * Khối chờ, hiện từ lúc gửi câu hỏi tới lúc token đầu tiên về.
+ *
+ * Thay cho một dòng chữ tĩnh của bản trước. Một dòng chữ đứng im không phân biệt
+ * được với một ứng dụng vừa treo, mà khoảng chờ ở đây có thể kéo tới vài chục
+ * giây — người 45–70 tuổi sẽ bấm lại hoặc tải lại trang trong lúc máy chủ vẫn
+ * đang chạy.
+ *
+ * Linh vật thở: chu kỳ 2 giây, biên độ 4,5%. Nhỏ tới mức không thành thứ phải
+ * nhìn, nhưng đủ để mắt bắt được rằng có gì đó vẫn đang sống. Đây là chỗ thứ tư
+ * và cuối cùng linh vật được phép xuất hiện — xem danh sách ở `Mascot.tsx`.
+ *
+ * DÒNG CHỮ GIỮ NGUYÊN, và giữ nguyên cả `role="status"`. Hoạt ảnh là lớp phụ:
+ * người dùng trình đọc màn hình, và người đã tắt hiệu ứng ở hệ điều hành, vẫn
+ * phải nhận đúng thông tin đó bằng lời. Hoạt ảnh tự tắt ở
+ * `prefers-reduced-motion: reduce` (xem `index.css`) và lúc đó khối này rút về
+ * đúng bằng bản chữ cũ, chỉ thêm một hình đứng im.
+ */
+function WaitingBlock() {
+  return (
+    <div className="flex max-w-answer items-center gap-cozy rounded-card-lg bg-surface p-cozy">
+      <span className="shrink-0 motion-safe:animate-breathe">
+        <Mascot variant="muted" size={64} />
+      </span>
+
+      <p role="status" className="font-display min-w-0 text-question text-slate">
+        Đang xử lý và tổng hợp dữ liệu y khoa chính xác…
+      </p>
+    </div>
+  )
+}
+
+/**
  * Dải nhắc cho người đã bấm "bỏ qua" ở màn hồ sơ.
  */
 function MissingProfileBand() {
   return (
-    <div className="mb-block max-w-answer rounded-lg border-l-4 border-border p-cozy">
-      <p className="font-display text-question text-ink">
+    <div className="mb-block flex max-w-answer flex-wrap items-center gap-snug rounded-card bg-sand p-cozy">
+      <p className="font-display min-w-0 flex-1 text-question text-sand-deep">
         Bạn chưa khai hồ sơ, nên câu trả lời chưa đặt được vào bệnh và tuổi của
         bạn. Khai hồ sơ rồi thì trợ lý tra đúng tài liệu cho bệnh của bạn hơn.
       </p>
       <Link
         to="/profile"
-        className="font-display mt-tight inline-flex min-h-touch items-center text-input font-semibold text-medical underline underline-offset-4"
+        className="font-display flex min-h-touch shrink-0 items-center rounded-pill bg-sand-deep px-cozy text-input font-bold text-sand no-underline"
       >
         Khai hồ sơ
       </Link>
@@ -74,7 +108,7 @@ function MissingProfileBand() {
 }
 
 /**
- * Banner "Bài học hôm nay" — nơi duy nhất cộng +10 HP.
+ * Banner "Bài học hôm nay" — nơi duy nhất cộng 10 điểm.
  *
  * TRẢ LỜI SAI KHÔNG CÒN LÀ NGÕ CỤT (sửa 24/08/2026).
  *
@@ -123,20 +157,21 @@ function DailyLessonBanner() {
     )
   }
 
-  const chonLai = () => {
-    setFeedback(null)
-    setSelectedOption(null)
-  }
-
   return (
-    <div className="mb-block max-w-answer rounded-lg border-2 border-medical/50 bg-medical/5 p-cozy shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="font-bold text-medical">
-          🎓 Bài học ngày {data.day_number}: {lesson.title}
-        </h3>
+    <div className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
+      <div className="flex items-center gap-snug">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-icon bg-mint text-mint-deep">
+          <LibraryIcon className="h-7 w-7" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-display text-note font-semibold text-slate">
+            Bài học ngày {data.day_number}
+          </p>
+          <h2 className="text-empty font-semibold text-body">{lesson.title}</h2>
+        </div>
       </div>
 
-      {feedback && quizData ? (
+      {feedback !== null && quizData ? (
         <DailyQuizFeedback
           feedback={feedback}
           options={quizData.options}
@@ -144,56 +179,81 @@ function DailyLessonBanner() {
           yourAnswer={selectedOption ?? -1}
         />
       ) : !showQuiz ? (
-        <p className="mb-3 text-sm leading-relaxed text-ink">{lesson.content}</p>
+        <p className="mt-cozy text-answer text-body">{lesson.content}</p>
       ) : (
         quizData && (
-          <div className="mb-3 mt-4 border-t border-medical/20 pt-3">
-            <p className="font-semibold text-ink mb-2">❓ Câu hỏi: {quizData.question}</p>
-            <div className="flex flex-col gap-2">
+          <div className="mt-cozy border-t border-line pt-snug">
+            <p className="font-display text-input font-semibold text-body">
+              {quizData.question}
+            </p>
+
+            {/* Ô chọn là `bg-canvas`, ô đã chọn đổi sang `bg-mint`. Chữ giữ
+                nguyên `ink` ở cả hai: 14.22:1 trên canvas và 7.95:1 trên mint,
+                nên trạng thái chọn đọc được mà không phải đổi màu chữ. */}
+            <div className="mt-snug flex flex-col gap-tight">
               {quizData.options.map((opt, idx) => (
                 <label
                   key={idx}
-                  className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-medical/10 border border-transparent has-[:checked]:border-medical has-[:checked]:bg-medical/20"
+                  // Màu chữ đặt ở ĐÂY chứ không ở thẻ con: nền ô đổi từ
+                  // `canvas` sang `mint` khi được chọn, mà ở chế độ tối
+                  // `canvas` là navy đậm còn `mint` vẫn sáng — hai nền đó cần
+                  // hai màu chữ ngược nhau. Chỉ thẻ <label> mới biết ô đang
+                  // được chọn hay không (`has-[:checked]`), nên luật màu phải
+                  // sống ở đây rồi để thẻ con thừa kế.
+                  className="flex min-h-touch cursor-pointer items-center gap-snug rounded-card bg-canvas p-snug text-body has-[:checked]:bg-mint has-[:checked]:text-ink"
                 >
                   <input
                     type="radio"
                     name="quiz"
-                    className="w-4 h-4 text-medical"
+                    className="h-5 w-5 shrink-0 accent-ink"
                     checked={selectedOption === idx}
                     onChange={() => {
                       setSelectedOption(idx)
                       setErrorMsg(null)
                     }}
                   />
-                  <span className="text-sm text-ink">{opt}</span>
+                  <span className="font-display text-question">{opt}</span>
                 </label>
               ))}
             </div>
-            {errorMsg && <p className="text-red-500 text-sm mt-2 font-medium">{errorMsg}</p>}
+
+            {errorMsg !== null && (
+              <p
+                role="alert"
+                className="font-display mt-snug text-question font-semibold text-alert"
+              >
+                {errorMsg}
+              </p>
+            )}
           </div>
         )
       )}
 
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        {feedback ? (
+      <div className="mt-cozy flex flex-wrap items-center gap-snug">
+        {feedback !== null ? (
           feedback.is_correct ? (
             <button
+              type="button"
               onClick={() => setHidden(true)}
-              className="rounded bg-medical px-4 py-1.5 text-sm font-medium text-white hover:bg-opacity-90"
+              className="motion-press font-display min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-ink"
             >
               Xong rồi
             </button>
           ) : (
             <>
               <button
-                onClick={chonLai}
-                className="rounded bg-medical px-4 py-1.5 text-sm font-medium text-white hover:bg-opacity-90"
+                type="button"
+                onClick={() => {
+                  setFeedback(null)
+                  setSelectedOption(null)
+                }}
+                className="motion-press font-display min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-ink"
               >
                 Chọn lại
               </button>
               <Link
                 to={`/learning/${lesson.id}`}
-                className="text-sm font-medium text-medical underline underline-offset-4"
+                className="font-display flex min-h-touch items-center text-input font-semibold text-body underline"
               >
                 Đọc lại bài học
               </Link>
@@ -201,15 +261,16 @@ function DailyLessonBanner() {
           )
         ) : (
           <button
+            type="button"
             onClick={handleComplete}
             disabled={completeMutation.isPending}
-            className="rounded bg-medical px-4 py-1.5 text-sm font-medium text-white hover:bg-opacity-90 disabled:opacity-50"
+            className="motion-press font-display min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-ink disabled:bg-canvas disabled:font-normal disabled:text-slate"
           >
             {completeMutation.isPending
-              ? 'Đang gửi...'
+              ? 'Đang gửi…'
               : showQuiz
-                ? 'Trả lời & Nhận HP'
-                : 'Làm bài Trắc nghiệm (+10 HP)'}
+                ? 'Trả lời và nhận điểm'
+                : 'Làm bài trắc nghiệm (+10 điểm)'}
           </button>
         )}
       </div>
@@ -217,7 +278,17 @@ function DailyLessonBanner() {
   )
 }
 
-/** Kết quả một câu của bài học hằng ngày: đáp án đúng, lựa chọn của bạn, vì sao. */
+/**
+ * Kết quả một câu của bài học hằng ngày: đáp án đúng, lựa chọn của bạn, vì sao.
+ *
+ * MÀU KHÔNG PHẢI KÊNH DUY NHẤT. Ô đúng tô mint, ô mình chọn sai viền alert,
+ * nhưng cả hai đều kèm chữ ("đáp án đúng" / "bạn đã chọn") vì đây là ứng dụng
+ * cho người 45–70 tuổi, trong đó tỉ lệ khó phân biệt màu là đáng kể.
+ *
+ * Nhãn "Đúng rồi" dùng `text-body` chứ không phải một màu xanh: mint đủ tương
+ * phản khi làm NỀN, không đủ khi làm CHỮ trên canvas sáng. Vế "chưa đúng" thì
+ * `alert` có sẵn hai giá trị cho hai chế độ nên dùng thẳng được.
+ */
 function DailyQuizFeedback({
   feedback,
   options,
@@ -232,51 +303,53 @@ function DailyQuizFeedback({
   const { is_correct, correct_index, explanation, hp_earned } = feedback
 
   return (
-    <div className="mb-3 mt-4 border-t border-medical/20 pt-3">
-      <p className="font-semibold text-ink mb-2">❓ {question}</p>
+    <div className="mt-cozy border-t border-line pt-snug">
+      <p className="font-display text-input font-semibold text-body">{question}</p>
 
-      <div className="flex flex-col gap-1">
+      <ul className="mt-snug flex flex-col gap-tight">
         {options.map((opt, idx) => {
           const dung = idx === correct_index
           const cuaBan = idx === yourAnswer
           const tone = dung
-            ? 'border-medical bg-medical/15'
+            ? 'bg-mint text-ink'
             : cuaBan
-              ? 'border-alert bg-alert/10'
-              : 'border-transparent'
+              ? 'border-2 border-alert bg-canvas text-body'
+              : 'bg-canvas text-body'
 
           return (
-            <p
-              key={idx}
-              className={`flex items-start gap-2 rounded border-2 p-2 text-sm text-ink ${tone}`}
-            >
-              <span className="font-bold" aria-hidden="true">
+            <li key={idx} className={`flex items-start gap-snug rounded-card p-snug ${tone}`}>
+              <span
+                className={`font-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-icon text-question font-semibold ${
+                  dung ? 'bg-ink text-mint' : 'bg-surface text-slate'
+                }`}
+              >
                 {String.fromCharCode(65 + idx)}
               </span>
-              <span className="flex-1">{opt}</span>
-              {dung && <span className="text-xs font-bold text-medical">Đáp án đúng</span>}
-              {cuaBan && !dung && <span className="text-xs font-bold text-alert">Bạn đã chọn</span>}
-            </p>
+              <span className="font-display min-w-0 flex-1 text-question">
+                {opt}
+                {dung && <span className="font-semibold"> — đáp án đúng</span>}
+                {cuaBan && !dung && <span className="font-semibold"> — bạn đã chọn</span>}
+              </span>
+            </li>
           )
         })}
-      </div>
+      </ul>
 
       <p
-        className={`mt-3 rounded border-l-4 p-2 text-sm text-moss ${
-          is_correct ? 'border-medical bg-medical/5' : 'border-alert bg-alert/5'
-        }`}
+        role="status"
+        className="font-display mt-snug rounded-card bg-canvas p-snug text-question text-body"
       >
-        <span className={`font-semibold ${is_correct ? 'text-medical' : 'text-alert'}`}>
+        <span className={`font-semibold ${is_correct ? 'text-body' : 'text-alert'}`}>
           {is_correct ? 'Đúng rồi. ' : 'Chưa đúng. '}
         </span>
         {explanation}
       </p>
 
       {is_correct && (
-        <p className="mt-2 text-sm font-medium text-medical">
+        <p className="font-display mt-tight text-question font-semibold text-body">
           {hp_earned > 0
-            ? `+${hp_earned} HP đã cộng vào điểm của bạn.`
-            : 'Hôm nay bạn đã nhận HP rồi, nên lần này chỉ tính là hoàn thành bài.'}
+            ? `+${hp_earned} điểm đã cộng cho bạn.`
+            : 'Hôm nay bạn đã nhận điểm rồi, nên lần này chỉ tính là hoàn thành bài.'}
         </p>
       )}
     </div>
@@ -439,7 +512,7 @@ export function ChatScreen({
         {isEmpty && <SuggestedQuestions profile={profile} onPick={ask} />}
 
         {isLoadingHistory && (
-          <p role="status" className="font-display max-w-answer text-question text-moss">
+          <p role="status" className="font-display max-w-answer text-question text-slate">
             Đang mở lại hội thoại đã lưu…
           </p>
         )}
@@ -468,26 +541,31 @@ export function ChatScreen({
             <QuestionHeading question={pendingQuestion} />
 
             {/* Badge hiển thị Node LangGraph đang thực thi */}
-            <div className="mt-snug mb-block flex items-center gap-2">
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-medical/10 border border-medical/20 text-medical font-medium text-sm animate-pulse">
-                <span className="text-base">{currentStep?.icon ?? '⏳'}</span>
-                <span>{currentStep?.message ?? 'Đang tra cứu trong thư viện đã duyệt…'}</span>
+            <div className="mt-cozy mb-block flex">
+              <span className="font-display flex w-fit items-center gap-tight rounded-pill bg-mint px-snug py-hair text-question font-semibold text-ink">
+                <span aria-hidden="true">{currentStep?.icon ?? '⏳'}</span>
+                <span>
+                  {currentStep?.message ?? 'Đang tra cứu trong thư viện đã duyệt…'}
+                </span>
               </span>
             </div>
 
             {/* Hiển thị câu trả lời streaming realtime nếu đã có token */}
             {streamedAnswer ? (
-              <div className="max-w-answer text-answer whitespace-pre-wrap leading-relaxed text-ink">
-                {streamedAnswer}
-                <span className="inline-block w-2 h-4 ml-1 bg-medical align-middle animate-pulse" />
+              // Đúng thẻ trắng bo 18px mà câu trả lời hoàn chỉnh sẽ dùng, để
+              // lúc stream xong không có gì nhảy chỗ.
+              <div className="max-w-answer rounded-card-lg bg-surface p-cozy">
+                <p className="text-answer whitespace-pre-wrap text-body">
+                  {streamedAnswer}
+                  {/* Con trỏ nhấp nháy. `inline` cộng `border-l-4`, KHÔNG dùng
+                      `inline-block`: tên bậc khoảng cách `--spacing-block` làm
+                      Tailwind đọc class đó thành `inline-size: 32px`. Xem cảnh
+                      báo ở `--spacing-block` trong `index.css`. */}
+                  <span className="ml-hair inline border-l-4 border-mint align-middle" />
+                </p>
               </div>
             ) : (
-              <p
-                role="status"
-                className="font-display max-w-answer text-question text-moss"
-              >
-                Đang xử lý và tổng hợp dữ liệu y khoa chính xác…
-              </p>
+              <WaitingBlock />
             )}
           </div>
         )}
@@ -523,42 +601,19 @@ export function ChatScreen({
         <div ref={endRef} />
       </div>
 
-      {/*
-        SAU CẢNH BÁO KHẨN CẤP: nhắc, nhưng KHÔNG khoá ô nhập.
-
-        Bản trước thay hẳn ô nhập bằng một dòng chữ, buộc người bệnh bấm "Câu
-        hỏi mới" mới hỏi tiếp được. Ý đồ đúng — lúc nghi cấp cứu thì việc cần
-        làm là gọi 115, không phải ngồi chat. Nhưng cách làm không đạt được ý đồ
-        đó:
-
-        - Chặn này VƯỢT ĐƯỢC bằng đúng một cú bấm, nên nó không thật sự ngăn ai
-          ngồi lại chat thay vì gọi cấp cứu. Nó chỉ thêm ma sát.
-        - Nó chặn luôn những câu chính đáng và cấp thiết: "tôi có nên uống thuốc
-          huyết áp trước khi đi không?"
-        - "Câu hỏi mới" mở PHIÊN MỚI, nên trợ lý quên sạch triệu chứng vừa mô tả
-          — đúng lúc ngữ cảnh đó đáng giá nhất.
-        - Ô nhập biến mất không báo trước, trông như ứng dụng hỏng.
-
-        Nay giữ nguyên khối cảnh báo đỏ và nút gọi 115 ở trên, thêm một dòng
-        nhắc ngay sát ô nhập, và để người bệnh tự quyết. Cảnh báo vẫn là thứ
-        đập vào mắt trước tiên.
-      */}
-      {isAfterRedFlag && (
-        <p
-          role="status"
-          className="font-display max-w-answer border-t border-rule pt-snug text-question text-alert"
-        >
-          Việc cần làm bây giờ là đi khám. Bạn vẫn hỏi thêm được, nhưng đừng để
-          việc hỏi làm chậm việc đi khám.
+      {isAfterRedFlag ? (
+        <p className="font-display max-w-answer border-t border-line pt-snug text-question text-slate">
+          Việc cần làm bây giờ là đi khám. Khi nào bạn đã ổn và muốn hỏi tiếp,
+          bạn hãy bấm “Câu hỏi mới”.
         </p>
+      ) : (
+        <ChatComposer
+          value={draft}
+          onChange={setDraft}
+          onSubmit={() => void ask(draft)}
+          disabled={isStreaming}
+        />
       )}
-
-      <ChatComposer
-        value={draft}
-        onChange={setDraft}
-        onSubmit={() => void ask(draft)}
-        disabled={isStreaming}
-      />
     </div>
   )
 }

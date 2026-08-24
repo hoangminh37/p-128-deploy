@@ -100,6 +100,7 @@ def _build_chain(json_mode: bool = False, llm=None):
     quả: chain dựng xong không lỗi, nhưng nhiệt độ vừa đặt bị nuốt im lặng.
     ``llm_temperature`` trong .env đang là 0.3, vốn đã đủ thấp cho việc ra đề.
     """
+
     def dung_chain(model):
         if json_mode:
             return quiz_prompt | model.with_structured_output(QuizSet, method="json_mode")

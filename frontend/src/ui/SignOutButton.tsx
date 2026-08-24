@@ -7,8 +7,11 @@
  * bình thường.
  *
  * Hỏi lại ngay tại chỗ chứ không dùng `window.confirm`: hộp thoại của trình
- * duyệt không theo được cỡ chữ 15px tối thiểu của ứng dụng, và trên điện thoại
- * nó hiện ở giữa màn hình, xa hẳn chỗ ngón tay vừa chạm.
+ * duyệt không theo được thang cỡ chữ của ứng dụng, và trên điện thoại nó hiện ở
+ * giữa màn hình, xa hẳn chỗ ngón tay vừa chạm.
+ *
+ * Nút này nằm trên nền navy của thanh bên, nên nó dùng cặp màu của họ nền tối:
+ * viền và chữ `mist` (6.80:1) ở trạng thái nghỉ, `white` cho câu hỏi lại.
  */
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -48,7 +51,7 @@ export function SignOutButton() {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="font-display flex min-h-touch w-full items-center gap-tight rounded-lg border-2 border-border px-snug text-input font-semibold text-ink"
+        className="motion-press font-display flex min-h-touch w-full items-center gap-tight rounded-pill border-2 border-mist px-snug text-input font-semibold text-mist enabled:hover:bg-white/10 enabled:hover:text-white"
       >
         <SignOutIcon className="h-6 w-6 shrink-0" />
         Đăng xuất
@@ -58,7 +61,7 @@ export function SignOutButton() {
 
   return (
     <div>
-      <p id="signout-question" className="font-display text-question text-ink">
+      <p id="signout-question" className="font-display text-question text-white">
         Đăng xuất khỏi máy này?
       </p>
 
@@ -71,7 +74,7 @@ export function SignOutButton() {
           type="button"
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
-          className="font-display min-h-touch flex-1 rounded-lg border-2 border-medical bg-medical px-snug text-input font-bold text-paper disabled:border-rule disabled:bg-transparent disabled:font-normal disabled:text-moss"
+          className="motion-press font-display min-h-touch flex-1 rounded-pill bg-mint px-snug text-input font-bold text-ink enabled:hover:bg-mint-press disabled:bg-white/10 disabled:font-normal disabled:text-mist"
         >
           {mutation.isPending ? 'Đang thoát…' : 'Đăng xuất'}
         </button>
@@ -79,7 +82,7 @@ export function SignOutButton() {
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="font-display min-h-touch rounded-lg border-2 border-border px-snug text-input font-semibold text-ink"
+          className="motion-press font-display min-h-touch rounded-pill border-2 border-mist px-snug text-input font-semibold text-white enabled:hover:bg-white/10"
         >
           Ở lại
         </button>

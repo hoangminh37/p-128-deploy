@@ -36,19 +36,44 @@ function StrokeIcon({ className, children }: IconProps & { children: ReactNode }
   )
 }
 
-/** Dấu hiệu của ứng dụng: chữ thập y tế trong một ô bo góc. */
+/**
+ * Dấu hiệu của ứng dụng: chữ thập y tế trong một ô bo góc.
+ *
+ * Ô lấy màu chữ của chỗ đặt nó (`currentColor`, thường là `mint`), còn chữ
+ * thập luôn là `ink`. Cặp mint / ink đạt 7.95:1, nên dấu hiệu đọc được cả
+ * khi nó nằm trên nền navy lẫn trên nền sáng — chỉ cần đổi một class màu ở
+ * chỗ gọi thay vì phải có hai bản hình.
+ */
 export function AppMark({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className={className}>
-      <rect x="1" y="1" width="22" height="22" rx="6" fill="currentColor" />
+      <rect x="1" y="1" width="22" height="22" rx="7" fill="currentColor" />
       <path
         d="M12 6.5v11M6.5 12h11"
         fill="none"
-        stroke="var(--color-paper)"
+        stroke="var(--color-ink)"
         strokeWidth={2.5}
         strokeLinecap="round"
       />
     </svg>
+  )
+}
+
+/** Mũi tên chỉ sang trái: quay lại màn trước. */
+export function ChevronLeftIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M15 5l-7 7 7 7" />
+    </StrokeIcon>
+  )
+}
+
+/** Mũi tên chỉ sang phải: mở một mục trong danh sách. */
+export function ChevronRightIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M9 5l7 7-7 7" />
+    </StrokeIcon>
   )
 }
 
@@ -187,6 +212,35 @@ export function UserIcon({ className }: IconProps) {
     <StrokeIcon className={className}>
       <circle cx="12" cy="8" r="3.5" />
       <path d="M5 19.5a7 7 0 0 1 14 0" />
+    </StrokeIcon>
+  )
+}
+
+/** Chế độ sáng: mặt trời. */
+export function SunIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <circle cx="12" cy="12" r="4.2" />
+      <path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6" />
+    </StrokeIcon>
+  )
+}
+
+/** Chế độ tối: mặt trăng khuyết. */
+export function MoonIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M20 14.2A8.2 8.2 0 0 1 9.8 4a8.2 8.2 0 1 0 10.2 10.2Z" />
+    </StrokeIcon>
+  )
+}
+
+/** Theo cài đặt của máy: màn hình có chân đế. */
+export function SystemIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <rect x="3" y="4.5" width="18" height="12" rx="2" />
+      <path d="M9 20.5h6M12 16.5v4" />
     </StrokeIcon>
   )
 }
