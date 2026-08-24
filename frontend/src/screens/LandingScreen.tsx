@@ -47,56 +47,55 @@ type ValueCard = {
 
 const VALUE_CARDS: readonly ValueCard[] = [
   {
-    id: 'gia-tri-benh',
+    id: 'gia-tri-hoc-tap',
     Icon: NoteIcon,
-    title: 'Trả lời theo bệnh của bạn',
+    title: 'Lộ trình học cá nhân hóa',
     body:
-      'Bạn khai tuổi và bệnh đã được bác sĩ chẩn đoán một lần. Từ đó mỗi câu ' +
-      'trả lời được đặt vào đúng bệnh và lứa tuổi của bạn, thay vì lời khuyên ' +
-      'chung cho tất cả mọi người.',
+      'Bài học Micro-learning ngắn gọn 3–5 phút mỗi ngày được tinh chỉnh theo ' +
+      'đúng độ tuổi và bệnh mãn tính của bạn, giúp bạn tiếp thu kiến thức mà ' +
+      'không bị quá tải.',
   },
   {
     id: 'gia-tri-nguon',
     Icon: LibraryIcon,
-    title: 'Luôn kèm tài liệu gốc',
+    title: 'Kiến thức chuẩn Bộ Y tế',
     body:
-      'Mỗi khẳng định đều có số hiệu văn bản và đoạn trích của Bộ Y tế nằm ngay ' +
-      'cạnh. Bạn tự kiểm tra được, hoặc in ra đưa bác sĩ xem trong lần tái khám.',
+      'Mọi bài học và câu trả lời đều có số hiệu văn bản và đoạn trích từ ' +
+      'Hướng dẫn điều trị của Bộ Y tế nằm ngay cạnh để bạn hoàn toàn an tâm ' +
+      'khi học tập.',
   },
   {
-    id: 'gia-tri-gioi-han',
+    id: 'gia-tri-quiz',
     Icon: PillIcon,
-    title: 'Không kê đơn, không chỉnh liều',
+    title: 'Mini-Quiz & Sổ tay lỗi sai',
     body:
-      'Bạn hỏi nên uống mấy viên hay có nên tăng giảm liều thì trợ lý sẽ mời bạn ' +
-      'hỏi bác sĩ điều trị. Đó là điều đã định sẵn, không phải máy hỏng.',
+      'AI tự động sinh câu hỏi trắc nghiệm tình huống từ chính bài học và cuộc ' +
+      'trò chuyện, giúp bạn củng cố ghi nhớ chủ động và sửa chữa quan niệm ' +
+      'sai lầm.',
   },
 ]
 
 /**
  * Ba bước, đúng thứ tự người dùng thật sự đi qua.
- *
- * Mỗi bước MỘT CÂU. Ba bước mà mỗi bước một đoạn thì phần này dài bằng cả trang,
- * và người đọc bỏ giữa chừng đúng lúc họ chỉ đang muốn biết "dùng nó thế nào".
  */
 const STEPS: readonly { title: string; body: string }[] = [
   {
-    title: 'Khai hồ sơ một lần',
+    title: 'Khai hồ sơ sức khỏe',
     body:
-      'Bạn cho biết tuổi và bệnh bác sĩ đã chẩn đoán. Chỉ vậy — không tên, ' +
-      'không số điện thoại, không giấy tờ.',
+      'Bạn cho biết tuổi và bệnh bác sĩ đã chẩn đoán để hệ thống xây dựng lộ ' +
+      'trình học tập cá nhân hóa.',
   },
   {
-    title: 'Hỏi bằng lời thường',
+    title: 'Học bài ngắn & Hỏi đáp 24/7',
     body:
-      'Bạn gõ câu hỏi đúng như cách bạn hỏi người nhà, không cần thuật ngữ ' +
-      'y khoa nào.',
+      'Đọc các bài học ngắn mỗi ngày và đặt câu hỏi bằng lời thường khi có ' +
+      'thắc mắc về dinh dưỡng, chỉ số xét nghiệm.',
   },
   {
-    title: 'Đọc câu trả lời kèm nguồn',
+    title: 'Làm Mini-Quiz & Tích lũy HP',
     body:
-      'Mỗi ý đều có tên và số hiệu văn bản của Bộ Y tế nằm ngay cạnh, để bạn ' +
-      'tự kiểm tra hoặc đưa bác sĩ xem.',
+      'Tham gia trắc nghiệm ôn tập, tích lũy điểm sức khỏe (HP), duy trì ' +
+      'chuỗi streak và xem lại câu sai trong Sổ tay lỗi sai.',
   },
 ]
 
@@ -215,21 +214,21 @@ export function LandingScreen() {
           <div className="mx-auto mt-block flex w-full max-w-page flex-col items-start gap-block lg:flex-row lg:items-center">
             <div className="min-w-0 flex-1">
               <p className="font-display text-note font-semibold tracking-wide text-mint uppercase">
-                Tăng huyết áp · Đái tháo đường típ 2
+                Giáo dục sức khỏe cá nhân hóa · Tăng huyết áp & Đái tháo đường
               </p>
 
               {/* Ngắt dòng bằng hai `span` chứ không để trình duyệt tự xuống
                   dòng: chỗ ngắt là chỗ ngắt Ý, và ở cỡ 36px thì một chỗ ngắt
                   sai làm cả tiêu đề đọc vấp. */}
               <h1 className="mt-snug text-hero font-semibold text-white">
-                <span className="block">Câu trả lời cho bệnh của bạn,</span>
-                <span className="block text-mint">kèm tài liệu để đối chiếu.</span>
+                <span className="block">Học cách làm chủ sức khỏe,</span>
+                <span className="block text-mint">chuẩn y khoa & cá nhân hóa.</span>
               </h1>
 
               <p className="mt-cozy max-w-answer text-answer text-mist">
-                Trợ lý dành cho người đã có kết luận của bác sĩ. Bạn hỏi bằng lời
-                thường, câu trả lời đi kèm tên và số hiệu văn bản của Bộ Y tế để
-                bạn tự kiểm tra hoặc đưa bác sĩ xem.
+                Nền tảng AI giáo dục sức khỏe thông minh với lộ trình học Micro-learning
+                hàng ngày, giải thích thuật ngữ chuẩn Bộ Y tế và trắc nghiệm
+                Mini-Quiz tương tác thích ứng.
               </p>
 
               <div className="mt-block flex flex-wrap gap-snug">
@@ -237,14 +236,14 @@ export function LandingScreen() {
                   to="/login"
                   className="motion-press font-display flex min-h-call items-center justify-center rounded-pill bg-mint px-block text-input font-bold text-ink no-underline hover:bg-mint-press"
                 >
-                  Bắt đầu hỏi
+                  Bắt đầu học ngay
                 </Link>
 
                 <a
                   href="#gia-tri-heading"
                   className="motion-press font-display flex min-h-call items-center justify-center rounded-pill border-2 border-mist px-block text-input font-semibold text-white no-underline hover:bg-white/10"
                 >
-                  Xem ứng dụng làm gì
+                  Xem lộ trình giáo dục
                 </a>
               </div>
             </div>

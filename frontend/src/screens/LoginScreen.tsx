@@ -186,8 +186,8 @@ export function LoginScreen() {
             Chào bạn quay lại.
           </h1>
           <p className="mt-cozy text-answer text-mist">
-            Bạn đăng nhập bằng tài khoản đã được cấp. Ứng dụng tự biết bạn là
-            bệnh nhân hay biên tập viên, bạn không phải chọn vai trò ở đâu cả.
+            Học tập và làm chủ sức khỏe mỗi ngày cùng trợ lý giáo dục cá nhân hóa.
+            Hệ thống tự động điều chỉnh lộ trình học theo vai trò của bạn.
           </p>
         </div>
       </section>

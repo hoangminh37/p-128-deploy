@@ -5,4 +5,4 @@
  * `Sidebar.tsx` sẽ kéo cả thanh bên, danh sách hội thoại và query hồ sơ vào một
  * màn mà lúc đó chưa có gì để hiển thị.
  */
-export const APP_NAME = 'Trợ lý sức khỏe'
+export const APP_NAME = 'EduHealth AI'
