@@ -1,7 +1,10 @@
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 try:
     from dotenv import load_dotenv
@@ -10,15 +13,25 @@ try:
 except ImportError:
     pass
 
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field
+from langchain_community.document_loaders import PyPDFLoader  # noqa: E402
+from pydantic import BaseModel, Field  # noqa: E402
+
+from src.core.config import get_settings  # noqa: E402
+from src.services.llm.factory import get_quality_llm  # noqa: E402
 
 
 class Quiz(BaseModel):
     question: str = Field(description="Câu hỏi trắc nghiệm ôn tập kiến thức bài học")
     options: list[str] = Field(description="Danh sách 4 đáp án dưới dạng chuỗi")
     correct_index: int = Field(description="Vị trí đáp án đúng (từ 0 đến 3)")
+    explanation: str = Field(
+        default="",
+        description=(
+            "1-2 câu ngắn gọn giải thích VÌ SAO đáp án đó đúng, viết cho người bệnh đọc, "
+            "không dùng thuật ngữ chuyên môn. Đây là thứ người trả lời SAI sẽ đọc, nên "
+            "phải nói được cái ý mà họ đang hiểu nhầm chứ không chỉ nhắc lại đáp án."
+        ),
+    )
 
 class MicroArticle(BaseModel):
     title: str = Field(description="Tiêu đề bài học ngắn gọn, thân thiện với bệnh nhân (dưới 15 chữ)")
@@ -44,7 +57,7 @@ class ArticleBatch(BaseModel):
     articles: list[MicroArticle]
 
 
-def extract_and_transform(pdf_path: str, category: str, output_path: str):
+def extract_and_transform(pdf_path: str, category: str, output_path: str, chunk_limit: int = 10):
     print("🚀 Bắt đầu quá trình ETL (Extract-Transform-Load) cho Thư Viện Y Khoa")
     print(f"📄 Đang đọc file PDF: {pdf_path}")
     origin_source = Path(pdf_path).name
@@ -57,21 +70,23 @@ def extract_and_transform(pdf_path: str, category: str, output_path: str):
         print(f"❌ Lỗi đọc PDF: {e}. Vui lòng kiểm tra lại đường dẫn và đảm bảo đã cài pypdf.")
         return
 
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("❌ Thiếu OPENAI_API_KEY trong file .env")
+    # Đi qua factory chứ không dựng ChatOpenAI thẳng: bản trước khoá cứng vào
+    # OpenAI nên bỏ qua LLM_PROVIDER trong .env, và script chết theo hạn mức
+    # OpenAI dù cả hệ thống đang chạy trên Groq.
+    settings = get_settings()
+    try:
+        structured_llm = get_quality_llm().with_structured_output(ArticleBatch)
+    except Exception as e:
+        print(f"❌ Không khởi tạo được LLM: {e}")
         return
-
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
-    structured_llm = llm.with_structured_output(ArticleBatch)
 
     all_articles = []
 
-    # Xử lý 10 chunks để có đủ nội dung phong phú
-    test_limit = 10
-    print(f"🧠 Đang dùng LLM gpt-4o-mini để biên dịch (Giới hạn {test_limit} chunks đầu tiên)...")
+    tong = min(chunk_limit, len(docs))
+    print(f"🧠 Đang dùng {settings.model_name} để biên dịch ({tong}/{len(docs)} phân đoạn)...")
 
-    for i, doc in enumerate(docs[:test_limit]):
-        print(f" - Đang xử lý phân đoạn {i + 1}/{test_limit}...")
+    for i, doc in enumerate(docs[:chunk_limit]):
+        print(f" - Đang xử lý phân đoạn {i + 1}/{tong}...")
         prompt = f"""Bạn là chuyên gia giáo dục y tế, biên soạn "Sách giáo khoa bệnh nhân" từ Hướng dẫn Y khoa chính thức của Bộ Y Tế Việt Nam.
 
 TRÍCH ĐOẠN GỐC TỪ TÀI LIỆU Y KHOA:
@@ -91,7 +106,9 @@ YÊU CẦU CHẤT LƯỢNG CHO TỪNG BÀI HỌC:
 
 2. **content** — Tóm tắt 80-100 chữ cho banner nhỏ
 
-3. **quiz** — Câu hỏi kiểm tra hiểu biết THỰC SỰ (không hỏi máy móc), 4 đáp án
+3. **quiz** — Câu hỏi kiểm tra hiểu biết THỰC SỰ (không hỏi máy móc), 4 đáp án.
+   Bắt buộc kèm **explanation**: 1-2 câu ngắn, dễ hiểu, nói rõ vì sao đáp án đó đúng.
+   Viết cho người vừa trả lời SAI đọc — nêu đúng chỗ dễ hiểu nhầm, đừng chỉ chép lại đáp án.
 
 QUAN TRỌNG:
 - Tuyệt đối KHÔNG bịa thêm thông tin y khoa ngoài tài liệu gốc
@@ -136,6 +153,12 @@ if __name__ == "__main__":
     parser.add_argument("--pdf", type=str, default="data/raw/vn-moh-3192-2010-htn.pdf")
     parser.add_argument("--category", type=str, default="hypertension")
     parser.add_argument("--out", type=str, default="data/processed/articles.json")
+    parser.add_argument(
+        "--chunk-limit",
+        type=int,
+        default=10,
+        help="Số phân đoạn đầu tiên đưa qua LLM. Đặt lớn để bóc hết tài liệu.",
+    )
     args = parser.parse_args()
 
-    extract_and_transform(args.pdf, args.category, args.out)
+    extract_and_transform(args.pdf, args.category, args.out, args.chunk_limit)

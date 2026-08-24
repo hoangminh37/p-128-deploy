@@ -9,6 +9,7 @@ from src.core.database import get_db
 from src.models.domain import Article, PatientProgress
 from src.schemas.learning import (
     CompleteLessonRequest,
+    CompleteLessonResponse,
     DailyLessonResponse,
     GamificationStats,
     LearningLibraryResponse,
@@ -17,6 +18,32 @@ from src.schemas.learning import (
 from src.schemas.patient import UserInfo
 
 router = APIRouter(prefix="/learning", tags=["learning"])
+
+#: HP cộng cho một bài học hằng ngày, tối đa một lần mỗi ngày.
+HP_PER_LESSON = 10
+
+
+def _giai_thich(quiz_data: dict | None, is_correct: bool) -> str:
+    """Câu giải thích gửi kèm kết quả, luôn có chữ.
+
+    Bài học sinh trước ngày 24/08/2026 không có ``explanation`` trong
+    ``quiz_data``. Thay vì để trống — người trả lời sai lại nhận được đúng con
+    số 0 thông tin, y như hồi còn ném 400 — thì nêu thẳng đáp án đúng. Kém hơn
+    một câu giải thích thật, nhưng vẫn nói được điều tối thiểu.
+    """
+    if not quiz_data:
+        return "Bài học này chưa có câu hỏi kiểm tra."
+
+    ghi_chu = (quiz_data.get("explanation") or "").strip()
+    if ghi_chu:
+        return ghi_chu
+
+    options = quiz_data.get("options") or []
+    dung = quiz_data.get("correct_index")
+    if isinstance(dung, int) and 0 <= dung < len(options):
+        moc = "Chính xác" if is_correct else "Đáp án đúng"
+        return f"{moc}: {options[dung]}"
+    return "Bạn xem lại phần nội dung bài học phía trên nhé."
 
 
 @router.get("/daily-lesson", response_model=DailyLessonResponse)
@@ -125,23 +152,33 @@ async def get_learning_library(db: AsyncSession = Depends(get_db), current_user:
     return LearningLibraryResponse(learning_paths=paths, completed_articles=completed_articles)
 
 
-@router.post("/complete-lesson/{article_id}", response_model=GamificationStats)
+@router.post("/complete-lesson/{article_id}", response_model=CompleteLessonResponse)
 async def complete_lesson(
     article_id: str,
     request: CompleteLessonRequest,
     db: AsyncSession = Depends(get_db),
     current_user: UserInfo = Depends(get_current_user),
-):
-    # Verify the answer
+) -> CompleteLessonResponse:
+    """Chấm câu hỏi của bài học hằng ngày và đánh dấu hoàn thành nếu đúng.
+
+    Trả 200 cho cả câu đúng lẫn câu sai — xem ``CompleteLessonResponse`` để
+    biết vì sao 400 là lựa chọn sai ở đây. Sai thì không đánh dấu hoàn thành,
+    không cộng HP, nhưng vẫn nhận được đáp án đúng kèm lời giải thích và làm
+    lại được ngay.
+    """
     result_article = await db.execute(select(Article).filter(Article.id == article_id))
     article = result_article.scalars().first()
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
 
-    if article.quiz_data:
-        correct_index = article.quiz_data.get("correct_index")
-        if request.answer_index != correct_index:
-            raise HTTPException(status_code=400, detail="Sai đáp án, không được cộng điểm!")
+    quiz_data = article.quiz_data or None
+    correct_index = quiz_data.get("correct_index") if quiz_data else None
+    if not isinstance(correct_index, int):
+        # Bài không có câu hỏi thì đọc xong là tính hoàn thành. Giữ nguyên hành
+        # vi cũ để bài cũ trong DB không kẹt lại.
+        correct_index = request.answer_index
+
+    is_correct = request.answer_index == correct_index
 
     result = await db.execute(select(PatientProgress).filter(PatientProgress.patient_id == current_user.patient_id))
     progress = result.scalars().first()
@@ -149,9 +186,12 @@ async def complete_lesson(
     if not progress:
         progress = PatientProgress(patient_id=current_user.patient_id, completed_articles=[])
         db.add(progress)
+        await db.flush()
 
+    hp_earned = 0
     completed = list(progress.completed_articles or [])
-    if article_id not in completed:
+
+    if is_correct and article_id not in completed:
         completed.append(article_id)
         progress.completed_articles = completed
 
@@ -161,7 +201,8 @@ async def complete_lesson(
 
         # Chỉ cộng điểm & chuỗi nếu chưa hoàn thành bài nào trong ngày hôm nay
         if last_date != today:
-            progress.total_score = (progress.total_score or 0) + 10
+            hp_earned = HP_PER_LESSON
+            progress.total_score = (progress.total_score or 0) + hp_earned
             if last_date and (today - last_date).days == 1:
                 progress.current_streak = (progress.current_streak or 0) + 1
             else:
@@ -171,8 +212,14 @@ async def complete_lesson(
         await db.commit()
         await db.refresh(progress)
 
-    return GamificationStats(
-        total_score=progress.total_score,
-        current_streak=progress.current_streak,
-        completed_articles=progress.completed_articles,
+    return CompleteLessonResponse(
+        is_correct=is_correct,
+        correct_index=correct_index,
+        explanation=_giai_thich(quiz_data, is_correct),
+        hp_earned=hp_earned,
+        stats=GamificationStats(
+            total_score=progress.total_score or 0,
+            current_streak=progress.current_streak or 0,
+            completed_articles=progress.completed_articles or [],
+        ),
     )

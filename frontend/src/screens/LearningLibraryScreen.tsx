@@ -3,6 +3,22 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { CheckIcon } from '../ui/icons'
 
+/**
+ * Lộ trình học tập — `/learning`.
+ *
+ * KHÔNG CÒN KHOÁ TUẦN TỰ (bỏ ngày 24/08/2026).
+ *
+ * Trước đây một chặng chỉ bấm được khi chặng ngay trước đã hoàn thành. Mà cách
+ * DUY NHẤT để hoàn thành một chặng là qua banner "Bài học hôm nay" ở màn Chat,
+ * và banner đó chỉ cho làm một bài mỗi ngày — nên lộ trình 21 bài cần đúng 21
+ * ngày mới mở hết. Người mới vào chỉ nhìn thấy một ô sáng và hai mươi ô xám.
+ *
+ * Nay mọi chặng đọc được ngay. Thứ tự vẫn còn nguyên ý nghĩa — nó là thứ tự
+ * NÊN đọc, và mũi tên "Học tiếp" vẫn chỉ vào chặng kế — nhưng nó là gợi ý chứ
+ * không phải rào chắn. Đây là tài liệu giáo dục sức khoẻ: người vừa được chẩn
+ * đoán cao huyết áp cần đọc bài về đo huyết áp tại nhà HÔM NAY, không phải sau
+ * mười một ngày.
+ */
 export function LearningLibraryScreen() {
   const { data, isPending, isError, error, refetch } = useLearningLibrary()
   const navigate = useNavigate()
@@ -54,22 +70,24 @@ export function LearningLibraryScreen() {
                 {data.learning_paths.map((path, idx) => {
                   const article = path.article
                   const isCompleted = data.completed_articles.includes(article.id)
+                  // Chặng gợi ý học tiếp: chặng chưa xong đầu tiên trong danh
+                  // sách. Chỉ để làm nổi bật, không chặn gì cả.
                   const isNext =
                     !isCompleted &&
-                    (idx === 0 ||
-                      data.completed_articles.includes(data.learning_paths[idx - 1].article.id))
-                  const isClickable = isCompleted || isNext
+                    idx ===
+                      data.learning_paths.findIndex(
+                        (p) => !data.completed_articles.includes(p.article.id),
+                      )
 
                   return (
                     <div key={article.id} className="relative flex items-start gap-4 sm:gap-6 group">
                       {/* Node */}
                       <button
-                        disabled={!isClickable}
-                        onClick={() => isClickable && navigate(`/learning/${article.id}`)}
+                        onClick={() => navigate(`/learning/${article.id}`)}
                         className={`
                           relative z-10 w-10 h-10 shrink-0 rounded-full flex items-center justify-center border-4 border-white shadow-sm transition-all
-                          ${isCompleted ? 'bg-medical text-white' : isNext ? 'bg-medical/20 text-medical ring-4 ring-medical/10' : 'bg-rule text-moss'}
-                          ${isClickable ? 'cursor-pointer group-hover:scale-110' : 'cursor-not-allowed'}
+                          cursor-pointer group-hover:scale-110
+                          ${isCompleted ? 'bg-medical text-white' : isNext ? 'bg-medical/20 text-medical ring-4 ring-medical/10' : 'bg-rule/60 text-moss'}
                         `}
                       >
                         {isCompleted ? (
@@ -81,16 +99,15 @@ export function LearningLibraryScreen() {
 
                       {/* Card */}
                       <button
-                        disabled={!isClickable}
-                        onClick={() => isClickable && navigate(`/learning/${article.id}`)}
+                        onClick={() => navigate(`/learning/${article.id}`)}
                         className={`
-                          flex-1 text-left rounded-2xl border-2 p-5 transition-all
+                          flex-1 text-left rounded-2xl border-2 p-5 transition-all cursor-pointer
                           ${
                             isCompleted
-                              ? 'border-medical/30 bg-white shadow-sm cursor-pointer hover:border-medical hover:shadow-md'
+                              ? 'border-medical/30 bg-white shadow-sm hover:border-medical hover:shadow-md'
                               : isNext
-                                ? 'border-medical bg-medical/5 shadow-md cursor-pointer hover:bg-medical/10'
-                                : 'border-rule bg-gray-50 opacity-60 cursor-not-allowed'
+                                ? 'border-medical bg-medical/5 shadow-md hover:bg-medical/10'
+                                : 'border-rule bg-white hover:border-medical/40 hover:shadow-sm'
                           }
                         `}
                       >
@@ -113,32 +130,22 @@ export function LearningLibraryScreen() {
                           )}
                         </div>
 
-                        <h4
-                          className={`font-bold text-base mb-2 ${!isClickable ? 'text-gray-400' : 'text-ink'}`}
-                        >
-                          {article.title}
-                        </h4>
+                        <h4 className="font-bold text-base mb-2 text-ink">{article.title}</h4>
 
-                        <p className="text-sm text-moss line-clamp-2">
-                          {isClickable
-                            ? article.content
-                            : 'Hoàn thành các chặng trước để mở khoá nội dung này.'}
-                        </p>
+                        <p className="text-sm text-moss line-clamp-2">{article.content}</p>
 
-                        {isClickable && article.quiz_data && (
+                        {article.quiz_data && (
                           <div className="mt-3 flex items-center gap-2 text-xs font-medium text-medical bg-medical/10 w-fit px-3 py-1.5 rounded-lg">
                             <span>🏆</span> Có bài tập trắc nghiệm (+10 HP)
                           </div>
                         )}
 
-                        {isClickable && (
-                          <div className="mt-3 flex items-center gap-1 text-xs text-medical/70 font-medium">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
-                              <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            Đọc bài học đầy đủ
-                          </div>
-                        )}
+                        <div className="mt-3 flex items-center gap-1 text-xs text-medical/70 font-medium">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+                            <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          Đọc bài học đầy đủ
+                        </div>
                       </button>
                     </div>
                   )

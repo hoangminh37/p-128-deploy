@@ -2,6 +2,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { useLearningLibrary } from '../app/learning'
 import { ErrorNotice } from '../ui/ErrorNotice'
+import { QuizPanel } from '../ui/QuizPanel'
 
 export function ArticleDetailScreen() {
   const { articleId } = useParams<{ articleId: string }>()
@@ -127,59 +128,48 @@ export function ArticleDetailScreen() {
           </div>
         )}
 
-        {/* Trắc nghiệm ôn tập */}
-        {article.quiz_data && (
-          <div className="bg-gradient-to-br from-medical/5 to-purple-50 border border-medical/20 rounded-3xl p-6 sm:p-8">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 bg-medical/10 rounded-xl flex items-center justify-center text-xl">💡</div>
-              <div>
-                <h3 className="font-bold text-ink text-lg">Ôn tập nhanh</h3>
-                <p className="text-xs text-moss">Kiểm tra kiến thức bạn vừa học</p>
-              </div>
-            </div>
+        {/* Chặng "Đánh giá" — đề sinh từ chính bài vừa đọc.
 
-            <p className="text-ink font-semibold text-lg mb-6 leading-relaxed">
-              {article.quiz_data.question}
+            HAI CÂU, KHÔNG PHẢI NĂM. Chỗ này là ngay sau khi đọc xong 800 chữ:
+            hai câu là mức người đọc còn chịu làm, năm câu thì phần lớn cuộn
+            qua. Ai muốn làm bài đầy đủ thì có đường dẫn xuống /quiz bên dưới.
+
+            KHỐI "Ôn tập nhanh" TĨNH ĐÃ BỊ GỠ (24/08/2026). Nó lấy
+            `article.quiz_data` rồi tô sẵn "✓ Đáp án đúng" — người đọc không
+            phải trả lời gì cả. Tệ hơn: nó lộ đáp án của ĐÚNG câu hỏi mà banner
+            "Bài học hôm nay" ở màn Chat dùng để chấm +10 HP. Cả khối vừa không
+            dạy được gì, vừa làm hỏng chỗ duy nhất đang chấm điểm. */}
+        <div className="mb-8">
+          <QuizPanel
+            source="article"
+            articleId={article.id}
+            numQuestions={2}
+            title="Ôn tập nhanh"
+            hint="Hai câu hỏi soạn từ chính bài bạn vừa đọc. Chọn đáp án rồi nộp — mỗi câu sẽ có lời giải thích ngắn."
+            ctaLabel="Ôn tập nhanh (2 câu)"
+          />
+        </div>
+
+        <p className="mb-8 text-sm text-moss">
+          Muốn kiểm tra kỹ hơn?{' '}
+          <Link
+            to={`/quiz?source=article&ref=${encodeURIComponent(article.id)}`}
+            className="text-medical underline underline-offset-4 font-medium"
+          >
+            Làm bài đầy đủ 5 câu về bài học này →
+          </Link>
+        </p>
+
+        {/* Nhắc chỗ cộng HP. Cố ý KHÔNG in câu hỏi ra đây — in ra là lộ đáp án
+            của chính bài chấm điểm. */}
+        {article.quiz_data && !isCompleted && (
+          <div className="bg-white/70 rounded-2xl p-5 border border-medical/20">
+            <p className="text-sm text-moss">
+              <span className="font-semibold text-ink">📌 Lưu ý:</span>{' '}
+              Bài này có một câu hỏi cộng <strong className="text-medical">+10 HP</strong>. Bạn trả lời nó ở phần{' '}
+              <Link to="/chat" className="text-medical underline font-medium">Bài học hôm nay</Link>{' '}
+              ở màn hình Chat (mỗi ngày 1 lần). Trả lời sai vẫn xem được lời giải thích và làm lại được.
             </p>
-
-            <ul className="space-y-3 mb-6">
-              {article.quiz_data.options.map((opt, idx) => {
-                const isCorrect = idx === article.quiz_data!.correct_index
-                return (
-                  <li
-                    key={idx}
-                    className={`flex items-start gap-4 p-4 rounded-2xl border-2 transition-all ${
-                      isCorrect
-                        ? 'bg-white border-medical shadow-sm'
-                        : 'bg-white/60 border-transparent'
-                    }`}
-                  >
-                    <span className={`w-8 h-8 shrink-0 text-sm font-bold rounded-xl flex items-center justify-center ${
-                      isCorrect ? 'bg-medical text-white' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {String.fromCharCode(65 + idx)}
-                    </span>
-                    <div className="flex-1">
-                      <span className={isCorrect ? 'text-ink font-semibold' : 'text-moss'}>{opt}</span>
-                      {isCorrect && (
-                        <span className="ml-2 text-xs font-bold text-medical bg-medical/10 px-2 py-0.5 rounded-full">
-                          ✓ Đáp án đúng
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-
-            <div className="bg-white/70 rounded-xl p-4 border border-medical/10">
-              <p className="text-sm text-moss">
-                <span className="font-semibold text-ink">📌 Lưu ý:</span>{' '}
-                Bạn chỉ được cộng <strong className="text-medical">+10 HP</strong> khi trả lời đúng câu hỏi này trong phần{' '}
-                <Link to="/chat" className="text-medical underline font-medium">Bài học hôm nay</Link>{' '}
-                ở màn hình Chat (mỗi ngày 1 lần).
-              </p>
-            </div>
           </div>
         )}
       </div>
