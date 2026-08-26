@@ -26,6 +26,7 @@ import {
   type EditorQueueItemDetail,
   type OutOfScopeLog,
   type PatientProfileResponse,
+  type SourceDocument,
 } from '../lib/schemas'
 
 // ---------------------------------------------------------------------------
@@ -38,6 +39,8 @@ const HUONG_DAN_TANG_HUYET_AP = {
   issuer: 'Bộ Y tế',
   doc_code: '3192/QĐ-BYT',
   url: 'https://kcb.vn/van-ban/huong-dan-chan-doan-va-dieu-tri-tang-huyet-ap',
+  document_id: 'vn-moh-3192-2010-htn',
+  chunk_id: 'vn-moh-3192-2010-htn::0004::mock',
 } as const
 
 const HUONG_DAN_DAI_THAO_DUONG = {
@@ -45,7 +48,74 @@ const HUONG_DAN_DAI_THAO_DUONG = {
   issuer: 'Bộ Y tế',
   doc_code: '5481/QĐ-BYT',
   url: 'https://kcb.vn/van-ban/huong-dan-chan-doan-va-dieu-tri-dai-thao-duong-tip-2',
+  document_id: 'vn-moh-5481-2020-t2dm',
+  chunk_id: 'vn-moh-5481-2020-t2dm::0007::mock',
 } as const
+
+/** Tài liệu giả để thử trang đối chiếu citation khi MSW đang bật. */
+export const sourceDocumentFixtures: Record<string, SourceDocument> = {
+  'vn-moh-3192-2010-htn': {
+    document_id: 'vn-moh-3192-2010-htn',
+    title: HUONG_DAN_TANG_HUYET_AP.title,
+    issuer: HUONG_DAN_TANG_HUYET_AP.issuer,
+    doc_code: HUONG_DAN_TANG_HUYET_AP.doc_code,
+    url: HUONG_DAN_TANG_HUYET_AP.url,
+    published: '2010',
+    highlighted_chunk_id: HUONG_DAN_TANG_HUYET_AP.chunk_id,
+    total_chunks: 3,
+    chunks: [
+      {
+        chunk_id: 'vn-moh-3192-2010-htn::0003::mock',
+        section_path: 'Điều trị không dùng thuốc',
+        page_start: 17,
+        page_end: 17,
+        content: 'Người bệnh cần duy trì chế độ ăn lành mạnh và vận động phù hợp với sức khỏe.',
+      },
+      {
+        chunk_id: HUONG_DAN_TANG_HUYET_AP.chunk_id,
+        section_path: 'Điều trị không dùng thuốc > Chế độ ăn',
+        page_start: 18,
+        page_end: 18,
+        content:
+          'Chế độ ăn giảm muối: hạn chế lượng natri đưa vào cơ thể, dùng dưới 5 gam muối mỗi ngày. Hạn chế thực phẩm chế biến sẵn, đồ hộp, dưa cà muối. Tăng cường rau xanh và trái cây. Hạn chế mỡ động vật, phủ tạng.',
+      },
+      {
+        chunk_id: 'vn-moh-3192-2010-htn::0005::mock',
+        section_path: 'Điều trị không dùng thuốc > Theo dõi',
+        page_start: 18,
+        page_end: 19,
+        content: 'Theo dõi huyết áp đều đặn và tái khám theo lịch hẹn của bác sĩ điều trị.',
+      },
+    ],
+  },
+  'vn-moh-5481-2020-t2dm': {
+    document_id: 'vn-moh-5481-2020-t2dm',
+    title: HUONG_DAN_DAI_THAO_DUONG.title,
+    issuer: HUONG_DAN_DAI_THAO_DUONG.issuer,
+    doc_code: HUONG_DAN_DAI_THAO_DUONG.doc_code,
+    url: HUONG_DAN_DAI_THAO_DUONG.url,
+    published: '2020',
+    highlighted_chunk_id: HUONG_DAN_DAI_THAO_DUONG.chunk_id,
+    total_chunks: 2,
+    chunks: [
+      {
+        chunk_id: 'vn-moh-5481-2020-t2dm::0006::mock',
+        section_path: 'Dinh dưỡng',
+        page_start: 55,
+        page_end: 55,
+        content: 'Chế độ ăn cần phù hợp với điều trị và khả năng duy trì của từng người bệnh.',
+      },
+      {
+        chunk_id: HUONG_DAN_DAI_THAO_DUONG.chunk_id,
+        section_path: 'Dinh dưỡng > Phân bố carbohydrate',
+        page_start: 56,
+        page_end: 56,
+        content:
+          'Dinh dưỡng cho người bệnh đái tháo đường típ 2: phân bố đều lượng carbohydrate trong các bữa ăn trong ngày, tăng cường rau xanh và chất xơ, hạn chế đường hấp thu nhanh và đồ uống có đường.',
+      },
+    ],
+  },
+}
 
 /** Câu chốt bắt buộc có ở mọi phản hồi, theo mục 5 của hợp đồng. */
 const DISCLAIMER = 'Thông tin mang tính giáo dục, không thay thế tư vấn của bác sĩ.'

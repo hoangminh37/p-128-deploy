@@ -56,6 +56,11 @@ class Settings(BaseSettings):
 
     llm_temperature: float = Field(default=0.3, ge=0.0, le=2.0)
 
+    # Các node điều phối của agent (phân loại và chuẩn hoá truy vấn) phải cho
+    # cùng kết quả khi nhận cùng đầu vào. Sự đa dạng không có ích ở đây, nhưng
+    # có thể thay đổi truy vấn rồi kéo theo một bộ nguồn khác.
+    agent_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+
     # Trần token đầu ra. Bảy câu trắc nghiệm tiếng Việt (câu hỏi + 4 đáp án +
     # giải thích mỗi câu) đo được ~3000 token, cộng phần suy luận nội bộ của
     # model reasoning. Trần thấp làm JSON đứt giữa chừng và ném
@@ -81,8 +86,8 @@ class Settings(BaseSettings):
         """Trần token đầu ra hợp với hạn mức của từng provider."""
         return self.llm_max_tokens if provider == "groq" else self.llm_max_tokens_generous
 
-    # Trần riêng cho các node CHỈ cần câu trả lời cực ngắn: intent_router trả
-    # đúng một từ, crag_evaluator trả một dãy số, coref/rewrite trả một câu.
+    # Trần riêng cho các node CHỈ cần câu trả lời ngắn: intent_router trả JSON
+    # scope/task_kind, query_preprocessor trả một truy vấn đã chuẩn hoá.
     #
     # Không tách hai giá trị thì mỗi lời gọi nhỏ xíu đó cũng xin trước 8000
     # token, và gói miễn phí của Groq có hạn mức 8000 token/PHÚT — một request

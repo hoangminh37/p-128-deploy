@@ -12,12 +12,14 @@ from src.api.v1.health import router as health_router
 from src.api.v1.learning import router as learning_router
 from src.api.v1.patients import router as patients_router
 from src.api.v1.quiz import router as quiz_router
+from src.api.v1.source_documents import router as source_documents_router
 
 router = APIRouter(prefix="/v1")
 
 router.include_router(health_router, tags=["health"])
 router.include_router(auth_router, tags=["auth"])
 router.include_router(patients_router, tags=["patients"])
+router.include_router(source_documents_router, tags=["sources"])
 router.include_router(chat_router, tags=["chat"])
 router.include_router(conversations_router, tags=["conversations"])
 router.include_router(editor_router, tags=["editor"])

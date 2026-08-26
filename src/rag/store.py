@@ -12,6 +12,7 @@ nhân với priority của tài liệu. Với ranking_policy = recency, tài li�
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
@@ -23,6 +24,23 @@ from src.rag.chunk import Chunk
 from src.rag.config import RagSettings, get_rag_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _table_structure_from_metadata(value: object) -> dict[str, Any] | None:
+    """Decode optional structured table metadata without trusting malformed data."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    if not isinstance(parsed.get("rows"), int) or not isinstance(parsed.get("columns"), int):
+        return None
+    if parsed["rows"] < 1 or parsed["columns"] < 1 or not isinstance(parsed.get("cells"), list):
+        return None
+    return parsed
 
 
 # -----------------------------------------------------------------------------
@@ -325,7 +343,7 @@ class VectorStore:
     def search(
         self,
         query: str,
-        disease: str | None = None,
+        disease: str | list[str] | None = None,
         top_k: int | None = None,
         min_similarity: float | None = None,
     ) -> list[Hit]:
@@ -339,8 +357,17 @@ class VectorStore:
         min_similarity = s.min_similarity if min_similarity is None else min_similarity
 
         # Khoá lọc sinh thẳng từ mã bệnh, khớp với cột metadata mà
-        # DiseaseCatalog.metadata_flags() tạo ra lúc build chunk.
-        where = {f"disease_{disease}": True} if disease else None
+        # DiseaseCatalog.metadata_flags() tạo ra lúc build chunk.  Một hồ sơ
+        # có bệnh đồng mắc cần lấy tài liệu thuộc *một trong các bệnh*, không
+        # được đánh rơi disease filter hoặc chỉ giữ bệnh chính.
+        requested_diseases = [disease] if isinstance(disease, str) else (disease or [])
+        requested_diseases = list(dict.fromkeys(item for item in requested_diseases if item))
+        if len(requested_diseases) == 1:
+            where: dict[str, Any] | None = {f"disease_{requested_diseases[0]}": True}
+        elif requested_diseases:
+            where = {"$or": [{f"disease_{item}": True} for item in requested_diseases]}
+        else:
+            where = None
 
         # embed_query, không phải embed_documents — với Cohere đây là hai biểu
         # diễn khác nhau và dùng nhầm sẽ làm tụt chất lượng truy xuất.
@@ -367,8 +394,47 @@ class VectorStore:
             score = similarity + s.recency_weight * priority
             hits.append(Hit(chunk_id=cid, text=text, metadata=dict(meta), similarity=similarity, score=score))
 
-        hits.sort(key=lambda h: h.score, reverse=True)
+        # Chroma có thể trả thứ tự khác nhau khi nhiều vector cùng điểm. ID
+        # chunk là khoá ổn định, nên dùng làm tie-breaker để context của LLM
+        # không đổi chỉ vì thứ tự ANN.
+        hits.sort(key=lambda h: (-h.score, h.chunk_id))
         return hits[:top_k]
+
+    def document_chunks(self, document_id: str) -> list[dict[str, Any]]:
+        """Return the approved, cleaned chunks of one document in reading order.
+
+        This is intentionally a metadata-only lookup, not a semantic search:
+        the client already knows the exact ``chunk_id`` from a verified citation.
+        """
+        result: Any = self.collection.get(
+            where=cast(Any, {"doc_id": document_id}),
+            include=cast(Any, ["documents", "metadatas"]),
+        )
+        chunks: list[dict[str, Any]] = []
+        for chunk_id, content, metadata in zip(
+            result.get("ids") or [],
+            result.get("documents") or [],
+            result.get("metadatas") or [],
+            strict=False,
+        ):
+            metadata = metadata or {}
+            start = int(metadata.get("page_start", -1) or -1)
+            end = int(metadata.get("page_end", -1) or -1)
+            chunks.append(
+                {
+                    "chunk_id": str(chunk_id),
+                    "content": str(content or ""),
+                    "section_path": str(metadata.get("section_path") or "") or None,
+                    "page_start": start if start >= 1 else None,
+                    "page_end": end if end >= 1 else None,
+                    "table": _table_structure_from_metadata(metadata.get("table_structure")),
+                }
+            )
+
+        # Chunk IDs have the stable shape ``doc_id::0004::digest``.  Sorting
+        # them lexicographically preserves source order without trusting the
+        # arbitrary order returned by Chroma.
+        return sorted(chunks, key=lambda chunk: chunk["chunk_id"])
 
     def delete_by_doc(self, doc_id: str) -> int:
         """Xoá mọi chunk của một tài liệu.

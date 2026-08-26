@@ -56,6 +56,7 @@ Dùng định dạng lỗi mặc định của FastAPI:
 | POST | `/api/v1/auth/logout` | Đăng xuất, huỷ token phía máy chủ |
 | POST | `/api/v1/patients/profile` | Tạo hoặc cập nhật hồ sơ bệnh nhân |
 | GET | `/api/v1/patients/{patient_id}/profile` | Đọc hồ sơ |
+| GET | `/api/v1/sources/documents/{document_id}?chunk_id={chunk_id}` | Mở tài liệu đã duyệt và đánh dấu đúng đoạn agent đã trích dẫn |
 | POST | `/api/v1/chat` | Gửi câu hỏi, nhận câu trả lời |
 | POST | `/api/v1/chat/stream` | Cùng câu hỏi, nhận dần bằng SSE. Xem mục 10 |
 | GET | `/api/v1/conversations/{patient_id}` | Danh sách phiên hội thoại |
@@ -179,7 +180,7 @@ Request:
 | `age` | int | có | 18 đến 120 |
 | `primary_condition` | enum | có | `type2_diabetes` hoặc `hypertension` |
 | `comorbidities` | enum[] | không | Cùng tập giá trị với `primary_condition`, mặc định rỗng |
-| `diagnosed_at` | string | không | Định dạng `YYYY-MM` |
+| `diagnosed_at` | string | không | Định dạng `YYYY-MM`, không ở tương lai |
 | `asking_as` | enum | không | `self` hoặc `caregiver`, mặc định `self`. Người hỏi là chính bệnh nhân hay người chăm sóc. Chỉ ảnh hưởng cách xưng hô trong câu trả lời, không đổi nội dung y khoa |
 | `height_cm` | int | không | 100 đến 250. Dùng để agent chọn đúng tài liệu phù hợp thể trạng |
 | `weight_kg` | number | không | 25 đến 300. Nên nhập tới một chữ số thập phân — đây là khuyến nghị, không phải ràng buộc validate. Dùng để agent chọn đúng tài liệu phù hợp thể trạng |
@@ -234,7 +235,9 @@ Response 200:
       "issuer": "Bộ Y tế",
       "doc_code": "5481/QĐ-BYT",
       "url": "https://kcb.vn/...",
-      "snippet": "Hạn chế lượng natri đưa vào cơ thể, dưới 5 gam muối mỗi ngày."
+      "snippet": "Hạn chế lượng natri đưa vào cơ thể, dưới 5 gam muối mỗi ngày.",
+      "document_id": "vn-moh-3192-2010-htn",
+      "chunk_id": "vn-moh-3192-2010-htn::0004::a1b2c3d4"
     }
   ],
   "support_level": "fully",
@@ -266,10 +269,69 @@ Response 200:
 | `doc_code` | string hoặc null | có | Số hiệu văn bản, ví dụ `5481/QĐ-BYT` |
 | `url` | string hoặc null | có | Link tài liệu gốc |
 | `snippet` | string | có | Đoạn trích được dùng, tối đa 300 ký tự |
+| `document_id` | string hoặc null | có | Định danh tài liệu trong thư viện. `null` với lịch sử chat cũ, khi đó không có màn xem đoạn |
+| `chunk_id` | string hoặc null | có | Định danh chính xác chunk đã truy xuất. Dùng cùng `document_id` để mở màn nguồn |
 
 `snippet` là đoạn trích từ tài liệu y khoa đã duyệt trong thư viện, không phải trích từ hồ sơ
 hay dữ liệu của bệnh nhân, và backend không được đưa bất kỳ nội dung nào từ hồ sơ bệnh nhân
 vào trường này.
+
+### GET /api/v1/sources/documents/{document_id}
+
+Mở từ nút **Xem đoạn đã trích** của một `Citation`. Query `chunk_id` là bắt buộc;
+backend chỉ trả về tài liệu có `status: approved`, và chỉ khi chunk đó thực sự thuộc tài liệu.
+Nhờ vậy URL không thể được dùng để đọc bản nháp, tài liệu chờ duyệt hay một đoạn không có trong
+citation.
+
+Ví dụ: `/api/v1/sources/documents/vn-moh-3192-2010-htn?chunk_id=vn-moh-3192-2010-htn%3A%3A0004%3A%3Aa1b2c3d4`
+
+Response 200:
+
+```json
+{
+  "document_id": "vn-moh-3192-2010-htn",
+  "title": "Hướng dẫn chẩn đoán và điều trị tăng huyết áp",
+  "issuer": "Bộ Y tế",
+  "doc_code": "3192/QĐ-BYT",
+  "url": "https://kcb.vn/...",
+  "published": "2010",
+  "highlighted_chunk_id": "vn-moh-3192-2010-htn::0004::a1b2c3d4",
+  "total_chunks": 42,
+  "chunks": [
+    {
+      "chunk_id": "vn-moh-3192-2010-htn::0004::a1b2c3d4",
+      "content": "Hạn chế lượng natri đưa vào cơ thể...",
+      "section_path": "Điều trị không dùng thuốc",
+      "page_start": 12,
+      "page_end": 12,
+      "table": null
+    }
+  ]
+}
+```
+
+Frontend tô nền chunk có `chunk_id` trùng `highlighted_chunk_id`, rồi cuộn trang đến chunk đó.
+`chunks` chỉ gồm đoạn được trích và tối đa hai đoạn lân cận mỗi bên; `total_chunks` cho biết tổng
+số đoạn của tài liệu. Cách này giữ trang nguồn mở nhanh và làm mỗi citation có một trang đối
+chiếu riêng, thay vì dựng hàng trăm đoạn giống nhau.
+Response 404 khi tài liệu không tồn tại/chưa được duyệt, chưa được index, hoặc `chunk_id` không
+thuộc tài liệu. Endpoint yêu cầu đăng nhập như các endpoint luồng bệnh nhân khác.
+
+Với chunk là bảng, `table` là `null` hoặc một lưới do parser trả về:
+
+```json
+{
+  "rows": 2,
+  "columns": 2,
+  "cells": [
+    { "text": "Tiêu chí", "row": 0, "column": 0, "row_span": 1, "column_span": 1, "is_column_header": true, "is_row_header": false }
+  ]
+}
+```
+
+Frontend ưu tiên lưới này để dựng bảng. Nó không tách tiêu đề cột bằng quy tắc theo câu chữ;
+nếu dữ liệu cũ chỉ còn Markdown phẳng đã mất ranh giới cột, UI hiển thị phần còn xác minh được
+thay vì bịa cấu trúc.
 
 Quy tắc: mọi `id` xuất hiện trong `answer` phải có phần tử tương ứng trong `citations`,
 và ngược lại. Frontend validate bằng Zod, lệch thì báo lỗi hiển thị thay vì render sai.
@@ -1032,13 +1094,9 @@ cho khớp `AgentState.query` trong `ARCHITECTURE.md`.
 Ba điểm dưới đây phát hiện khi ghép frontend với backend thật, không phải câu hỏi thiết kế mà là
 lệch đã đo được.
 
-9. **`height_cm` và `weight_kg` chưa được implement.** Hai trường này có trong mục 4 và trong
-   khối Pydantic ở mục 11, nhưng backend chưa nhận, chưa lưu, chưa trả: model `PatientProfile`
-   không khai chúng và bảng `patients` không có cột tương ứng. Pydantic bỏ qua field lạ nên POST
-   vẫn trả 200 — hai số bị nuốt lặng lẽ, người dùng khai xong mở lại thấy ô trống. Frontend vẫn
-   gửi đúng hợp đồng và để hai trường ở dạng không bắt buộc, nên khi backend bổ sung thì không
-   phải sửa gì phía client. Cần backend xác nhận có làm ở Gate này không, hay bỏ hai trường khỏi
-   hợp đồng
+9. **`height_cm` và `weight_kg` đã được implement.** Backend validate, lưu và trả lại hai trường
+   này; migration cộng thêm cột cho cơ sở dữ liệu đã tồn tại. Agent chỉ nhận chúng như ngữ cảnh
+   thể trạng, không suy ra BMI, calo hay mục tiêu cân nặng.
 
 10. **Marker `[n]` sót lại khi `citations` rỗng.** Với `status` là `red_flag`, `refused` hoặc
     `referral`, backend xoá sạch `citations` nhưng không gỡ marker `[1]`, `[2]` đã chèn vào

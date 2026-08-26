@@ -15,6 +15,46 @@ ElementKind = Literal["heading", "text", "list_item", "table", "caption", "code"
 
 
 @dataclass
+class TableCell:
+    """Một ô bảng có vị trí từ parser, không suy ra từ Markdown phẳng."""
+
+    text: str
+    row: int
+    column: int
+    row_span: int = 1
+    column_span: int = 1
+    is_column_header: bool = False
+    is_row_header: bool = False
+
+    def as_dict(self) -> dict[str, int | str | bool]:
+        return {
+            "text": self.text,
+            "row": self.row,
+            "column": self.column,
+            "row_span": self.row_span,
+            "column_span": self.column_span,
+            "is_column_header": self.is_column_header,
+            "is_row_header": self.is_row_header,
+        }
+
+
+@dataclass
+class TableStructure:
+    """Lưới bảng nguyên bản do parser nhận diện, dùng để hiển thị source."""
+
+    rows: int
+    columns: int
+    cells: list[TableCell] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, int | list[dict[str, int | str | bool]]]:
+        return {
+            "rows": self.rows,
+            "columns": self.columns,
+            "cells": [cell.as_dict() for cell in self.cells],
+        }
+
+
+@dataclass
 class Element:
     """Một khối nội dung trong tài liệu, theo thứ tự đọc."""
 
@@ -23,6 +63,9 @@ class Element:
     level: int | None = None
     page: int | None = None
     ref: str | None = None
+    # Chỉ có với bảng. `text` vẫn được giữ nguyên cho embedding/citation; phần
+    # có cấu trúc này dành riêng cho màn đối chiếu nguồn.
+    table: TableStructure | None = None
     # Đường dẫn tiêu đề dẫn tới khối này, ví dụ
     # ["Hướng dẫn chẩn đoán và điều trị tăng huyết áp", "3. ĐIỀU TRỊ", "3.2. Thuốc"].
     # Được điền ở bước structure.build_section_paths.

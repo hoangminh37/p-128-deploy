@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.router import router
 from src.core.config import get_settings
+from src.core.database import ensure_patient_profile_schema, ensure_routine_memory_schema
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -19,8 +20,8 @@ def check_vectorstore() -> tuple[bool, int, str]:
 
     VÌ SAO KIỂM LÚC KHỞI ĐỘNG:
 
-    Kho rỗng KHÔNG gây lỗi ở đâu cả. `hybrid_retrieval` trả 0 doc, `crag_evaluator`
-    không có gì để lọc, rồi `route_crag` đưa mọi câu hỏi xuống `doctor_referral`.
+    Kho rỗng KHÔNG gây lỗi ở đâu cả. `hybrid_retrieval` trả 0 doc, rồi
+    `route_retrieval` đưa mọi câu hỏi xuống `doctor_referral`.
     Người dùng thấy "tôi không đủ tài liệu, hãy gặp bác sĩ" — một câu trả lời hợp
     lệ, đúng thiết kế, và che kín việc kho tài liệu không hề được nạp.
 
@@ -44,6 +45,8 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     logger.info("Starting %s in %s mode", settings.app_name, settings.app_env)
     logger.info("LLM provider: %s | model: %s", settings.llm_provider, settings.model_name)
+    await ensure_routine_memory_schema()
+    await ensure_patient_profile_schema()
 
     ready, count, note = check_vectorstore()
     if ready:

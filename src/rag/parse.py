@@ -28,7 +28,7 @@ os.environ.setdefault("TORCH_COMPILE_DISABLE", "1")
 os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
 
 from src.rag.config import RagSettings, get_rag_settings  # noqa: E402
-from src.rag.elements import Element, ElementKind  # noqa: E402
+from src.rag.elements import Element, ElementKind, TableCell, TableStructure  # noqa: E402
 from src.rag.registry import SourceDoc  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -67,6 +67,50 @@ _SKIP_LABELS = {
     "empty_value",
     "marker",
 }
+
+
+def _table_structure(item: object) -> TableStructure | None:
+    """Read Docling's cell grid without relying on its lossy Markdown export.
+
+    The browser cannot recover a column boundary that has already disappeared
+    from ``export_to_markdown()``.  Docling keeps the authoritative positions in
+    ``item.data.table_cells``, including header and span flags, so preserve them
+    at the parser boundary.  The code uses attributes defensively because
+    Docling has changed its model classes across releases.
+    """
+    data = getattr(item, "data", None)
+    raw_cells = getattr(data, "table_cells", None)
+    rows = getattr(data, "num_rows", None)
+    columns = getattr(data, "num_cols", None)
+    if not isinstance(raw_cells, list) or not isinstance(rows, int) or not isinstance(columns, int):
+        return None
+    if rows < 1 or columns < 1:
+        return None
+
+    cells: list[TableCell] = []
+    for raw_cell in raw_cells:
+        row = getattr(raw_cell, "start_row_offset_idx", None)
+        column = getattr(raw_cell, "start_col_offset_idx", None)
+        if not isinstance(row, int) or not isinstance(column, int) or row < 0 or column < 0:
+            continue
+
+        row_span = getattr(raw_cell, "row_span", 1)
+        column_span = getattr(raw_cell, "col_span", 1)
+        cells.append(
+            TableCell(
+                text=str(getattr(raw_cell, "text", "") or "").strip(),
+                row=row,
+                column=column,
+                row_span=row_span if isinstance(row_span, int) and row_span > 0 else 1,
+                column_span=column_span if isinstance(column_span, int) and column_span > 0 else 1,
+                is_column_header=bool(getattr(raw_cell, "column_header", False)),
+                is_row_header=bool(getattr(raw_cell, "row_header", False)),
+            )
+        )
+
+    # Không có cell hợp lệ thì để client dùng fallback Markdown; tuyệt đối
+    # không bịa lưới bảng từ một chuỗi đã hỏng cấu trúc.
+    return TableStructure(rows=rows, columns=columns, cells=cells) if cells else None
 
 
 def _converter():
@@ -157,6 +201,7 @@ def to_elements(dl_doc) -> list[Element]:
                 level=level,
                 page=page,
                 ref=getattr(item, "self_ref", None),
+                table=_table_structure(item) if kind == "table" else None,
             )
         )
 

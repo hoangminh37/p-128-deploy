@@ -10,16 +10,22 @@ from langchain_core.runnables import Runnable
 from src.core.config import get_settings
 from src.core.exceptions import LLMError
 from src.core.logging import get_logger
+from src.rag.config import get_rag_settings
 
 logger = get_logger(__name__)
 
 
-def get_llm(provider: str | None = None, max_tokens: int | None = None) -> BaseChatModel:
+def get_llm(
+    provider: str | None = None,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+) -> BaseChatModel:
     """Factory function — chọn LLM provider theo config hoặc tham số.
 
     Args:
         provider: "groq" | "openai" | "openrouter" | None (dùng settings.llm_provider)
         max_tokens: trần token đầu ra. None thì dùng settings.llm_max_tokens.
+        temperature: ghi đè nhiệt độ mặc định cho một luồng có yêu cầu riêng.
 
     Returns:
         BaseChatModel instance đã cấu hình
@@ -30,6 +36,7 @@ def get_llm(provider: str | None = None, max_tokens: int | None = None) -> BaseC
     settings = get_settings()
     provider = provider or settings.llm_provider
     max_tokens = max_tokens or settings.max_tokens_for(provider)
+    temperature = settings.llm_temperature if temperature is None else temperature
 
     if provider == "groq":
         if not settings.groq_api_key:
@@ -39,7 +46,7 @@ def get_llm(provider: str | None = None, max_tokens: int | None = None) -> BaseC
         return ChatGroq(
             model=settings.model_for("groq"),
             api_key=settings.groq_api_key,  # type: ignore[arg-type]
-            temperature=settings.llm_temperature,
+            temperature=temperature,
             max_tokens=max_tokens,
             # Groq cũng phục vụ dòng gpt-oss, cũng đốt token vào suy luận.
             #
@@ -59,7 +66,7 @@ def get_llm(provider: str | None = None, max_tokens: int | None = None) -> BaseC
         return ChatOpenAI(
             model=settings.model_for("openai"),
             api_key=settings.openai_api_key,  # type: ignore[arg-type]
-            temperature=settings.llm_temperature,
+            temperature=temperature,
             max_tokens=max_tokens,
         )
 
@@ -78,7 +85,7 @@ def get_llm(provider: str | None = None, max_tokens: int | None = None) -> BaseC
             model=settings.model_for("openrouter"),
             api_key=settings.openrouter_api_key,  # type: ignore[arg-type]
             base_url=settings.openrouter_base_url,
-            temperature=settings.llm_temperature,
+            temperature=temperature,
             max_tokens=max_tokens,
             default_headers={
                 "HTTP-Referer": "https://github.com/AI20K-Build-Phase-Cohort-3/P-128",
@@ -113,11 +120,31 @@ def get_llm(provider: str | None = None, max_tokens: int | None = None) -> BaseC
 def get_fast_llm() -> BaseChatModel:
     """LLM cho các node cần tốc độ và chỉ trả lời cực ngắn.
 
-    Dùng ở intent_router (một từ), crag_evaluator (một dãy số), coref_resolution
-    và query_rewrite (một câu). Trần token nhỏ ở đây không phải để tiết kiệm mà
+    Dùng ở intent_router (JSON scope/task) và query_preprocessor (một truy vấn). Trần
+    token nhỏ ở đây không phải để tiết kiệm mà
     để KHÔNG ĐẬP VÀO hạn mức token/phút — xem `llm_max_tokens_fast`.
+
+    Dùng LLM_PROVIDER từ .env thay vì hardcode groq, để fast nodes và quality
+    nodes luôn chạy cùng provider. Fallback theo thứ tự groq → openai → openrouter
+    nếu provider chính thiếu key.
     """
-    return get_llm("groq", max_tokens=get_settings().llm_max_tokens_fast)
+    settings = get_settings()
+    provider = settings.llm_provider
+    co_key = {
+        "groq": bool(settings.groq_api_key),
+        "openai": bool(settings.openai_api_key),
+        "openrouter": bool(settings.openrouter_api_key),
+    }
+    if not co_key.get(provider):
+        for du_bi in ("groq", "openai", "openrouter"):
+            if du_bi != provider and co_key[du_bi]:
+                provider = du_bi
+                break
+    return get_llm(
+        provider,
+        max_tokens=settings.llm_max_tokens_fast,
+        temperature=settings.agent_temperature,
+    )
 
 
 def quality_providers() -> list[str]:
@@ -188,7 +215,11 @@ def get_quality_llm() -> BaseChatModel:
     lời chết với lỗi 429 trong khi .env đã ghi rõ LLM_PROVIDER=groq. Nay tôn trọng
     cấu hình, chỉ đổi provider khi provider được chọn thiếu key.
     """
+    # Cấu hình RAG đã định nghĩa 0.0 cho nội dung y tế. Trước đây giá trị này
+    # không bao giờ được truyền vào factory nên generation vẫn lấy nhiệt độ
+    # chung 0.3, làm hai lượt cùng câu hỏi có thể cho hai kết quả khác nhau.
     settings = get_settings()
+    temperature = get_rag_settings().generation_temperature
     provider = settings.llm_provider
 
     # Thiếu key của provider chính thì lùi sang provider khác CÒN KEY, thay vì
@@ -199,11 +230,11 @@ def get_quality_llm() -> BaseChatModel:
         "openrouter": bool(settings.openrouter_api_key),
     }
     if co_key.get(provider):
-        return get_llm(provider)
+        return get_llm(provider, temperature=temperature)
 
     for du_bi in ("openrouter", "groq", "openai"):
         if du_bi != provider and co_key[du_bi]:
-            return get_llm(du_bi)
+            return get_llm(du_bi, temperature=temperature)
 
     # Không provider nào có key — để get_llm ném LLMError với thông báo rõ ràng.
-    return get_llm(provider)
+    return get_llm(provider, temperature=temperature)

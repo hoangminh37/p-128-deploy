@@ -11,23 +11,44 @@ from src.rag.store import VectorStore
 logger = get_logger(__name__)
 
 
+def _condition_filter(profile: dict) -> str | list[str] | None:
+    """Build one metadata filter from the primary condition and comorbidities.
+
+    A secondary diagnosis is still a diagnosis.  Restricting retrieval to only
+    ``primary_condition`` silently hid approved guidance relevant to patients
+    with both conditions.
+    """
+    conditions: list[str] = []
+    for condition in [profile.get("primary_condition"), *(profile.get("comorbidities") or [])]:
+        if isinstance(condition, str) and condition and condition not in conditions:
+            conditions.append(condition)
+    if len(conditions) == 1:
+        return conditions[0]
+    return conditions or None
+
+
 async def hybrid_retrieval_node(state: AgentState) -> AgentState:
     """Node 6 — tìm kiếm tài liệu y tế từ ChromaDB.
 
     MVP: Dense vector search (top_k=8).
     Post-MVP: + BM25 hybrid, metadata filter theo disease_type.
     """
-    query = state.get("rewritten_query") or state.get("resolved_query") or state.get("query", "")
-    retry_count = state.get("retry_count", 0)
+    query = state.get("preprocessed_query") or state.get("query", "")
+    top_k = 8
+    disease = _condition_filter(state.get("patient_profile", {}))
+    disease_label = ",".join(disease) if isinstance(disease, list) else disease
 
-    # Tăng top_k khi retry (cần nhiều doc hơn)
-    top_k = 8 + retry_count * 4
-
-    logger.info("[hybrid_retrieval] query=%.80s | top_k=%d", query, top_k)
+    logger.info(
+        "[hybrid_retrieval] searching query (%d chars) | top_k=%d | disease=%s | task=%s",
+        len(query),
+        top_k,
+        disease_label or "all",
+        state.get("task_kind", "health_education"),
+    )
 
     try:
         store = VectorStore()
-        hits = await asyncio.to_thread(store.search, query=query, top_k=top_k)
+        hits = await asyncio.to_thread(store.search, query=query, disease=disease, top_k=top_k)
 
         # Serialize Hit → dict để lưu vào AgentState
         retrieved_docs = [
@@ -40,13 +61,30 @@ async def hybrid_retrieval_node(state: AgentState) -> AgentState:
                 "snippet": hit.text[:300],
                 # Internal fields needed for agent
                 "doc_id": hit.chunk_id,
+                "document_id": hit.metadata.get("doc_id", ""),
+                "chunk_id": hit.chunk_id,
                 "content": hit.text,
             }
             for i, hit in enumerate(hits)
         ]
 
         logger.info("[hybrid_retrieval] found %d docs", len(retrieved_docs))
-        return {**state, "retrieved_docs": retrieved_docs}
+        return {
+            **state,
+            "retrieved_docs": retrieved_docs,
+            "metadata": {
+                **state.get("metadata", {}),
+                "retrieval": [
+                    {
+                        "document_id": hit.metadata.get("doc_id") or None,
+                        "chunk_id": hit.chunk_id,
+                        "similarity": round(float(getattr(hit, "similarity", 0.0)), 6),
+                        "score": round(float(getattr(hit, "score", 0.0)), 6),
+                    }
+                    for hit in hits
+                ],
+            },
+        }
 
     except Exception as exc:
         logger.error("[hybrid_retrieval] unexpected error: %s", exc)

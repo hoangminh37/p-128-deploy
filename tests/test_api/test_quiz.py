@@ -241,7 +241,7 @@ def test_ngu_canh_gom_ca_bai_da_hoc_va_cap_hoi_dap():
 def test_cau_nguoi_hoc_hoi_khong_duoc_dung_lam_nguon_kien_thuc():
     """Ranh giới tinh tế trong khối ĐÃ TRAO ĐỔI: lấy phần ĐÁP, cấm phần HỎI.
 
-    Câu trả lời của trợ lý đã qua selfrag_verifier nên dùng làm nguồn được. Còn
+    Câu trả lời của trợ lý đã qua generate_and_verify nên dùng làm nguồn được. Còn
     câu hỏi của người bệnh có thể chứa chính hiểu lầm họ đang mắc — "uống nước
     dừa chữa được tiểu đường phải không?". Ra đề từ đó là dạy lại cái sai.
 
@@ -266,7 +266,7 @@ def test_cap_hoi_dap_duoc_tinh_la_grounded():
     cảnh chỉ có danh sách câu hỏi trần trụi, không kèm kiến thức nào.
 
     Nay ngữ cảnh mang theo cả câu TRẢ LỜI của trợ lý. Câu đó chỉ được gửi tới
-    người bệnh sau khi `selfrag_verifier` xác nhận nó bám được vào tài liệu đã
+    người bệnh sau khi `generate_and_verify` xác nhận nó bám được vào tài liệu đã
     duyệt — nghĩa là nó ĐÃ có nguồn. Coi nó là không grounded thì FE sẽ hiện
     cảnh báo "chưa đối chiếu được với tài liệu gốc" một cách sai sự thật.
 

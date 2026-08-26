@@ -1,7 +1,7 @@
 # System prompt — Agent giáo dục sức khoẻ (tiếng Việt)
 
 > File này là **nội dung prompt**, không phải tài liệu mô tả. Nó được nạp bởi
-> `src/rag/prompts/__init__.py` và ghép vào lời gọi LLM ở node `llm_generate`.
+> `src/rag/prompts/__init__.py` và ghép vào lời gọi LLM ở node `generate_and_verify`.
 > Sửa file này là sửa hành vi của agent — mọi thay đổi phải đi qua Pull Request.
 >
 > Chủ sở hữu: Khanh Nguyen (data/RAG). Người tích hợp: phía backend agent.
@@ -86,7 +86,7 @@ Trả về JSON đúng cấu trúc sau, không kèm chữ nào khác ngoài JSON
 
 - Mọi `[n]` xuất hiện trong `answer` phải có mặt trong `used_sources`, và ngược lại.
 - `claims` liệt kê từng câu mang khẳng định y khoa cùng nguồn của nó — node
-  `selfrag_verifier` dùng đúng trường này để kiểm tra, nên không được bỏ trống.
+  `generate_and_verify` dùng đúng trường này để kiểm tra, nên không được bỏ trống.
 - Khi tài liệu không đủ, đặt `insufficient_context: true`, `used_sources: []`, và
   `answer` là câu hướng người bệnh tới bác sĩ.
 - Không tự thêm câu miễn trừ trách nhiệm vào `answer`; hệ thống gắn sẵn ở tầng API.

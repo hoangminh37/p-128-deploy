@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Citation(BaseModel):
@@ -14,6 +14,18 @@ class Citation(BaseModel):
     doc_code: str | None = None
     url: str | None = None
     snippet: str = Field(..., max_length=300)
+    # Hai khoá này đưa người đọc từ citation vào đúng đoạn đã được truy xuất.
+    # Optional để lịch sử chat lưu trước khi có tính năng này vẫn đọc được.
+    document_id: str | None = None
+    chunk_id: str | None = None
+
+    @field_validator("url", "document_id", "chunk_id", mode="before")
+    @classmethod
+    def _blank_optional_source_value_is_none(cls, value: object) -> object:
+        """Do not serialize Chroma's empty metadata strings as working links."""
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
 
 
 class ChatRequest(BaseModel):
@@ -23,14 +35,19 @@ class ChatRequest(BaseModel):
     patient_id: str
     conversation_id: str | None = None
 
-    def to_agent_state(self, patient_profile_dict: dict[str, Any]) -> dict[str, Any]:
+    def to_agent_state(
+        self,
+        patient_profile_dict: dict[str, Any],
+        messages: list[dict[str, str]] | None = None,
+        patient_routine: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Convert to initial AgentState dict cho LangGraph."""
         return {
             "query": self.query,
             "patient_id": self.patient_id,
             "patient_profile": patient_profile_dict,
-            "messages": [],  # History should also be fetched from DB
-            "retry_count": 0,
+            "messages": messages or [],
+            "patient_routine": patient_routine or [],
             "metadata": {},
         }
 

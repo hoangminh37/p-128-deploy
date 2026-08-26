@@ -13,9 +13,10 @@ from src.agent.graph import agent
 from src.api.v1.auth import get_current_user
 from src.core.database import get_db
 from src.core.logging import get_logger
-from src.models.domain import Patient
+from src.models.domain import Conversation, Message, Patient
 from src.schemas.chat import ChatRequest, ChatResponse
 from src.schemas.patient import UserInfo
+from src.services.routine_memory import load_routine_memory, record_routine_updates
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -23,14 +24,10 @@ logger = get_logger(__name__)
 # Step event messages — hiển thị trên FE khi mỗi node bắt đầu
 NODE_MESSAGES: dict[str, dict] = {
     "intent_router": {"message": "Đang phân tích câu hỏi...", "icon": "🔍"},
-    "coref_resolution": {"message": "Đang xử lý ngữ cảnh hội thoại...", "icon": "🔗"},
-    "query_rewrite": {"message": "Đang tối ưu câu hỏi...", "icon": "✏️"},
+    "query_preprocessor": {"message": "Đang chuẩn bị ngữ cảnh câu hỏi...", "icon": "🔗"},
     "hybrid_retrieval": {"message": "Đang tìm kiếm tài liệu y tế...", "icon": "📚"},
-    "crag_evaluator": {"message": "Đang đánh giá độ liên quan...", "icon": "🔬"},
-    "llm_generate": {"message": "Đang tổng hợp câu trả lời...", "icon": "✍️"},
-    "selfrag_verifier": {"message": "Đang kiểm tra độ tin cậy...", "icon": "✅"},
-    "partial_rewrite": {"message": "Đang tìm kiếm bổ sung...", "icon": "🔄"},
-    "safety_disclaimer": {"message": "Đang thêm cảnh báo y tế...", "icon": "⚠️"},
+    "generate_and_verify": {"message": "Đang tổng hợp và kiểm tra nguồn...", "icon": "✅"},
+    "answer_verifier": {"message": "Đang kiểm chứng câu trả lời...", "icon": "✅"},
     "memory_checkpoint": {"message": "Đang lưu kết quả...", "icon": "💾"},
     "refuse_handler": {"message": "Đang xử lý yêu cầu...", "icon": "🛑"},
     "out_of_domain_handler": {"message": "Đang phản hồi...", "icon": "👋"},
@@ -38,6 +35,37 @@ NODE_MESSAGES: dict[str, dict] = {
     "doctor_referral": {"message": "Đang chuyển hướng chuyên gia...", "icon": "👨‍⚕️"},
     "profile_handler": {"message": "Đang kiểm tra hồ sơ bệnh án...", "icon": "👤"},
 }
+
+
+async def _load_conversation_history(
+    db: AsyncSession,
+    *,
+    patient_id: str,
+    conversation_id: str | None,
+    current_user: UserInfo,
+) -> list[dict[str, str]]:
+    """Authorize chat scope and load the six latest messages for coreference.
+
+    A patient token may only invoke the graph with its own profile. Editors keep
+    their cross-patient workflow, while an unknown or foreign conversation never
+    becomes a target for new messages.
+    """
+    if current_user.role == "patient" and current_user.patient_id != patient_id:
+        raise HTTPException(status_code=403, detail="Không có quyền dùng hồ sơ bệnh nhân này")
+    if not conversation_id:
+        return []
+
+    conversation_result = await db.execute(
+        select(Conversation).filter(Conversation.id == conversation_id, Conversation.patient_id == patient_id)
+    )
+    if not conversation_result.scalars().first():
+        raise HTTPException(status_code=404, detail="Không tìm thấy phiên hội thoại")
+
+    messages_result = await db.execute(
+        select(Message).filter(Message.conversation_id == conversation_id).order_by(Message.created_at.desc()).limit(6)
+    )
+    messages = list(reversed(messages_result.scalars().all()))
+    return [{"role": message.role, "content": message.content} for message in messages]
 
 
 # ── POST /chat — synchronous (dùng để test, không streaming) ─────────────────
@@ -55,6 +83,13 @@ async def chat(
 
     start_time = time.time()
     try:
+        history = await _load_conversation_history(
+            db,
+            patient_id=request.patient_id,
+            conversation_id=request.conversation_id,
+            current_user=current_user,
+        )
+        routine_memory = await load_routine_memory(db, request.patient_id)
         # Fetch real patient profile
         result = await db.execute(select(Patient).filter(Patient.id == request.patient_id))
         patient = result.scalars().first()
@@ -67,10 +102,12 @@ async def chat(
             "primary_condition": patient.primary_condition,
             "comorbidities": patient.comorbidities,
             "diagnosed_at": patient.diagnosed_at,
+            "height_cm": patient.height_cm,
+            "weight_kg": patient.weight_kg,
             "asking_as": patient.asking_as,
         }
 
-        state = request.to_agent_state(patient_profile_dict)
+        state = request.to_agent_state(patient_profile_dict, messages=history, patient_routine=routine_memory)
         result = await agent.ainvoke(state)
 
         from src.schemas.chat import Citation, ResponseMetadata
@@ -93,8 +130,10 @@ async def chat(
                     title=c.get("title", f"Tài liệu {cid}"),
                     issuer=c.get("issuer", "Cơ sở y tế"),
                     doc_code=c.get("doc_code"),
-                    url=c.get("url"),
+                    url=c.get("url") or None,
                     snippet=c.get("snippet", c.get("content", ""))[:300],
+                    document_id=c.get("document_id") or None,
+                    chunk_id=c.get("chunk_id") or None,
                 )
             )
 
@@ -109,11 +148,11 @@ async def chat(
 
         if is_red_flag:
             status = "red_flag"
-        elif intent in ["diagnosis", "refusal"]:
+        elif intent in ["diagnosis", "prompt_injection", "refusal"]:
             status = "refused"
         elif intent == "doctor_referral":
             status = "referral"
-        elif intent in ["greeting", "out_of_domain", "profile", "prompt_injection"]:
+        elif intent in ["greeting", "out_of_domain", "profile"]:
             # Lời chào KHÔNG phải lời từ chối. Map sang "refused" khiến frontend
             # dựng khối màu từ chối cho một câu "Xin chào" — xem ResponseStates.
             status = "answered"
@@ -134,10 +173,31 @@ async def chat(
         if status in ["red_flag", "refused", "referral"]:
             citations = []
 
+        # Red-flag không được lưu nội dung câu hỏi hay hồ sơ vào DB. API vẫn trả
+        # ID tạm để frontend xử lý response như các trạng thái còn lại.
+        if status == "red_flag":
+            import uuid
+
+            return ChatResponse(
+                conversation_id=request.conversation_id or f"emergency_{uuid.uuid4().hex[:8]}",
+                message_id=f"emergency_{uuid.uuid4().hex[:8]}",
+                status=status,
+                answer=answer,
+                citations=[],
+                support_level=None,
+                disclaimer="⚠️ Tình huống có thể khẩn cấp. Hãy gọi 115 hoặc đến cơ sở cấp cứu gần nhất.",
+                metadata=ResponseMetadata(latency_ms=latency_ms, cached=False),
+            )
+
+        await record_routine_updates(
+            db,
+            patient_id=request.patient_id,
+            raw_updates=result.get("routine_updates", []),
+            source_text=request.query,
+        )
+
         import uuid
         from datetime import datetime
-
-        from src.models.domain import Conversation, Message
 
         # Save to DB
         conversation_id = request.conversation_id
@@ -183,6 +243,8 @@ async def chat(
                     "doc_code": c.doc_code,
                     "url": c.url,
                     "snippet": c.snippet,
+                    "document_id": c.document_id,
+                    "chunk_id": c.chunk_id,
                 }
             )
 
@@ -196,6 +258,7 @@ async def chat(
             citations=citations_db,
             support_level=support_level if status in ["answered", "partial"] else None,
             disclaimer="⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng.",
+            meta_data=result.get("metadata", {}),
         )
         db.add(assistant_msg)
 
@@ -211,6 +274,8 @@ async def chat(
             disclaimer="⚠️ Thông tin mang tính giáo dục. Tham khảo bác sĩ trước khi áp dụng.",
             metadata=ResponseMetadata(latency_ms=latency_ms, cached=False),
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("[chat] error: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -233,6 +298,14 @@ async def chat_stream(
     - ``done``: citations + support_level + disclaimer
     """
 
+    history = await _load_conversation_history(
+        db,
+        patient_id=request.patient_id,
+        conversation_id=request.conversation_id,
+        current_user=current_user,
+    )
+    routine_memory = await load_routine_memory(db, request.patient_id)
+
     async def generate():
         # Fetch real patient profile
         result = await db.execute(select(Patient).filter(Patient.id == request.patient_id))
@@ -248,20 +321,13 @@ async def chat_stream(
             "primary_condition": patient.primary_condition,
             "comorbidities": patient.comorbidities,
             "diagnosed_at": patient.diagnosed_at,
+            "height_cm": patient.height_cm,
+            "weight_kg": patient.weight_kg,
             "asking_as": patient.asking_as,
         }
 
-        state = request.to_agent_state(patient_profile_dict)
+        state = request.to_agent_state(patient_profile_dict, messages=history, patient_routine=routine_memory)
         final_state: dict = {}
-
-        # ── Bộ đệm XML raw từ LLM ──────────────────────────────────────
-        # LLM nhả output có dạng: <analysis>...</analysis><answer>...</answer>
-        # Chiến lược: tìm chuỗi "<answer>", stream nội dung sau nó.
-        import re
-
-        _raw_buffer: str = ""  # Tích lũy toàn bộ text thô từ LLM
-        _streamed_len: int = 0  # Số ký tụ answer đã yield
-        _answer_open_re = re.compile(r"<\s*answer\s*>(.*)", re.DOTALL | re.IGNORECASE)
 
         try:
             # ── Step events (realtime per node) ──────────────────────────
@@ -281,43 +347,40 @@ async def chat_stream(
                     )
                     yield f"event: step\ndata: {payload}\n\n"
 
-                # ── True Streaming: bắt token trực tiếp từ node llm_generate ──
-                if event_type == "on_chat_model_stream":
-                    # Chỉ xử lý token từ node tạo câu trả lời chính
-                    # tránh nhầm token từ crag_evaluator, selfrag_verifier, v.v.
-                    node_name = event.get("metadata", {}).get("langgraph_node", "")
-                    if node_name != "llm_generate":
-                        pass  # Bỏ qua token từ các node LLM khác
-                    else:
-                        chunk = event.get("data", {}).get("chunk")
-                        if chunk and hasattr(chunk, "content") and chunk.content:
-                            _raw_buffer += chunk.content
-
-                            # Dùng regex tìm phần sau thẻ <answer>
-                            m = _answer_open_re.search(_raw_buffer)
-                            if m:
-                                raw_answer = m.group(1)
-                                # Lọc bỏ thẻ đóng </answer> nếu LLM đã sinh xong
-                                raw_answer = re.sub(r"<\s*/\s*answer\s*>", "", raw_answer, flags=re.IGNORECASE)
-
-                                # Chỉ yield phần mới tăng thêm
-                                new_text = raw_answer[_streamed_len:]
-                                if new_text:
-                                    _streamed_len = len(raw_answer)
-                                    payload = json.dumps({"text": new_text}, ensure_ascii=False)
-                                    yield f"event: token\ndata: {payload}\n\n"
-
                 # Trích xuất state từ bất kỳ node nào kết thúc
                 if event_type == "on_chain_end":
                     output = event.get("data", {}).get("output", {})
                     if isinstance(output, dict) and "response" in output:
                         final_state.update(output)
 
+            # Red-flag kết thúc trước persistence: không ghi query hay profile
+            # nhạy cảm vào conversation/message tables.
+            if final_state.get("is_red_flag", False):
+                import uuid
+
+                answer = final_state.get("response", "")
+                for start in range(0, len(answer), 80):
+                    token_payload = json.dumps({"text": answer[start : start + 80]}, ensure_ascii=False)
+                    yield f"event: token\ndata: {token_payload}\n\n"
+                done_payload = json.dumps(
+                    {
+                        "conversation_id": request.conversation_id or f"emergency_{uuid.uuid4().hex[:8]}",
+                        "message_id": f"emergency_{uuid.uuid4().hex[:8]}",
+                        "status": "red_flag",
+                        "answer": answer,
+                        "citations": [],
+                        "support_level": None,
+                        "intent": "red_flag",
+                        "disclaimer": "⚠️ Tình huống có thể khẩn cấp. Hãy gọi 115 hoặc đến cơ sở cấp cứu gần nhất.",
+                    },
+                    ensure_ascii=False,
+                )
+                yield f"event: done\ndata: {done_payload}\n\n"
+                return
+
             # Save to DB at the end
             import uuid
             from datetime import datetime
-
-            from src.models.domain import Conversation, Message
 
             conversation_id = request.conversation_id
             if not conversation_id:
@@ -365,8 +428,10 @@ async def chat_stream(
                         "title": c.get("title"),
                         "issuer": c.get("issuer"),
                         "doc_code": c.get("doc_code"),
-                        "url": c.get("url"),
+                        "url": c.get("url") or None,
                         "snippet": c.get("snippet"),
+                        "document_id": c.get("document_id") or None,
+                        "chunk_id": c.get("chunk_id") or None,
                     }
                 )
 
@@ -378,11 +443,11 @@ async def chat_stream(
 
             if is_red_flag:
                 status = "red_flag"
-            elif intent in ["diagnosis", "refusal"]:
+            elif intent in ["diagnosis", "prompt_injection", "refusal"]:
                 status = "refused"
             elif intent == "doctor_referral":
                 status = "referral"
-            elif intent in ["greeting", "out_of_domain", "profile", "prompt_injection"]:
+            elif intent in ["greeting", "out_of_domain", "profile"]:
                 status = "answered"
             elif support_level == "partially":
                 status = "partial"
@@ -405,10 +470,24 @@ async def chat_stream(
                     citations=final_citations,
                     support_level=final_support_level,
                     disclaimer=disclaimer,
+                    meta_data=final_state.get("metadata", {}),
                 )
             )
 
+            await record_routine_updates(
+                db,
+                patient_id=request.patient_id,
+                raw_updates=final_state.get("routine_updates", []),
+                source_text=request.query,
+            )
+
             await db.commit()
+
+            # Chỉ phát token sau khi toàn bộ graph, gồm generate_and_verify và
+            # routing NO_SUPPORT → referral, đã kết thúc. Không stream raw LLM.
+            for start in range(0, len(answer), 80):
+                token_payload = json.dumps({"text": answer[start : start + 80]}, ensure_ascii=False)
+                yield f"event: token\ndata: {token_payload}\n\n"
 
             # ── Done event ────────────────────────────────────────────────
             done_payload = json.dumps(

@@ -60,6 +60,21 @@ const CONDITION_LABEL: Record<PrimaryCondition, string> = {
 /** Lấy thẳng từ schema hợp đồng, không gõ lại danh sách giá trị. */
 const CONDITIONS = primaryConditionSchema.options
 
+const DIAGNOSIS_MONTHS = [
+  { value: '01', label: 'Tháng 1' },
+  { value: '02', label: 'Tháng 2' },
+  { value: '03', label: 'Tháng 3' },
+  { value: '04', label: 'Tháng 4' },
+  { value: '05', label: 'Tháng 5' },
+  { value: '06', label: 'Tháng 6' },
+  { value: '07', label: 'Tháng 7' },
+  { value: '08', label: 'Tháng 8' },
+  { value: '09', label: 'Tháng 9' },
+  { value: '10', label: 'Tháng 10' },
+  { value: '11', label: 'Tháng 11' },
+  { value: '12', label: 'Tháng 12' },
+] as const
+
 /**
  * Nhãn của cả ba bước, MỘT bản duy nhất, xưng hô thẳng với người dùng.
  *
@@ -81,9 +96,9 @@ const LABELS = {
   conditions: 'Bác sĩ đã chẩn đoán bạn mắc bệnh nào?',
   conditionsHint:
     'Bạn chọn một bệnh. Nếu bác sĩ chẩn đoán bạn mắc cả hai thì bạn chọn cả hai ô.',
-  diagnosed: 'Bạn được chẩn đoán từ khi nào?',
+  diagnosed: 'Bạn được chẩn đoán vào tháng/năm nào?',
   diagnosedHint:
-    'Không bắt buộc. Biết bạn mắc bệnh bao lâu rồi giúp lời khuyên sát hơn. ' +
+    'Không bắt buộc. Hệ thống lưu theo tháng/năm; bạn có thể sửa lại bất cứ lúc nào. ' +
     'Không nhớ chính xác thì bạn cứ bỏ trống.',
 } as const
 
@@ -203,6 +218,9 @@ const profileFormSchema = patientProfileSchema
       .string()
       .regex(/^\d{4}-(0[1-9]|1[0-2])$/, {
         error: 'Bạn hãy chọn tháng và năm, ví dụ tháng 3 năm 2026.',
+      })
+      .refine((value) => value <= new Date().toISOString().slice(0, 7), {
+        error: 'Thời điểm chẩn đoán không thể ở tương lai.',
       })
       .nullable(),
     // Hai trường thể trạng: bỏ trống là `null`, điền thì phải nằm trong khoảng
@@ -437,6 +455,11 @@ function toOptionalNumber(raw: string): number | null {
   return raw === '' ? null : Number(raw)
 }
 
+function splitDiagnosisDate(value: string | null | undefined): { month: string; year: string } {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value ?? '')
+  return match ? { year: match[1], month: match[2] } : { year: '', month: '' }
+}
+
 // ---------------------------------------------------------------------------
 // Màn hình
 // ---------------------------------------------------------------------------
@@ -448,6 +471,8 @@ export function ProfileScreen() {
   const { data: lessonData } = useDailyLesson()
 
   const [step, setStep] = useState(0)
+  const [diagnosisMonth, setDiagnosisMonth] = useState('')
+  const [diagnosisYear, setDiagnosisYear] = useState('')
 
   const isEditing = profile !== null
 
@@ -471,6 +496,22 @@ export function ProfileScreen() {
   })
 
   const conditions = watch('conditions') ?? []
+  const diagnosisIsComplete = /^\d{4}$/.test(diagnosisYear) && diagnosisMonth !== ''
+  const diagnosisIsIncomplete =
+    (diagnosisMonth !== '' || diagnosisYear !== '') && !diagnosisIsComplete
+  const diagnosisError =
+    errors.diagnosed_at?.message ??
+    (diagnosisIsIncomplete ? 'Hãy chọn đủ tháng và nhập đủ 4 chữ số của năm.' : undefined)
+
+  function updateDiagnosisDate(month: string, year: string): void {
+    setDiagnosisMonth(month)
+    setDiagnosisYear(year)
+
+    // Chỉ đẩy giá trị hoàn chỉnh xuống form. Nếu người dùng đang xoá/gõ lại
+    // năm, form giữ `null` và hiện lỗi cục bộ thay vì gửi một ngày nửa chừng.
+    const nextValue = /^\d{4}$/.test(year) && month !== '' ? `${year}-${month}` : null
+    setValue('diagnosed_at', nextValue, { shouldDirty: true, shouldValidate: true })
+  }
 
   // Hồ sơ tới sau lần render đầu (đang gọi API), nên phải nạp lại vào form khi có.
   //
@@ -481,6 +522,7 @@ export function ProfileScreen() {
   useEffect(() => {
     if (profile === null) return
     const saved = [profile.primary_condition, ...(profile.comorbidities ?? [])]
+    const diagnosisDate = splitDiagnosisDate(profile.diagnosed_at)
     reset({
       age: profile.age,
       conditions: CONDITIONS.filter((condition) => saved.includes(condition)),
@@ -488,6 +530,8 @@ export function ProfileScreen() {
       height_cm: profile.height_cm ?? null,
       weight_kg: profile.weight_kg ?? null,
     })
+    setDiagnosisMonth(diagnosisDate.month)
+    setDiagnosisYear(diagnosisDate.year)
   }, [profile, reset])
 
   const mutation = useMutation({
@@ -551,6 +595,10 @@ export function ProfileScreen() {
     if (step !== LAST_STEP) {
       event.preventDefault()
       void goNext()
+      return
+    }
+    if (diagnosisIsIncomplete) {
+      event.preventDefault()
       return
     }
     void submitProfile(event)
@@ -787,24 +835,62 @@ export function ProfileScreen() {
         {step === 2 && (
           <>
             <div>
-              <label htmlFor="diagnosed_at" className={FIELD_LABEL_CLASS}>
+              <p className={FIELD_LABEL_CLASS}>
                 {LABELS.diagnosed}
-              </label>
+              </p>
               <FieldHint id="diagnosed-hint">{LABELS.diagnosedHint}</FieldHint>
-              <input
-                id="diagnosed_at"
-                type="month"
-                aria-describedby={
-                  errors.diagnosed_at ? 'diagnosed-hint diagnosed-error' : 'diagnosed-hint'
-                }
-                aria-invalid={errors.diagnosed_at !== undefined}
-                // Ô trống trả về chuỗi rỗng, mà hợp đồng chờ `null` — đổi ngay ở đây.
-                {...register('diagnosed_at', {
-                  setValueAs: (raw: string) => (raw === '' ? null : raw),
-                })}
-                className={FIELD_INPUT_CLASS}
-              />
-              <FieldError id="diagnosed-error" message={errors.diagnosed_at?.message} />
+              {/* Giá trị chuẩn YYYY-MM vẫn là một field của React Hook Form;
+                  hai control bên dưới chỉ là cách nhập dễ chỉnh hơn input
+                  month mặc định của từng trình duyệt. */}
+              <input type="hidden" {...register('diagnosed_at')} />
+              <div className="mt-snug grid grid-cols-2 gap-snug">
+                <div>
+                  <label htmlFor="diagnosed_month" className={FIELD_LABEL_CLASS}>
+                    Tháng
+                  </label>
+                  <select
+                    id="diagnosed_month"
+                    value={diagnosisMonth}
+                    onChange={(event) => updateDiagnosisDate(event.target.value, diagnosisYear)}
+                    aria-describedby={
+                      diagnosisError ? 'diagnosed-hint diagnosed-error' : 'diagnosed-hint'
+                    }
+                    aria-invalid={diagnosisError !== undefined}
+                    className={FIELD_INPUT_CLASS}
+                  >
+                    <option value="">Chọn tháng</option>
+                    {DIAGNOSIS_MONTHS.map((month) => (
+                      <option key={month.value} value={month.value}>
+                        {month.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="diagnosed_year" className={FIELD_LABEL_CLASS}>
+                    Năm
+                  </label>
+                  <input
+                    id="diagnosed_year"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={4}
+                    placeholder="Ví dụ 2025"
+                    value={diagnosisYear}
+                    onChange={(event) =>
+                      updateDiagnosisDate(diagnosisMonth, event.target.value.replace(/\D/g, '').slice(0, 4))
+                    }
+                    aria-describedby={
+                      diagnosisError ? 'diagnosed-hint diagnosed-error' : 'diagnosed-hint'
+                    }
+                    aria-invalid={diagnosisError !== undefined}
+                    className={FIELD_INPUT_CLASS}
+                  />
+                </div>
+              </div>
+              <FieldError id="diagnosed-error" message={diagnosisError} />
             </div>
 
             {mutation.isError && (
