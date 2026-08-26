@@ -160,6 +160,17 @@ export function LibraryIcon({ className }: IconProps) {
   )
 }
 
+/** Trắc nghiệm kiến thức: phiếu câu hỏi với đáp án đã chọn. */
+export function QuizIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <rect x="4.5" y="3.5" width="15" height="17" rx="2" />
+      <path d="M8.5 8.5h7M8.5 12.5h3" />
+      <path d="m8.5 16 1.7 1.7 3.1-3.4" />
+    </StrokeIcon>
+  )
+}
+
 /** Thuốc: một viên nhộng nằm chéo. Dùng cho lời nhắc không kê đơn, không chỉnh liều. */
 export function PillIcon({ className }: IconProps) {
   return (

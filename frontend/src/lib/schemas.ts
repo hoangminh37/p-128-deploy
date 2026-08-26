@@ -121,15 +121,6 @@ export const patientProfileSchema = z.object({
   // dục của sản phẩm. Vì vậy frontend cũng không tính BMI hay bất kỳ chỉ số dẫn
   // xuất nào từ hai số này, chỉ gửi nguyên giá trị người dùng khai.
   //
-  // BACKEND CHƯA NHẬN HAI TRƯỜNG NÀY, tính tới 16/08/2026. `PatientProfile`
-  // trong `src/schemas/patient.py` không khai chúng, bảng `patients` cũng không
-  // có cột tương ứng. Pydantic bỏ qua field lạ nên POST vẫn trả 200, chỉ là hai
-  // số bị nuốt: lưu xong mở lại hồ sơ là thấy hai ô trống.
-  //
-  // ĐÂY KHÔNG PHẢI LỖI FRONTEND. Form vẫn hỏi, vẫn kiểm, vẫn gửi đúng hợp đồng.
-  // Cả hai để `.nullish()` nên response thiếu chúng vẫn parse được — đó là lý do
-  // chuyện này hỏng lặng lẽ chứ không nổ ra thành lỗi. Đã báo backend; khi nào
-  // họ thêm cột và trường thì xoá đoạn ghi chú này, không phải sửa gì thêm.
   height_cm: z.number().int().min(100).max(250).nullish(),
   // Hợp đồng khuyến nghị nhập tới một chữ số thập phân nhưng KHÔNG ràng buộc
   // điều đó, nên ở đây cũng không có `multipleOf` — 70.35 vẫn hợp lệ.
@@ -161,6 +152,50 @@ export const citationSchema = z.object({
   doc_code: z.string().nullable(),
   url: z.string().nullable(),
   snippet: z.string().max(300),
+  // Có ở citation mới. Để optional cho lịch sử chat đã lưu trước khi bổ sung
+  // màn xem tài liệu; các citation đó vẫn mở được URL gốc nếu có.
+  document_id: z.string().nullable().optional(),
+  chunk_id: z.string().nullable().optional(),
+})
+
+/** Một đoạn đã được biên tập và nạp vào kho RAG của tài liệu nguồn. */
+export const sourceTableCellSchema = z.object({
+  text: z.string(),
+  row: z.number().int().nonnegative(),
+  column: z.number().int().nonnegative(),
+  row_span: z.number().int().min(1),
+  column_span: z.number().int().min(1),
+  is_column_header: z.boolean(),
+  is_row_header: z.boolean(),
+})
+
+/** Lưới bảng nguyên bản từ parser; không suy đoán cột từ nội dung câu chữ. */
+export const sourceTableSchema = z.object({
+  rows: z.number().int().min(1),
+  columns: z.number().int().min(1),
+  cells: z.array(sourceTableCellSchema),
+})
+
+export const sourceDocumentChunkSchema = z.object({
+  chunk_id: z.string(),
+  content: z.string(),
+  section_path: z.string().nullable(),
+  page_start: z.number().int().nullable(),
+  page_end: z.number().int().nullable(),
+  table: sourceTableSchema.nullable().optional(),
+})
+
+/** Tài liệu nguồn kèm đoạn chính xác mà agent đã trích dẫn. */
+export const sourceDocumentSchema = z.object({
+  document_id: z.string(),
+  title: z.string(),
+  issuer: z.string(),
+  doc_code: z.string().nullable(),
+  url: z.string().nullable(),
+  published: z.string(),
+  highlighted_chunk_id: z.string(),
+  total_chunks: z.number().int().min(1),
+  chunks: z.array(sourceDocumentChunkSchema),
 })
 
 /** Mục 5 — payload gửi lên POST /chat. `conversation_id` bằng `null` là mở phiên mới. */
@@ -510,6 +545,10 @@ export type UserInfo = z.infer<typeof userInfoSchema>
 export type PatientProfile = z.infer<typeof patientProfileSchema>
 export type PatientProfileResponse = z.infer<typeof patientProfileResponseSchema>
 export type Citation = z.infer<typeof citationSchema>
+export type SourceDocument = z.infer<typeof sourceDocumentSchema>
+export type SourceDocumentChunk = z.infer<typeof sourceDocumentChunkSchema>
+export type SourceTable = z.infer<typeof sourceTableSchema>
+export type SourceTableCell = z.infer<typeof sourceTableCellSchema>
 export type ChatRequest = z.infer<typeof chatRequestSchema>
 export type ChatResponse = z.infer<typeof chatResponseSchema>
 

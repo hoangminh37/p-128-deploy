@@ -21,6 +21,7 @@ import {
   Routes,
   useLocation,
   useParams,
+  useSearchParams,
 } from 'react-router-dom'
 
 import { createQueryClient } from './app/queryClient'
@@ -45,6 +46,7 @@ import { EditorUploadScreen } from './screens/EditorUploadScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { OutOfScopeScreen } from './screens/OutOfScopeScreen'
 import { ProfileScreen } from './screens/ProfileScreen'
+import { SourceDocumentScreen } from './screens/SourceDocumentScreen'
 import { LearningLibraryScreen } from './screens/LearningLibraryScreen'
 import { ArticleDetailScreen } from './screens/ArticleDetailScreen'
 import { QuizScreen } from './screens/QuizScreen'
@@ -81,6 +83,19 @@ function ChatRoute() {
   const opened = conversationId ?? null
 
   return <ChatScreen key={opened ?? location.key} openedConversationId={opened} />
+}
+
+/**
+ * Một tài liệu có thể được trích nhiều chunk. Khóa theo cả chunk khiến lần bấm
+ * vào nguồn [2], [3] remount màn đối chiếu thay vì giữ lại vị trí/highlight của
+ * nguồn [1] khi chỉ query string thay đổi.
+ */
+function SourceDocumentRoute() {
+  const { documentId } = useParams()
+  const [searchParams] = useSearchParams()
+  const chunkId = searchParams.get('chunk') ?? ''
+
+  return <SourceDocumentScreen key={`${documentId ?? ''}:${chunkId}`} />
 }
 
 /**
@@ -162,6 +177,14 @@ function App() {
                     element={
                       <RequireRole role="patient">
                         <ChatRoute />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="sources/:documentId"
+                    element={
+                      <RequireRole role="patient">
+                        <SourceDocumentRoute />
                       </RequireRole>
                     }
                   />

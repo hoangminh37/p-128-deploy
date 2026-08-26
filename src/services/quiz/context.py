@@ -5,7 +5,7 @@ Ba nguồn khác nhau ở MỨC ĐỘ TIN CẬY của nội dung, và cách xử
 - ``article``      — nội dung đã qua ETL và HITL duyệt, nằm sẵn trong bảng
                      Article. Dùng thẳng, không cần truy xuất lại.
 - ``conversation`` — CẶP HỎI-ĐÁP của chính phiên chat đó. Không truy xuất lại
-                     ChromaDB: câu trả lời đã qua ``selfrag_verifier`` nên đã là
+                     ChromaDB: câu trả lời đã qua ``generate_and_verify`` nên đã là
                      nội dung có nguồn, và nó đúng là thứ người bệnh vừa đọc.
 - ``profile``      — ÔN TẬP TỔNG HỢP. Dựng từ dấu vết học tập của chính người
                      này: bài đã hoàn thành, CẶP HỎI-ĐÁP đã trao đổi, và những
@@ -13,7 +13,7 @@ Ba nguồn khác nhau ở MỨC ĐỘ TIN CẬY của nội dung, và cách xử
                      theo bệnh.
 
                      Câu TRẢ LỜI của trợ lý được dùng làm nguồn kiến thức, không
-                     chỉ câu hỏi. Nó đã qua ``selfrag_verifier`` nên chỉ được gửi
+                     chỉ câu hỏi. Nó đã qua ``generate_and_verify`` nên chỉ được gửi
                      đi khi bám được tài liệu đã duyệt — và nó đúng là thứ người
                      bệnh đã đọc. Nhờ vậy khỏi phải truy xuất lại ChromaDB, bớt
                      được một lượt embedding cộng một lần tìm kiếm khỏi độ trễ.
@@ -232,7 +232,7 @@ async def build_from_conversation(
     # - Lệch. Tài liệu tìm về là những đoạn KHÁC với thứ người bệnh vừa đọc, nên
     #   đề hỏi ra ngoài phạm vi cuộc trò chuyện — đúng thứ nút bấm hứa sẽ không làm.
     #
-    # Câu trả lời của trợ lý đã đi qua `selfrag_verifier`, chỉ được gửi đi khi
+    # Câu trả lời của trợ lý đã đi qua `generate_and_verify`, chỉ được gửi đi khi
     # bám được tài liệu đã duyệt. Nó vừa là nội dung có nguồn, vừa đúng là thứ
     # người bệnh vừa đọc.
     cap: list[str] = []
@@ -356,7 +356,7 @@ async def _asked_qa_pairs(db: AsyncSession, patient_id: str | None) -> list[tupl
     ChromaDB để có nguồn ra đề, tốn thêm một lượt gọi Cohere và một lượt tìm
     kiếm, mà tài liệu lấy về lại KHÁC với thứ người bệnh thật sự đã đọc.
 
-    Câu trả lời của trợ lý đã đi qua `selfrag_verifier` — nó chỉ được gửi đi khi
+    Câu trả lời của trợ lý đã đi qua `generate_and_verify` — nó chỉ được gửi đi khi
     bám được vào tài liệu đã duyệt. Nói cách khác nó ĐÃ LÀ nội dung có nguồn, và
     quan trọng hơn: nó đúng là thứ người bệnh đã đọc. Ra đề trên chính nó vừa
     sát hơn vừa bỏ được cả bước truy xuất.
@@ -444,7 +444,7 @@ def _cumulative_context(
 
     if hoi_dap:
         # Cặp hỏi-đáp đóng HAI vai cùng lúc: chỉ dấu chủ đề người học chưa chắc,
-        # VÀ nguồn kiến thức. Phần trả lời đã qua selfrag_verifier nên chỉ được
+        # VÀ nguồn kiến thức. Phần trả lời đã qua generate_and_verify nên chỉ được
         # gửi đi khi bám được vào tài liệu đã duyệt — nó đã là nội dung có nguồn,
         # và đúng là thứ người bệnh đã đọc.
         doan = [

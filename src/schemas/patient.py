@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import re
+from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+_DIAGNOSED_AT_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
 class UserInfo(BaseModel):
@@ -40,7 +44,24 @@ class PatientProfile(BaseModel):
     primary_condition: Literal["type2_diabetes", "hypertension"]
     comorbidities: list[Literal["type2_diabetes", "hypertension"]] = Field(default_factory=list)
     diagnosed_at: str | None = None
+    height_cm: int | None = Field(default=None, ge=100, le=250)
+    weight_kg: float | None = Field(default=None, ge=25, le=300)
     asking_as: Literal["self", "caregiver"] = "self"
+
+    @field_validator("diagnosed_at")
+    @classmethod
+    def diagnosed_at_must_be_a_month(cls, value: str | None) -> str | None:
+        """Keep the API contract aligned with the ``<input type=month>`` UI."""
+        if value is not None and not _DIAGNOSED_AT_RE.fullmatch(value):
+            raise ValueError("diagnosed_at phải theo định dạng YYYY-MM")
+        if value is not None:
+            try:
+                diagnosed_month = date.fromisoformat(f"{value}-01")
+            except ValueError as exc:
+                raise ValueError("diagnosed_at phải theo định dạng YYYY-MM") from exc
+            if diagnosed_month > date.today().replace(day=1):
+                raise ValueError("Thời điểm chẩn đoán không thể ở tương lai")
+        return value
 
 
 class PatientProfileResponse(PatientProfile):

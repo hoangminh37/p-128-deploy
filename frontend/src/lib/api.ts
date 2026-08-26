@@ -48,12 +48,14 @@ import {
   quizSubmitResponseSchema,
   quizHistoryResponseSchema,
   quizMistakesResponseSchema,
+  sourceDocumentSchema,
   type QuizMistakesResponse,
   type QuizRequest as QuizRequestPayload,
   type QuizResponse,
   type QuizSubmitRequest,
   type QuizSubmitResponse,
   type QuizHistoryResponse,
+  type SourceDocument,
 } from './schemas'
 
 // ---------------------------------------------------------------------------
@@ -633,6 +635,16 @@ export function getPatientProfile(patientId: string): Promise<PatientProfileResp
     path: `/patients/${encodeURIComponent(patientId)}/profile`,
     method: 'GET',
     schema: patientProfileResponseSchema,
+  })
+}
+
+/** Mở tài liệu đã duyệt và đánh dấu đúng chunk được citation trỏ tới. */
+export function getSourceDocument(documentId: string, chunkId: string): Promise<SourceDocument> {
+  const params = new URLSearchParams({ chunk_id: chunkId })
+  return request({
+    path: `/sources/documents/${encodeURIComponent(documentId)}?${params.toString()}`,
+    method: 'GET',
+    schema: sourceDocumentSchema,
   })
 }
 

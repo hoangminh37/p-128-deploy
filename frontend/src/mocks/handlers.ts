@@ -26,6 +26,7 @@ import {
   editorQueueFixture,
   outOfScopeFixture,
   patientProfileFixture,
+  sourceDocumentFixtures,
   chatFixtures,
 } from './fixtures'
 import type { ChatStatus } from '../lib/schemas'
@@ -339,6 +340,20 @@ export const handlers = [
     }
 
     return HttpResponse.json(saved)
+  }),
+
+  /** Mở tài liệu đã duyệt tại đúng chunk citation đã trỏ tới. */
+  http.get(url('/sources/documents/:documentId'), async ({ params, request }) => {
+    await delay(QUICK_DELAY_MS)
+
+    const documentId = String(params.documentId)
+    const source = sourceDocumentFixtures[documentId]
+    const chunkId = new URL(request.url).searchParams.get('chunk_id')
+    if (source === undefined || chunkId === null || !source.chunks.some((chunk) => chunk.chunk_id === chunkId)) {
+      return HttpResponse.json({ detail: 'Không tìm thấy đoạn được trích dẫn' }, { status: 404 })
+    }
+
+    return HttpResponse.json({ ...source, highlighted_chunk_id: chunkId })
   }),
 
   /** Mục 7 — danh sách phiên hội thoại. */

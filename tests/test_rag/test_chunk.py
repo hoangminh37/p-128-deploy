@@ -1,5 +1,7 @@
 """Test cho bước lọc rác, cắt chunk và gắn metadata."""
 
+import json
+
 import pytest
 
 from src.rag.chunk import (
@@ -11,7 +13,7 @@ from src.rag.chunk import (
     group_into_chunks,
 )
 from src.rag.config import RagSettings
-from src.rag.elements import Element
+from src.rag.elements import Element, TableCell, TableStructure
 from src.rag.registry import SourceDoc
 from src.rag.structure import build_section_paths
 
@@ -258,6 +260,29 @@ class TestBuildChunks:
         chunks, _ = build_chunks(doc, build_section_paths([table]), settings)
         assert len(chunks) == 1
         assert chunks[0].metadata["kind"] == "table"
+
+    def test_luu_luoi_bang_tu_parser_vao_metadata(self, settings, doc):
+        table = Element(
+            kind="table",
+            text="| Độ | Tâm thu |\n| --- | --- |\n| 1 | 140 |",
+            table=TableStructure(
+                rows=2,
+                columns=2,
+                cells=[
+                    TableCell("Độ", 0, 0, is_column_header=True),
+                    TableCell("Tâm thu", 0, 1, is_column_header=True),
+                    TableCell("1", 1, 0, is_row_header=True),
+                    TableCell("140", 1, 1),
+                ],
+            ),
+        )
+
+        chunks, _ = build_chunks(doc, build_section_paths([table]), settings)
+
+        structure = json.loads(chunks[0].metadata["table_structure"])
+        assert structure["rows"] == 2
+        assert structure["cells"][1]["text"] == "Tâm thu"
+        assert structure["cells"][2]["is_row_header"] is True
 
     def test_chunk_id_on_dinh_theo_noi_dung(self, settings, doc):
         els = build_section_paths([text_el(LONG)])

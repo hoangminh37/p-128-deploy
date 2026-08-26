@@ -5,6 +5,8 @@ Phần được kiểm là logic của ta — chọn provider, dựng mệnh đ�
 khoảng cách thành độ tương đồng, và cộng điểm ưu tiên theo năm ban hành.
 """
 
+import json
+
 import pytest
 
 from src.rag.config import RagSettings
@@ -31,8 +33,10 @@ class FakeCollection:
 
     def __init__(self, response=None, count=100):
         self.response = response or {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
+        self.get_response: dict = {"ids": [], "documents": [], "metadatas": []}
         self._count = count
         self.last_query: dict = {}
+        self.last_get: dict = {}
         self.deleted: list = []
 
     def query(self, **kwargs):
@@ -46,7 +50,10 @@ class FakeCollection:
         self.deleted.append(where)
         self._count = 0
 
-    def get(self, include=None):
+    def get(self, **kwargs):
+        self.last_get = kwargs
+        if kwargs.get("where") is not None:
+            return self.get_response
         return {"metadatas": [{"doc_id": "a"}, {"doc_id": "a"}, {"doc_id": "b"}]}
 
 
@@ -127,6 +134,15 @@ class TestSearchFilter:
         store.search("abc", disease="copd")
         assert store.collection.last_query["where"] == {"disease_copd": True}
 
+    def test_loc_or_khi_ho_so_co_nhieu_benh(self, store):
+        store.search("abc", disease=["type2_diabetes", "hypertension"])
+        assert store.collection.last_query["where"] == {
+            "$or": [
+                {"disease_type2_diabetes": True},
+                {"disease_hypertension": True},
+            ]
+        }
+
     def test_khong_loc_khi_khong_chi_dinh_benh(self, store):
         store.search("abc")
         assert store.collection.last_query["where"] is None
@@ -192,12 +208,54 @@ class TestSearchScoring:
         hits = store.search("abc")
         assert hits[0].score == hits[1].score
 
+    def test_hoa_diem_thi_sap_xep_theo_chunk_id_de_lap_lai_duoc(self, store):
+        store.collection.response = make_response(
+            [
+                ("chunk-z", "z", {"priority": 0.0}, 0.20),
+                ("chunk-a", "a", {"priority": 0.0}, 0.20),
+            ]
+        )
+
+        assert [hit.chunk_id for hit in store.search("abc")] == ["chunk-a", "chunk-z"]
+
 
 class TestDeleteByDoc:
     def test_xoa_theo_doc_id(self, store):
         removed = store.delete_by_doc("tai-lieu-x")
         assert store.collection.deleted == [{"doc_id": "tai-lieu-x"}]
         assert removed == 100  # count 100 -> 0
+
+
+class TestDocumentChunks:
+    def test_chi_lay_chunk_cua_mot_tai_lieu_va_sap_xep_theo_thu_tu_doc(self, store):
+        store.collection.get_response = {
+            "ids": ["doc-a::0002::later", "doc-a::0001::first"],
+            "documents": ["Nội dung sau", "Nội dung đầu"],
+            "metadatas": [
+                {"section_path": "Phần 2", "page_start": 3, "page_end": 4},
+                {
+                    "section_path": "Phần 1",
+                    "page_start": 1,
+                    "page_end": 1,
+                    "table_structure": json.dumps(
+                        {
+                            "rows": 2,
+                            "columns": 2,
+                            "cells": [{"text": "A", "row": 0, "column": 0}],
+                        }
+                    ),
+                },
+            ],
+        }
+
+        chunks = store.document_chunks("doc-a")
+
+        assert store.collection.last_get["where"] == {"doc_id": "doc-a"}
+        assert store.collection.last_get["include"] == ["documents", "metadatas"]
+        assert [chunk["chunk_id"] for chunk in chunks] == ["doc-a::0001::first", "doc-a::0002::later"]
+        assert chunks[0]["section_path"] == "Phần 1"
+        assert chunks[0]["table"]["cells"][0]["text"] == "A"
+        assert chunks[1]["page_end"] == 4
 
 
 class TestHitCitation:

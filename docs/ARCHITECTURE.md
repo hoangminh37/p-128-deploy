@@ -1,5 +1,10 @@
 # Architecture Document
 
+> **Lưu ý (2026-08-26):** LangGraph pipeline bên dưới phản ánh thiết kế v1 và
+> được giữ lại để tham khảo lịch sử. Luồng đang chạy là v2, xem
+> [LangGraph v2](langgraph-v2.md). V2 gộp preprocessing, bỏ CRAG/retry, rồi
+> dùng một node generation và một node verifier độc lập theo kiểu fail-closed.
+
 ## System Overview
 
 Hệ thống là một Medical AI Agent được xây dựng trên kiến trúc 3 tầng (Client → FastAPI Backend → AI Agent + Data Layer), sử dụng LangGraph làm AI Orchestration Engine với pipeline RAG nâng cao tích hợp CRAG, Self-RAG và Safety Guardrails chuyên biệt cho lĩnh vực Y tế. Agent được phân loại theo pattern Router Agent + RAG Agent, phù hợp với bài toán hỏi đáp y tế có nhiều loại intent khác nhau (giáo dục, khẩn cấp, chẩn đoán).

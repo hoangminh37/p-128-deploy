@@ -1,41 +1,68 @@
-"""Intent classification prompt."""
+"""Semantic scope and task classification prompt for the first graph node."""
 
 from __future__ import annotations
 
 from langchain_core.prompts import ChatPromptTemplate
 
-INTENT_SYSTEM = """Bạn là một hệ thống phân loại câu hỏi y tế.
+INTENT_SYSTEM = """Bạn là bộ phân loại đầu vào cho trợ lý giáo dục sức khỏe.
 
-Nhiệm vụ: Phân loại câu hỏi của người dùng thành MỘT trong năm loại sau:
-- education: Câu hỏi tìm hiểu kiến thức y tế chung (triệu chứng, bệnh lý, phòng bệnh)
-- red_flag: Câu hỏi mô tả tình trạng khẩn cấp nguy hiểm tính mạng
-- diagnosis: Yêu cầu chẩn đoán cá nhân hoặc kê toa thuốc
-- greeting: Chào hỏi, cảm ơn, tạm biệt, hoặc hỏi trợ lý là ai / làm được những gì
-- profile: Câu hỏi về thông tin cá nhân của người bệnh (ví dụ: tuổi, giới tính, bệnh nền, thuốc đang dùng, tình trạng của tôi)
-- out_of_domain: Chủ đề hoàn toàn không liên quan đến y tế (thời tiết, thể thao, lập trình...)
+Phân loại dựa trên Ý ĐỊNH của người dùng, không dựa vào việc họ có dùng thuật
+ngữ y khoa hay không. Trả về đúng một JSON object, không markdown, không giải
+thích:
+{{"intent":"...","scope":"...","task_kind":"..."}}
 
-Quy tắc:
-1. Ưu tiên "red_flag" nếu có dấu hiệu nguy hiểm (khó thở, đau ngực, mất ý thức, v.v.)
-2. Ưu tiên "diagnosis" khi người dùng XIN MỘT KẾT LUẬN hoặc XIN THUỐC:
-   - "tôi bị bệnh gì", "có phải tôi bị tiểu đường không", "chẩn đoán giúp tôi"
-   - "uống thuốc gì", "liều bao nhiêu", "cho tôi xin đơn thuốc"
+intent chỉ được là một trong:
+- education: kiến thức sức khỏe hoặc gợi ý thực hành trong phạm vi sức khỏe
+- red_flag: tình trạng có thể khẩn cấp
+- diagnosis: xin chẩn đoán, kê toa, đổi thuốc hoặc đổi liều
+- greeting: chỉ chào hỏi/cảm ơn/tạm biệt/hỏi về trợ lý
+- profile: hỏi thông tin của chính họ trong hồ sơ
+- out_of_domain: chủ đề không liên quan sức khỏe hay lối sống sức khỏe
 
-   MÔ TẢ TRIỆU CHỨNG KHÔNG PHẢI LÀ XIN CHẨN ĐOÁN. Người bệnh kể "tôi đau bụng",
-   "mấy hôm nay tôi mệt", "bụng tôi đau âm ỉ" là đang KỂ TÌNH TRẠNG, không đòi
-   kết luận. Những câu như vậy:
-   - có dấu hiệu nguy hiểm  -> "red_flag"
-   - còn lại                -> "education" (giải thích kiến thức, kèm khuyến cáo đi khám)
+scope chỉ được là: in_scope | out_of_scope.
 
-   Xếp chúng vào "diagnosis" là đẩy sang luồng từ chối, khiến người bệnh kể bệnh
-   xong lại nhận câu "tôi không thể chẩn đoán" — họ có hỏi chẩn đoán đâu.
-3. Chọn "greeting" nếu chỉ chào hỏi hoặc hỏi về chính trợ lý, không hỏi gì về sức khỏe
-4. Chọn "profile" nếu người dùng hỏi về thông tin cá nhân của họ dựa trên hồ sơ
-5. Chọn "out_of_domain" nếu hỏi một chủ đề thật nhưng nằm ngoài lĩnh vực y tế
-6. Còn lại là "education"
+task_kind chỉ được là một trong:
+- health_education
+- meal_recommendation
+- activity_plan
+- monitoring_plan
+- appointment_preparation
+- self_care_plan
+- measurement_interpretation
+- profile_question
+- greeting
+- out_of_scope
+- safety
 
-Chỉ trả về đúng một từ: education | red_flag | diagnosis | greeting | profile | out_of_domain"""
+Quy tắc phân loại:
+1. Ưu tiên red_flag nếu có dấu hiệu nguy hiểm; diagnosis nếu người dùng xin kết
+   luận bệnh, đơn thuốc hoặc thay đổi liều. Hai trường hợp này dùng
+   task_kind="safety".
+2. Một câu hỏi về ăn uống, bữa ăn, món ăn, thực đơn, ăn vặt, vận động, ngủ nghỉ,
+   theo dõi chỉ số, tự chăm sóc, hoặc chuẩn bị đi khám LÀ trong phạm vi, kể cả
+   khi không nhắc tên bệnh. Đây không phải out_of_domain chỉ vì câu hỏi đời
+   thường hoặc chưa có bệnh nền.
+3. Với một đề nghị cụ thể như chọn món/bữa ăn, chọn meal_recommendation. Với
+   chuẩn bị khám hoặc tái khám, chọn appointment_preparation. Chỉ phân loại;
+   không tự quyết định rằng thư viện có đủ tài liệu hay không.
+4. Câu mô tả triệu chứng nhưng không yêu cầu chẩn đoán: red_flag nếu nguy hiểm,
+   còn lại education với task_kind phù hợp (thường health_education hoặc
+   self_care_plan).
+5. Câu hỏi về một chỉ số/xét nghiệm là cao, thấp, bình thường, mục tiêu hay có
+   ngưỡng chẩn đoán nào thì chọn measurement_interpretation. Đây vẫn là giáo
+   dục sức khoẻ, không phải chẩn đoán.
+6. greeting có scope="in_scope" và task_kind="greeting". profile có
+   scope="in_scope" và task_kind="profile_question". out_of_domain chỉ dùng
+   cho chủ đề thật sự không liên quan như thể thao, thời tiết, lập trình.
+7. Nếu không chắc, ưu tiên education + health_education để hệ thống còn có cơ
+   hội tra tài liệu; không dùng out_of_domain chỉ vì câu hỏi ngắn hoặc mơ hồ.
 
-INTENT_HUMAN = "Câu hỏi: {query}"
+Không trả lời câu hỏi của người dùng."""
+
+INTENT_HUMAN = """Hồ sơ tối thiểu (chỉ để hiểu bối cảnh, không phải nguồn y khoa):
+{patient_context}
+
+Câu hỏi: {query}"""
 
 intent_prompt = ChatPromptTemplate.from_messages(
     [

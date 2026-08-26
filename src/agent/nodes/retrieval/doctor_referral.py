@@ -22,17 +22,15 @@ Bạn cũng có thể thử hỏi lại theo cách khác, hoặc hỏi tôi mộ
 async def doctor_referral_node(state: AgentState) -> AgentState:
     """Node 8 — Doctor Referral fallback.
 
-    Kích hoạt ở ba tình huống, đều quy về "kho tài liệu không đủ để trả lời":
-    - relevant_strips = [] sau CRAG evaluation
-    - selfrag chấm answers_question = False (trả lời lạc đề)
-    - selfrag chấm support_level = no_support (trả lời không có nguồn)
+    Kích hoạt khi không có tài liệu, hoặc khi generate_and_verify xác định câu
+    trả lời lạc đề / không đủ nguồn. Các tình huống đều quy về "kho tài liệu
+    không đủ để trả lời".
 
     Template cố định, không gọi LLM. Đặt intent = "doctor_referral" để API map
     được sang status "referral" cho frontend — thiếu dòng này thì câu từ chối
     bị gắn nhãn "answered" và hiện ra như một câu trả lời bình thường.
     """
-    query = state.get("query", "")
-    logger.info("[doctor_referral] không đủ tài liệu cho query=%.60s", query)
+    logger.info("[doctor_referral] không đủ tài liệu cho câu hỏi hiện tại")
 
     return {
         **state,

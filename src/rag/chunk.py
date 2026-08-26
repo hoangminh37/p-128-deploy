@@ -13,6 +13,7 @@ Ba nguyên tắc:
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -405,6 +406,11 @@ def build_chunks(
             "sha256": digest,
             "repairs": ",".join(sorted({r.split(":")[0] for e in group for r in e.repairs})),
         }
+        if group[0].kind == "table" and group[0].table is not None:
+            # Chroma metadata accepts scalar values only.  Lưu JSON ở đây để
+            # vector search vẫn dùng cùng một collection, còn endpoint source
+            # có thể dựng lại đúng hàng/cột/cell span mà không đoán từ Markdown.
+            metadata["table_structure"] = json.dumps(group[0].table.as_dict(), ensure_ascii=False)
 
         chunks.append(
             Chunk(

@@ -24,7 +24,6 @@ import { AnswerTurn, QuestionHeading, type Turn } from '../ui/AnswerTurn'
 import { ChatComposer } from '../ui/ChatComposer'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { LibraryIcon } from '../ui/icons'
-import { Mascot } from '../ui/Mascot'
 import { QuizPanel } from '../ui/QuizPanel'
 import { SuggestedQuestions } from '../ui/SuggestedQuestions'
 
@@ -56,33 +55,70 @@ function historyToTurns(messages: ConversationMessage[]): Turn[] {
 }
 
 /**
- * Khối chờ, hiện từ lúc gửi câu hỏi tới lúc token đầu tiên về.
+ * Lời cập nhật trong lúc chờ câu trả lời.
  *
- * Thay cho một dòng chữ tĩnh của bản trước. Một dòng chữ đứng im không phân biệt
- * được với một ứng dụng vừa treo, mà khoảng chờ ở đây có thể kéo tới vài chục
- * giây — người 45–70 tuổi sẽ bấm lại hoặc tải lại trang trong lúc máy chủ vẫn
- * đang chạy.
- *
- * Linh vật thở: chu kỳ 2 giây, biên độ 4,5%. Nhỏ tới mức không thành thứ phải
- * nhìn, nhưng đủ để mắt bắt được rằng có gì đó vẫn đang sống. Đây là chỗ thứ tư
- * và cuối cùng linh vật được phép xuất hiện — xem danh sách ở `Mascot.tsx`.
- *
- * DÒNG CHỮ GIỮ NGUYÊN, và giữ nguyên cả `role="status"`. Hoạt ảnh là lớp phụ:
- * người dùng trình đọc màn hình, và người đã tắt hiệu ứng ở hệ điều hành, vẫn
- * phải nhận đúng thông tin đó bằng lời. Hoạt ảnh tự tắt ở
- * `prefers-reduced-motion: reduce` (xem `index.css`) và lúc đó khối này rút về
- * đúng bằng bản chữ cũ, chỉ thêm một hình đứng im.
+ * Event SSE mang tên node và icon để các client khác có thể dùng, nhưng màn
+ * hỏi đáp không nên phơi quy trình nội bộ cho người bệnh. Mỗi bước được đổi
+ * thành một câu đời thường: đủ để họ biết hệ thống vẫn đang làm việc, không
+ * biến cuộc trò chuyện thành màn hình kỹ thuật.
  */
-function WaitingBlock() {
-  return (
-    <div className="flex max-w-answer items-center gap-cozy rounded-card-lg bg-surface p-cozy">
-      <span className="shrink-0 motion-safe:animate-breathe">
-        <Mascot variant="muted" size={64} />
-      </span>
+const STREAMING_COPY: Record<string, { title: string; detail: string }> = {
+  intent_router: {
+    title: 'Tôi đang đọc kỹ câu hỏi của bạn.',
+    detail: 'Sau đó tôi sẽ tìm thông tin phù hợp trong thư viện đã được duyệt.',
+  },
+  query_preprocessor: {
+    title: 'Tôi đang đặt câu hỏi vào đúng ngữ cảnh.',
+    detail: 'Thông tin trong hồ sơ chỉ được dùng khi thật sự liên quan.',
+  },
+  hybrid_retrieval: {
+    title: 'Tôi đang tìm tài liệu phù hợp.',
+    detail: 'Tôi sẽ chỉ dùng thông tin có nguồn để trả lời bạn.',
+  },
+  generate_and_verify: {
+    title: 'Tôi đang đối chiếu câu trả lời với tài liệu.',
+    detail: 'Việc này giúp câu trả lời bám sát nguồn hơn.',
+  },
+  memory_checkpoint: {
+    title: 'Tôi đang hoàn thiện câu trả lời cho bạn.',
+    detail: 'Bạn chờ tôi một chút nhé.',
+  },
+  emergency_handler: {
+    title: 'Tôi đang ưu tiên kiểm tra dấu hiệu cần được xử lý ngay.',
+    detail: 'An toàn của bạn được đặt lên trước câu trả lời thông thường.',
+  },
+  refuse_handler: {
+    title: 'Tôi đang kiểm tra giới hạn an toàn của câu hỏi.',
+    detail: 'Một số quyết định cần do bác sĩ điều trị trực tiếp đưa ra.',
+  },
+  doctor_referral: {
+    title: 'Tôi đang kiểm tra mức độ thông tin có trong thư viện.',
+    detail: 'Tôi sẽ nói rõ nếu tài liệu chưa đủ để trả lời chính xác.',
+  },
+  out_of_domain_handler: {
+    title: 'Tôi đang xác định câu hỏi này có nằm trong phạm vi hỗ trợ không.',
+    detail: 'Tôi sẽ hướng bạn đến cách nhận được hỗ trợ phù hợp nhất.',
+  },
+  profile_handler: {
+    title: 'Tôi đang xem thông tin trong hồ sơ của bạn.',
+    detail: 'Tôi chỉ dùng dữ liệu hồ sơ để trả lời đúng câu hỏi bạn vừa đặt.',
+  },
+}
 
-      <p role="status" className="font-display min-w-0 text-question text-slate">
-        Đang xử lý và tổng hợp dữ liệu y khoa chính xác…
-      </p>
+function WaitingBlock({ step }: { step: StreamStepEvent | null }) {
+  const copy =
+    (step === null ? undefined : STREAMING_COPY[step.node]) ??
+    STREAMING_COPY.intent_router
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="max-w-answer rounded-card-lg border-2 border-line bg-surface p-cozy"
+    >
+      <p className="font-display text-note font-semibold text-slate">Trợ lý sức khỏe</p>
+      <p className="mt-hair text-input font-semibold text-body">{copy.title}</p>
+      <p className="font-display mt-tight text-question text-slate">{copy.detail}</p>
     </div>
   )
 }
@@ -417,8 +453,8 @@ export function ChatScreen({
     setStreamedAnswer('')
     setCurrentStep({
       node: 'intent_router',
-      message: '🔍 Đang phân tích câu hỏi...',
-      icon: '🔍',
+      message: 'Đang đọc câu hỏi của bạn…',
+      icon: '',
     })
 
     try {
@@ -535,20 +571,10 @@ export function ChatScreen({
           <AnswerTurn key={turn.key} turn={turn} />
         ))}
 
-        {/* ── Khối Streaming Tiến trình & Token Realtime ────────────────── */}
+        {/* ── Khối Streaming: lời cập nhật trước, rồi câu trả lời khi có ─── */}
         {isStreaming && pendingQuestion !== null && (
           <div className="mb-turn animate-answer-in">
             <QuestionHeading question={pendingQuestion} />
-
-            {/* Badge hiển thị Node LangGraph đang thực thi */}
-            <div className="mt-cozy mb-block flex">
-              <span className="font-display flex w-fit items-center gap-tight rounded-pill bg-mint px-snug py-hair text-question font-semibold text-ink">
-                <span aria-hidden="true">{currentStep?.icon ?? '⏳'}</span>
-                <span>
-                  {currentStep?.message ?? 'Đang tra cứu trong thư viện đã duyệt…'}
-                </span>
-              </span>
-            </div>
 
             {/* Hiển thị câu trả lời streaming realtime nếu đã có token */}
             {streamedAnswer ? (
@@ -565,7 +591,9 @@ export function ChatScreen({
                 </p>
               </div>
             ) : (
-              <WaitingBlock />
+              <div className="mt-cozy">
+                <WaitingBlock step={currentStep} />
+              </div>
             )}
           </div>
         )}
@@ -617,4 +645,3 @@ export function ChatScreen({
     </div>
   )
 }
-

@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 
 async def memory_checkpoint_node(state: AgentState) -> AgentState:
-    """Node 13 — lưu checkpoint và finalize pipeline.
+    """Finalize pipeline sau khi câu trả lời đã qua gate generate-and-verify.
 
     MVP: Chỉ log + cập nhật metadata (không lưu PostgreSQL/Redis).
     Post-MVP: Lưu Q&A + citations vào PostgreSQL, update Redis session.
@@ -35,7 +35,6 @@ async def memory_checkpoint_node(state: AgentState) -> AgentState:
         "completed_at": time.time(),
         "intent": intent,
         "support_level": support_level,
-        "retry_count": state.get("retry_count", 0),
     }
 
     return {**state, "metadata": metadata}

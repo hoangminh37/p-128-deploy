@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, relationship
 
@@ -31,11 +31,28 @@ class Patient(Base):
     primary_condition = Column(String, nullable=False)
     comorbidities = Column(JSON_TYPE, default=list)
     diagnosed_at = Column(String, nullable=True)
+    height_cm = Column(Integer, nullable=True)
+    weight_kg = Column(Float, nullable=True)
     asking_as = Column(String, default="self")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="patient_profile")
     conversations = relationship("Conversation", back_populates="patient")
+    routine_memory = relationship("PatientRoutineMemory", back_populates="patient", uselist=False)
+
+
+class PatientRoutineMemory(Base):
+    """Thông tin routine do người bệnh tự nêu, tách khỏi hồ sơ bệnh chính thức."""
+
+    __tablename__ = "patient_routine_memories"
+
+    id = Column(String, primary_key=True, default=lambda: f"rm_{uuid.uuid4().hex[:10]}")
+    patient_id = Column(String, ForeignKey("patients.id"), unique=True, index=True, nullable=False)
+    entries = Column(JSON_TYPE, default=list, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    patient = relationship("Patient", back_populates="routine_memory")
 
 
 class Conversation(Base):

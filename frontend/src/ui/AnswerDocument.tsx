@@ -51,6 +51,7 @@
  * tài liệu cụt lủn thì không chứng minh được gì cho đoạn đó.
  */
 import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { splitParagraphs } from '../lib/paragraphs'
 import {
@@ -289,6 +290,13 @@ function CitationSnippet({ text, skin }: { text: string; skin: RailSkin }) {
  */
 function FullCitationCard({ citation, order }: RailCitation) {
   const skin = order === 0 ? RAIL_SKIN.lead : RAIL_SKIN.rest
+  const documentId = citation.document_id?.trim()
+  const chunkId = citation.chunk_id?.trim()
+  const originalUrl = citation.url?.trim()
+  const sourcePath =
+    documentId !== undefined && chunkId !== undefined && documentId !== '' && chunkId !== ''
+      ? `/sources/${encodeURIComponent(documentId)}?chunk=${encodeURIComponent(chunkId)}`
+      : null
 
   return (
     <div className={`rounded-card p-snug ${skin.card}`}>
@@ -298,7 +306,7 @@ function FullCitationCard({ citation, order }: RailCitation) {
           nguồn — mà muốn quét dọc được thì mọi thẻ phải đặt số ở cùng một chỗ,
           không phụ thuộc tên tài liệu dài hay ngắn. */}
       <p className={`font-mono text-question font-semibold ${skin.number}`}>
-        {String(citation.id).padStart(2, '0')}
+        Đoạn trích {String(citation.id).padStart(2, '0')}
       </p>
 
       <p className={`font-display mt-hair text-source font-semibold ${skin.title}`}>
@@ -315,17 +323,29 @@ function FullCitationCard({ citation, order }: RailCitation) {
         <p className={`font-mono text-question ${skin.meta}`}>{citation.doc_code}</p>
       )}
 
+      {sourcePath !== null && (
+        <Link
+          to={sourcePath}
+          className={`motion-press font-display mt-snug inline-flex min-h-touch items-center justify-center rounded-pill px-cozy text-question font-semibold no-underline ${skin.action}`}
+        >
+          Xem đoạn đã trích
+          <span className="sr-only">: {citation.title}</span>
+        </Link>
+      )}
+
       {/* Hợp đồng cho phép `url` bằng `null` — tài liệu chưa được đăng công khai
           thì không dựng một liên kết chết, người bệnh bấm vào sẽ mất lòng tin
           vào cả những nguồn còn lại. */}
-      {citation.url !== null && (
+      {originalUrl !== undefined && originalUrl !== '' && (
         <a
-          href={citation.url}
+          href={originalUrl}
           target="_blank"
           rel="noreferrer"
-          className={`motion-press font-display mt-snug inline-flex min-h-touch items-center justify-center rounded-pill px-cozy text-question font-semibold no-underline ${skin.action}`}
+          className={`motion-press font-display ${
+            sourcePath === null ? 'mt-snug' : 'mt-tight'
+          } inline-flex min-h-touch items-center justify-center rounded-pill px-cozy text-question font-semibold no-underline ${skin.action}`}
         >
-          Mở tài liệu
+          Mở toàn bộ tài liệu
           <span className="sr-only">: {citation.title}, mở ở tab mới</span>
         </a>
       )}
@@ -403,9 +423,9 @@ function CitationRail({
  * đường bao. Ở đây chúng đứng trên nền `canvas` của trang, nên nền trắng mới là
  * thứ tách chúng ra.
  *
- * Dòng tiêu đề nói rõ SỐ TÀI LIỆU. Ở bố cục hai cột, người đọc biết có bao nhiêu
- * nguồn bằng cách nhìn lề phải; ở bố cục này danh sách nằm dưới cuối và có thể
- * dài hơn một màn hình, nên con số phải nói ra bằng chữ.
+ * Dòng tiêu đề phân biệt số ĐOẠN TRÍCH và số TÀI LIỆU GỐC. Một văn bản có thể
+ * chứng minh nhiều ý trong câu trả lời; gọi ba chunk của cùng văn bản là "ba
+ * tài liệu" khiến người đọc tưởng nút mở tài liệu thứ hai, thứ ba bị hỏng.
  */
 function StackedCitations({
   citations,
@@ -414,6 +434,21 @@ function StackedCitations({
   citations: RailCitation[]
   headingId: string
 }) {
+  const documentCount = new Set(
+    citations.map(({ citation }) => {
+      // Citation cũ chưa có document_id: các trường hiển thị còn lại là khoá
+      // dự phòng để không gộp nhầm những nguồn không cùng văn bản.
+      return (
+        citation.document_id ??
+        [citation.title, citation.issuer, citation.doc_code ?? '', citation.url ?? ''].join('\u0000')
+      )
+    }),
+  ).size
+  const heading =
+    documentCount === citations.length
+      ? `Nguồn của câu trả lời · ${documentCount} tài liệu`
+      : `Nguồn của câu trả lời · ${citations.length} đoạn trích từ ${documentCount} tài liệu`
+
   return (
     <aside
       aria-labelledby={headingId}
@@ -423,7 +458,7 @@ function StackedCitations({
         id={headingId}
         className="font-display text-question font-semibold text-body"
       >
-        Nguồn của câu trả lời · {citations.length} tài liệu
+        {heading}
       </h2>
 
       <ul className="mt-snug grid grid-cols-2 gap-cozy">

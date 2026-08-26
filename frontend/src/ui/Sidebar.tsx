@@ -31,7 +31,7 @@ import { usePatient } from '../patient/context'
 import { useSession } from '../session/context'
 import { ConversationNav } from './ConversationNav'
 import { EditorNav } from './EditorNav'
-import { AppMark, CloseIcon, LibraryIcon, PlusIcon, UserIcon } from './icons'
+import { AppMark, CloseIcon, LibraryIcon, PlusIcon, QuizIcon, UserIcon } from './icons'
 import { SignOutButton } from './SignOutButton'
 import { useDailyLesson } from '../app/learning'
 
@@ -103,11 +103,10 @@ export function Sidebar({
             to="/learning"
             onClick={onNavigate}
             aria-current={isLearningOpen ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-pill px-cozy text-input font-semibold no-underline ${
-              isLearningOpen
+            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-pill px-cozy text-input font-semibold no-underline ${isLearningOpen
                 ? 'bg-white/10 text-white hover:bg-white/15'
                 : 'border-2 border-mist text-mist hover:bg-white/10 hover:text-white'
-            }`}
+              }`}
           >
             <LibraryIcon className="h-5 w-5 shrink-0" />
             Thư viện học tập
@@ -119,14 +118,13 @@ export function Sidebar({
             to="/quiz"
             onClick={onNavigate}
             aria-current={isQuizOpen ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-pill px-cozy text-input font-semibold no-underline ${
-              isQuizOpen
+            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-pill px-cozy text-input font-semibold no-underline ${isQuizOpen
                 ? 'bg-white/10 text-white hover:bg-white/15'
                 : 'border-2 border-mist text-mist hover:bg-white/10 hover:text-white'
-            }`}
+              }`}
           >
-            <span aria-hidden="true">🎯</span>
-            Trắc nghiệm kiến thức
+            <QuizIcon className="h-5 w-5 shrink-0" />
+            Test kiến thức
           </Link>
         </div>
       )}
@@ -148,9 +146,8 @@ export function Sidebar({
             to="/profile"
             onClick={onNavigate}
             aria-current={isProfileOpen ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center gap-snug px-snug py-tight no-underline hover:bg-white/10 ${
-              isProfileOpen ? 'bg-white/10' : ''
-            }`}
+            className={`font-display flex min-h-touch items-center gap-snug px-snug py-tight no-underline hover:bg-white/10 ${isProfileOpen ? 'bg-white/10' : ''
+              }`}
           >
             {/* Avatar tròn nền coral. Đây là chỗ DUY NHẤT màu coral xuất hiện
                 trong thanh bên, nên khối hồ sơ luôn tìm thấy được bằng mắt dù

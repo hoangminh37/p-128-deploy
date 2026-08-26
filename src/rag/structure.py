@@ -189,6 +189,10 @@ def merge_continued_tables(elements: list[Element]) -> list[Element]:
                     drop = 2
                 body = "\n".join(lines[drop:])
             prev.text = prev.text.rstrip() + "\n" + body.lstrip()
+            # Hai lưới độc lập đã được nối qua trang không còn ánh xạ 1:1 với
+            # cell offsets của từng phần. Để UI dùng fallback an toàn thay vì
+            # hiển thị nhầm một nửa bảng như thể đó là toàn bộ bảng.
+            prev.table = None
             prev.repairs.append(f"merged_table:p{prev.page}+p{cur.page}")
             continue
 

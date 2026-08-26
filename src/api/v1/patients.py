@@ -10,10 +10,17 @@ from src.schemas.patient import PatientProfile, PatientProfileResponse, UserInfo
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 
+def _require_profile_access(patient_id: str, current_user: UserInfo) -> None:
+    """A patient may only read or change the profile linked to their token."""
+    if current_user.role == "patient" and current_user.patient_id != patient_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Không có quyền dùng hồ sơ bệnh nhân này")
+
+
 @router.post("/profile", response_model=PatientProfileResponse)
 async def update_profile(
     profile_data: PatientProfile, db: AsyncSession = Depends(get_db), current_user: UserInfo = Depends(get_current_user)
 ):
+    _require_profile_access(profile_data.patient_id, current_user)
     result = await db.execute(select(Patient).filter(Patient.id == profile_data.patient_id))
     patient = result.scalars().first()
 
@@ -21,10 +28,13 @@ async def update_profile(
         # Create new? Actually the DB seeding creates it. If not found, we can create.
         patient = Patient(
             id=profile_data.patient_id,
+            user_id=current_user.user_id if current_user.role == "patient" else None,
             age=profile_data.age,
             primary_condition=profile_data.primary_condition,
             comorbidities=profile_data.comorbidities,
             diagnosed_at=profile_data.diagnosed_at,
+            height_cm=profile_data.height_cm,
+            weight_kg=profile_data.weight_kg,
             asking_as=profile_data.asking_as,
         )
         db.add(patient)
@@ -33,6 +43,8 @@ async def update_profile(
         patient.primary_condition = profile_data.primary_condition
         patient.comorbidities = profile_data.comorbidities
         patient.diagnosed_at = profile_data.diagnosed_at
+        patient.height_cm = profile_data.height_cm
+        patient.weight_kg = profile_data.weight_kg
         patient.asking_as = profile_data.asking_as
 
     await db.commit()
@@ -44,13 +56,20 @@ async def update_profile(
         primary_condition=patient.primary_condition,
         comorbidities=patient.comorbidities,
         diagnosed_at=patient.diagnosed_at,
+        height_cm=patient.height_cm,
+        weight_kg=patient.weight_kg,
         asking_as=patient.asking_as,
         updated_at=patient.updated_at.isoformat() + "Z" if patient.updated_at else "",
     )
 
 
 @router.get("/{patient_id}/profile", response_model=PatientProfileResponse)
-async def get_profile(patient_id: str, db: AsyncSession = Depends(get_db)):
+async def get_profile(
+    patient_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserInfo = Depends(get_current_user),
+):
+    _require_profile_access(patient_id, current_user)
     result = await db.execute(select(Patient).filter(Patient.id == patient_id))
     patient = result.scalars().first()
 
@@ -63,6 +82,8 @@ async def get_profile(patient_id: str, db: AsyncSession = Depends(get_db)):
         primary_condition=patient.primary_condition,
         comorbidities=patient.comorbidities,
         diagnosed_at=patient.diagnosed_at,
+        height_cm=patient.height_cm,
+        weight_kg=patient.weight_kg,
         asking_as=patient.asking_as,
         updated_at=patient.updated_at.isoformat() + "Z" if patient.updated_at else "",
     )
