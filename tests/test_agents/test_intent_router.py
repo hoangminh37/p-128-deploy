@@ -1,5 +1,6 @@
 """Contract tests for semantic scope/task decisions at the graph entry point."""
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -63,3 +64,17 @@ async def test_router_dua_bua_an_vao_luong_education(monkeypatch):
     assert result["intent"] == "education"
     assert result["scope"] == "in_scope"
     assert result["task_kind"] == "meal_recommendation"
+
+
+@pytest.mark.asyncio
+async def test_router_khong_dung_vo_han_khi_fast_llm_bi_treo(monkeypatch):
+    async def never_returns(_: object) -> object:
+        await asyncio.Future()
+
+    monkeypatch.setattr(intent_router, "get_fast_llm", lambda: RunnableLambda(never_returns))
+    monkeypatch.setattr(intent_router, "get_settings", lambda: SimpleNamespace(llm_fast_timeout_seconds=0.01))
+
+    result = await intent_router.intent_router_node({"query": "Tôi nên theo dõi sức khỏe thế nào?"})
+
+    assert result["intent"] == "education"
+    assert result["task_kind"] == "health_education"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 
 from src.agent.prompts.generate import generate_and_verify_prompt
@@ -9,13 +10,13 @@ from src.agent.state import AgentState
 from src.core.config import get_settings
 from src.core.logging import get_logger
 from src.rag.config import get_rag_settings
-from src.services.llm.factory import get_quality_llm
+from src.services.llm.factory import get_quality_llm_with_fallback
 from src.services.routine_memory import format_routine_memory
 
 logger = get_logger(__name__)
 
-MAX_CONTEXT_CHARS = 6_000
-MAX_SNIPPET_CHARS = 200
+MAX_CONTEXT_CHARS = 12_000  # tăng để LLM có nhiều context hơn → câu trả lời chi tiết hơn
+MAX_SNIPPET_CHARS = 350
 DISCLAIMER_PARTIAL = "⚠️ Một vài ý có thể chưa được tài liệu bao phủ đầy đủ; hãy hỏi bác sĩ trước khi áp dụng."
 
 _TAG_RE = {
@@ -91,13 +92,17 @@ def _sentence_for_label(answer: str, label: str) -> str:
 
 
 def _citations(answer: str, labels: dict[str, dict], cited: list[str]) -> list[dict]:
+    # Keep one citation for every marker label.  The API later renumbers
+    # ``[doc_N]`` markers from this exact list; deduplicating a same-chunk label
+    # here left an unreplaced marker in the answer and made answer/source views
+    # disagree. Retrieval IDs are already unique in normal Chroma results.
     return [
         {
             "doc_id": label,
+            "document_id": labels[label].get("document_id") or None,
             # A legacy/hand-built retrieved doc may not carry these fields.
             # Keep that citation viewable as a plain source card instead of
             # constructing a broken /sources/ URL in the client.
-            "document_id": labels[label].get("document_id") or None,
             "chunk_id": labels[label].get("chunk_id") or labels[label].get("doc_id") or None,
             "title": labels[label].get("title", ""),
             "source": labels[label].get("source", ""),
@@ -162,16 +167,20 @@ async def generate_and_verify_node(state: AgentState) -> AgentState:
     }
 
     try:
-        chain = generate_and_verify_prompt | get_quality_llm()
-        result = await chain.ainvoke(
-            {
-                "query": query,
-                "context": context,
-                "patient_context": _patient_context(state),
-                "task_kind": state.get("task_kind", "health_education"),
-            }
-        )
+        chain = get_quality_llm_with_fallback(lambda llm: generate_and_verify_prompt | llm)
+        async with asyncio.timeout(settings.llm_quality_total_timeout_seconds):
+            result = await chain.ainvoke(
+                {
+                    "query": query,
+                    "context": context,
+                    "patient_context": _patient_context(state),
+                    "task_kind": state.get("task_kind", "health_education"),
+                }
+            )
         analysis, answer, support_level, answers_question, citations = _parse(result.content, labels)
+    except TimeoutError:
+        logger.error("[generate_and_verify] quality chain timed out; withholding answer")
+        analysis, answer, support_level, answers_question, citations = "", "", "no_support", False, []
     except Exception as exc:
         logger.error("[generate_and_verify] LLM failed; withholding answer: %s", exc)
         analysis, answer, support_level, answers_question, citations = "", "", "no_support", False, []

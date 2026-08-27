@@ -53,20 +53,20 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { splitParagraphs } from '../lib/paragraphs'
 import {
   shouldStackRail,
   stackBottom,
   stackRailTops,
   type RailSlot,
 } from '../lib/railStack'
-import type { Citation } from '../lib/schemas'
+import type { Citation, TermAnnotation } from '../lib/schemas'
+import { AnnotatedText } from './AnnotatedAnswer'
 
 /** Marker trích dẫn trong `answer`, dạng `[1]`, `[2]`... Khớp mục 5 hợp đồng. */
 const CITATION_MARKER = /\[(\d+)\]/g
 
 type Segment =
-  | { kind: 'text'; value: string }
+  | { kind: 'text'; value: string; startOffset: number }
   | { kind: 'marker'; id: number }
 
 type Paragraph = {
@@ -91,6 +91,38 @@ type Paragraph = {
  */
 type RailCitation = { citation: Citation; order: number }
 
+type AnswerBlock = { value: string; startOffset: number }
+
+/**
+ * Cắt đoạn mà vẫn giữ toạ độ UTF-16 của từng block trong `answer` gốc.
+ * Annotation backend dùng chính coordinate space này; nếu gọi
+ * `splitParagraphs()` rồi tìm lại phrase, từ lặp lại ở đoạn khác có thể bị tô
+ * nhầm. `String.slice` của JavaScript cũng dùng UTF-16, nên offset này an toàn
+ * cả khi câu trả lời có emoji.
+ */
+function splitAnswerBlocks(answer: string): AnswerBlock[] {
+  const blocks: AnswerBlock[] = []
+  let cursor = 0
+
+  const addBlock = (rawStart: number, rawEnd: number) => {
+    const raw = answer.slice(rawStart, rawEnd)
+    const first = raw.search(/\S/)
+    if (first === -1) return
+    const lastWhitespace = raw.match(/\s*$/)?.[0].length ?? 0
+    const end = rawEnd - lastWhitespace
+    const start = rawStart + first
+    if (end > start) blocks.push({ value: answer.slice(start, end), startOffset: start })
+  }
+
+  for (const match of answer.matchAll(/\n\s*\n/g)) {
+    const separatorStart = match.index ?? cursor
+    addBlock(cursor, separatorStart)
+    cursor = separatorStart + match[0].length
+  }
+  addBlock(cursor, answer.length)
+  return blocks
+}
+
 /**
  * Cắt `answer` thành các đoạn văn, mỗi đoạn kèm đúng những nguồn nó trích dẫn.
  *
@@ -103,7 +135,8 @@ function parseAnswer(answer: string, citations: Citation[]): Paragraph[] {
   /** Nguồn nào đã hiện thẻ đầy đủ rồi, tính xuyên suốt cả bài. */
   const alreadyShown = new Set<number>()
 
-  return splitParagraphs(answer).map((block) => {
+  return splitAnswerBlocks(answer).map((blockInfo) => {
+    const block = blockInfo.value
     const segments: Segment[] = []
     const citedIds: number[] = []
     let cursor = 0
@@ -113,7 +146,9 @@ function parseAnswer(answer: string, citations: Citation[]): Paragraph[] {
       if (start > cursor) {
         // `trimEnd` chính là chỗ khử khoảng trắng trước marker.
         const text = block.slice(cursor, start).trimEnd()
-        if (text !== '') segments.push({ kind: 'text', value: text })
+        if (text !== '') {
+          segments.push({ kind: 'text', value: text, startOffset: blockInfo.startOffset + cursor })
+        }
       }
       const id = Number(match[1])
       segments.push({ kind: 'marker', id })
@@ -122,7 +157,7 @@ function parseAnswer(answer: string, citations: Citation[]): Paragraph[] {
     }
 
     if (cursor < block.length) {
-      segments.push({ kind: 'text', value: block.slice(cursor) })
+      segments.push({ kind: 'text', value: block.slice(cursor), startOffset: blockInfo.startOffset + cursor })
     }
 
     const paragraphCitations: RailCitation[] = []
@@ -570,9 +605,12 @@ function useCitationRailLayout(signature: string) {
 export function AnswerDocument({
   answer,
   citations,
+  annotations = [],
 }: {
   answer: string
   citations: Citation[]
+  /** Danh sách thuật ngữ y khoa cần highlight. Không bắt buộc — thiếu thì bỏ qua. */
+  annotations?: TermAnnotation[]
 }) {
   const paragraphs = parseAnswer(answer, citations)
   const stackedHeadingId = useId()
@@ -619,7 +657,12 @@ export function AnswerDocument({
               <p className="text-answer whitespace-pre-wrap">
                 {paragraph.segments.map((segment, segmentIndex) =>
                   segment.kind === 'text' ? (
-                    <span key={segmentIndex}>{segment.value}</span>
+                    <AnnotatedText
+                      key={segmentIndex}
+                      text={segment.value}
+                      answerOffset={segment.startOffset}
+                      annotations={annotations}
+                    />
                   ) : (
                     <CitationMarker key={segmentIndex} id={segment.id} />
                   ),

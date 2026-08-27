@@ -6,6 +6,7 @@ import asyncio
 
 from src.agent.state import AgentState
 from src.core.logging import get_logger
+from src.rag.config import get_rag_settings
 from src.rag.store import VectorStore
 
 logger = get_logger(__name__)
@@ -30,11 +31,12 @@ def _condition_filter(profile: dict) -> str | list[str] | None:
 async def hybrid_retrieval_node(state: AgentState) -> AgentState:
     """Node 6 — tìm kiếm tài liệu y tế từ ChromaDB.
 
-    MVP: Dense vector search (top_k=8).
+    MVP: Dense vector search. Số chunk lấy ra luôn dùng ``RAG_TOP_K`` để
+    retrieval, generation và verifier cùng nhìn một tập context có cấu hình.
     Post-MVP: + BM25 hybrid, metadata filter theo disease_type.
     """
     query = state.get("preprocessed_query") or state.get("query", "")
-    top_k = 8
+    top_k = get_rag_settings().top_k
     disease = _condition_filter(state.get("patient_profile", {}))
     disease_label = ",".join(disease) if isinstance(disease, list) else disease
 
@@ -74,6 +76,9 @@ async def hybrid_retrieval_node(state: AgentState) -> AgentState:
             "retrieved_docs": retrieved_docs,
             "metadata": {
                 **state.get("metadata", {}),
+                # Keep ``retrieval`` as the list used by existing audit/log
+                # consumers.  Request settings live separately so adding
+                # observability does not silently change that contract.
                 "retrieval": [
                     {
                         "document_id": hit.metadata.get("doc_id") or None,
@@ -83,6 +88,12 @@ async def hybrid_retrieval_node(state: AgentState) -> AgentState:
                     }
                     for hit in hits
                 ],
+                "retrieval_context": {
+                    "query": query,
+                    "disease_filter": disease or None,
+                    "top_k": top_k,
+                    "returned_count": len(hits),
+                },
             },
         }
 

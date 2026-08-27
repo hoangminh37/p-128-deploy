@@ -324,6 +324,7 @@ export const conversationDetailFixture: ConversationDetail = {
       content: answered.response.answer,
       citations: answered.response.citations,
       support_level: answered.response.support_level,
+      annotations: [],
       created_at: '2026-08-12T09:14:00+07:00',
     },
   ],

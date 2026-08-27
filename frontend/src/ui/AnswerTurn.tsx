@@ -51,6 +51,12 @@ export type Turn = {
    * viết ra một câu miễn trừ trách nhiệm mà máy chủ chưa từng gửi.
    */
   disclaimer: string | null
+  /**
+   * Thuật ngữ y khoa được phát hiện động từ pipeline annotation bất đồng bộ.
+   * `undefined` khi chưa có dữ liệu (event `annotations` chưa tới).
+   * `[]` khi pipeline chạy xong nhưng không tìm được thuật ngữ nào.
+   */
+  annotations?: import('../lib/schemas').TermAnnotation[]
 }
 
 /**
@@ -149,7 +155,13 @@ function ResponseBody({ turn }: { turn: Turn }) {
       return <ReferralBlock answer={turn.answer} />
     case 'partial':
     case 'answered':
-      return <AnswerDocument answer={turn.answer} citations={turn.citations} />
+      return (
+        <AnswerDocument
+          answer={turn.answer}
+          citations={turn.citations}
+          annotations={turn.annotations}
+        />
+      )
   }
 }
 

@@ -95,6 +95,21 @@ class Settings(BaseSettings):
     # chết ngay ở node đầu tiên.
     llm_max_tokens_fast: int = Field(default=512, ge=64, le=4096)
 
+    # Các node fast nằm trước retrieval. Không giới hạn thời gian ở đây khiến
+    # một kết nối LLM treo giữ toàn bộ request chat ở "đang phân loại" và người
+    # dùng không thể đi tới nhánh fail-open an toàn. 12 giây đủ rộng cho JSON
+    # rất ngắn, đồng thời không biến một lỗi mạng thành spinner vô hạn.
+    llm_fast_timeout_seconds: float = Field(default=12.0, ge=1.0, le=120.0)
+
+    # Generation và verifier xử lý nhiều context hơn fast nodes, nên mỗi
+    # provider được chờ lâu hơn. Không retry trong cùng provider: khi lỗi 429,
+    # 5xx hoặc mạng, agent chuyển sang provider dự phòng thay vì nhân thời gian
+    # chờ trên cùng một lỗi.
+    llm_quality_timeout_seconds: float = Field(default=15.0, ge=1.0, le=120.0)
+    # Giới hạn TOÀN BỘ một node generation hoặc verifier, bao gồm các provider
+    # dự phòng. Nhờ đó một chuỗi fallback lỗi không thể giữ SSE vô hạn.
+    llm_quality_total_timeout_seconds: float = Field(default=35.0, ge=1.0, le=180.0)
+
     # Mức suy luận nội bộ cho các model reasoning (dòng gpt-oss, deepseek...).
     #
     # ĐO NGÀY 24/08/2026 — gpt-oss-120b qua OpenRouter, mặc định:

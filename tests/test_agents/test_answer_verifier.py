@@ -36,7 +36,8 @@ async def test_verifier_chi_giu_cau_tra_loi_khi_pass(monkeypatch):
             content="<verification>decision: pass\nreason: Đúng trọng tâm và bám nguồn.</verification>"
         )
     )
-    monkeypatch.setattr(answer_verifier, "get_quality_llm", lambda: llm)
+    monkeypatch.setattr(answer_verifier, "get_quality_llm_with_fallback", lambda build: build(llm))
+    monkeypatch.setattr(answer_verifier, "get_settings", lambda: SimpleNamespace(llm_quality_total_timeout_seconds=1.0))
 
     result = await answer_verifier.answer_verifier_node(
         {
@@ -60,7 +61,8 @@ async def test_verifier_chan_cau_tra_loi_khi_lech_chieu_cau_hoi(monkeypatch):
             content="<verification>decision: fail\nreason: Câu trả lời dùng ngưỡng đối nghịch.</verification>"
         )
     )
-    monkeypatch.setattr(answer_verifier, "get_quality_llm", lambda: llm)
+    monkeypatch.setattr(answer_verifier, "get_quality_llm_with_fallback", lambda build: build(llm))
+    monkeypatch.setattr(answer_verifier, "get_settings", lambda: SimpleNamespace(llm_quality_total_timeout_seconds=1.0))
 
     result = await answer_verifier.answer_verifier_node(
         {
@@ -77,4 +79,35 @@ async def test_verifier_chan_cau_tra_loi_khi_lech_chieu_cau_hoi(monkeypatch):
     assert result["citations"] == []
     assert result["support_level"] == "no_support"
     assert result["answers_question"] is False
+    assert result["metadata"]["answer_verification"]["decision"] == "fail"
+
+
+@pytest.mark.asyncio
+async def test_verifier_timeout_chan_cau_tra_loi(monkeypatch):
+    import asyncio
+
+    async def never_returns(_: object) -> object:
+        await asyncio.Future()
+
+    monkeypatch.setattr(
+        answer_verifier,
+        "get_quality_llm_with_fallback",
+        lambda _: RunnableLambda(never_returns),
+    )
+    monkeypatch.setattr(answer_verifier, "get_settings", lambda: SimpleNamespace(llm_quality_total_timeout_seconds=0.01))
+
+    result = await answer_verifier.answer_verifier_node(
+        {
+            "query": "Chỉ số này cao từ bao nhiêu?",
+            "response": "Ngưỡng được nêu trong tài liệu [doc_0].",
+            "citations": [{"doc_id": "doc_0"}],
+            "support_level": "fully",
+            "answers_question": True,
+            "retrieved_docs": DOCS,
+        }
+    )
+
+    assert result["response"] == ""
+    assert result["citations"] == []
+    assert result["support_level"] == "no_support"
     assert result["metadata"]["answer_verification"]["decision"] == "fail"
