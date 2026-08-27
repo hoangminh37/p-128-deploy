@@ -28,6 +28,23 @@ export const chatStatusSchema = z.enum([
 export const supportLevelSchema = z.enum(['fully', 'partially', 'no_support'])
 
 /**
+ * Một thuật ngữ y khoa được phát hiện động trong câu trả lời.
+ *
+ * `start_offset` / `end_offset` dùng UTF-16 offsets trong `answer` string gốc,
+ * đúng đơn vị mà JavaScript `String.slice` sử dụng để tô đúng vị trí cả khi có emoji.
+ */
+export const termAnnotationSchema = z.object({
+  term: z.string(),
+  start_offset: z.number().int().nonnegative(),
+  end_offset: z.number().int().nonnegative(),
+  short_explanation: z.string(),
+  source_chunk_id: z.string(),
+  source_document_id: z.string().nullable(),
+})
+
+export type TermAnnotation = z.infer<typeof termAnnotationSchema>
+
+/**
  * Mục 4: người hỏi là chính bệnh nhân (`self`) hay người chăm sóc (`caregiver`).
  *
  * Hợp đồng nói rõ trường này CHỈ đổi cách xưng hô trong câu trả lời, không đổi
@@ -354,6 +371,7 @@ export const assistantMessageSchema = z.object({
   content: z.string(),
   citations: z.array(citationSchema),
   support_level: supportLevelSchema.nullable(),
+  annotations: z.array(termAnnotationSchema).default([]),
   created_at: z.iso.datetime({ offset: true }),
 })
 
@@ -763,3 +781,15 @@ export const quizMistakesResponseSchema = z.object({
 
 export type QuizMistake = z.infer<typeof quizMistakeSchema>
 export type QuizMistakesResponse = z.infer<typeof quizMistakesResponseSchema>
+
+// ---------------------------------------------------------------------------
+// Term Annotations (SSE event: annotations)
+// ---------------------------------------------------------------------------
+
+/** Payload của SSE event `annotations`. */
+export const annotationsEventSchema = z.object({
+  message_id: z.string(),
+  annotations: z.array(termAnnotationSchema),
+})
+
+export type AnnotationsEvent = z.infer<typeof annotationsEventSchema>

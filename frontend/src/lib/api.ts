@@ -25,6 +25,7 @@ import {
   patientProfileSchema,
   dailyLessonResponseSchema,
   completeLessonResponseSchema,
+  annotationsEventSchema,
   type ChatRequest,
   type ChatResponse,
   type ConversationDetail,
@@ -49,6 +50,7 @@ import {
   quizHistoryResponseSchema,
   quizMistakesResponseSchema,
   sourceDocumentSchema,
+  type AnnotationsEvent,
   type QuizMistakesResponse,
   type QuizRequest as QuizRequestPayload,
   type QuizResponse,
@@ -518,6 +520,7 @@ export async function streamChatMessage(
     onStep?: (event: StreamStepEvent) => void
     onToken?: (text: string) => void
     onDone?: (event: StreamDoneEvent) => void
+    onAnnotations?: (event: AnnotationsEvent) => void
     onError?: (error: ApiError) => void
   },
 ): Promise<void> {
@@ -591,6 +594,11 @@ export async function streamChatMessage(
             callbacks.onToken((parsed as { text: string }).text)
           } else if (eventType === 'done' && callbacks.onDone) {
             callbacks.onDone(parsed as StreamDoneEvent)
+          } else if (eventType === 'annotations' && callbacks.onAnnotations) {
+            const result = annotationsEventSchema.safeParse(parsed)
+            if (result.success) {
+              callbacks.onAnnotations(result.data)
+            }
           } else if (eventType === 'error' && callbacks.onError) {
             callbacks.onError(
               new ApiError({

@@ -47,6 +47,7 @@ function historyToTurns(messages: ConversationMessage[]): Turn[] {
       answer: message.content,
       citations: message.citations,
       disclaimer: null,
+      annotations: message.annotations,
     })
     question = ''
   }
@@ -457,6 +458,9 @@ export function ChatScreen({
       icon: '',
     })
 
+    // Giữ message_id của lượt đang streaming để patch annotations sau khi done
+    const pendingMessageIdRef = { current: '' }
+
     try {
       let accumulatedAnswer = ''
 
@@ -476,15 +480,19 @@ export function ChatScreen({
           },
           onDone: (done) => {
             const finalAnswer = done.answer || accumulatedAnswer
+            const messageKey = done.message_id || `m_${Date.now()}`
+            pendingMessageIdRef.current = messageKey
             setTurns((previous) => [
               ...previous,
               {
-                key: done.message_id || `m_${Date.now()}`,
+                key: messageKey,
                 question: trimmed,
                 status: done.status,
                 answer: finalAnswer,
                 citations: done.citations || [],
                 disclaimer: done.disclaimer || null,
+                // annotations sẽ đến sau qua onAnnotations
+                annotations: undefined,
               },
             ])
             setConversationId(done.conversation_id)
@@ -496,6 +504,16 @@ export function ChatScreen({
             void queryClient.invalidateQueries({
               queryKey: conversationsQueryKey(patientId),
             })
+          },
+          onAnnotations: (event) => {
+            // Patch annotations vào đúng turn theo message_id
+            const targetKey = event.message_id || pendingMessageIdRef.current
+            if (!targetKey) return
+            setTurns((previous) =>
+              previous.map((t) =>
+                t.key === targetKey ? { ...t, annotations: event.annotations } : t,
+              ),
+            )
           },
           onError: (err) => {
             setStreamError(err)

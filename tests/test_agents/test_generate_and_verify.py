@@ -1,5 +1,11 @@
 """Tests parser/gate của node generate_and_verify v2."""
 
+import asyncio
+from types import SimpleNamespace
+
+import pytest
+from langchain_core.runnables import RunnableLambda
+
 from src.agent.nodes.generation import generate_and_verify
 
 DOCS = [
@@ -95,3 +101,65 @@ def test_patient_context_co_routine_nhung_khong_phai_citation_source():
     assert "Chiều cao: 165 cm" in context
     assert "Cân nặng: 68.5 kg" in context
     assert "Tôi đi bộ 30 phút mỗi sáng." in context
+
+
+def test_moi_marker_hop_le_deu_co_citation_ke_ca_khi_cung_chunk():
+    docs = [
+        {
+            "chunk_id": "chunk_same",
+            "document_id": "doc_a",
+            "title": "Hướng dẫn A",
+            "issuer": "Bộ Y tế",
+            "content": "Nội dung có căn cứ.",
+        },
+        {
+            "chunk_id": "chunk_same",
+            "document_id": "doc_a",
+            "title": "Hướng dẫn A",
+            "issuer": "Bộ Y tế",
+            "content": "Nội dung có căn cứ.",
+        },
+    ]
+    _, labels = generate_and_verify._build_context(docs)
+    raw = """<analysis>Nguồn đủ.</analysis>
+<answer>Ý thứ nhất [doc_0]. Ý thứ hai [doc_1].</answer>
+<verdict>support_level: fully
+answers_question: true</verdict>"""
+
+    _, answer, level, answered, citations = generate_and_verify._parse(raw, labels)
+
+    assert answer
+    assert level == "fully"
+    assert answered is True
+    assert [citation["doc_id"] for citation in citations] == ["doc_0", "doc_1"]
+
+
+@pytest.mark.asyncio
+async def test_generation_timeout_khong_de_lo_cau_tra_loi_chua_kiem_chung(monkeypatch):
+    async def never_returns(_: object) -> object:
+        await asyncio.Future()
+
+    monkeypatch.setattr(
+        generate_and_verify,
+        "get_quality_llm_with_fallback",
+        lambda _: RunnableLambda(never_returns),
+    )
+    monkeypatch.setattr(
+        generate_and_verify,
+        "get_settings",
+        lambda: SimpleNamespace(
+            llm_provider="openai",
+            model_for=lambda _: "test-model",
+            llm_quality_total_timeout_seconds=0.01,
+        ),
+    )
+    monkeypatch.setattr(generate_and_verify, "get_rag_settings", lambda: SimpleNamespace(generation_temperature=0.0))
+
+    result = await generate_and_verify.generate_and_verify_node(
+        {"query": "Tôi nên theo dõi huyết áp thế nào?", "retrieved_docs": DOCS}
+    )
+
+    assert result["response"] == ""
+    assert result["citations"] == []
+    assert result["support_level"] == "no_support"
+    assert result["answers_question"] is False

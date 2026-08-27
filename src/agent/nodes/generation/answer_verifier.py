@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 
 from src.agent.nodes.generation.generate_and_verify import _build_context
 from src.agent.prompts.answer_verifier import answer_verifier_prompt
 from src.agent.state import AgentState
+from src.core.config import get_settings
 from src.core.logging import get_logger
-from src.services.llm.factory import get_quality_llm
+from src.services.llm.factory import get_quality_llm_with_fallback
 
 logger = get_logger(__name__)
 
@@ -56,16 +58,20 @@ async def answer_verifier_node(state: AgentState) -> AgentState:
         }
 
     try:
-        chain = answer_verifier_prompt | get_quality_llm()
-        result = await chain.ainvoke(
-            {
-                "original_query": state.get("query", ""),
-                "query": state.get("preprocessed_query") or state.get("query", ""),
-                "answer": answer,
-                "context": context,
-            }
-        )
+        chain = get_quality_llm_with_fallback(lambda llm: answer_verifier_prompt | llm)
+        async with asyncio.timeout(get_settings().llm_quality_total_timeout_seconds):
+            result = await chain.ainvoke(
+                {
+                    "original_query": state.get("query", ""),
+                    "query": state.get("preprocessed_query") or state.get("query", ""),
+                    "answer": answer,
+                    "context": context,
+                }
+            )
         approved, reason = _parse_verification(str(result.content))
+    except TimeoutError:
+        logger.error("[answer_verifier] quality chain timed out; withholding answer")
+        approved, reason = False, "Không thể hoàn tất kiểm chứng trong thời gian cho phép."
     except Exception as exc:
         logger.error("[answer_verifier] LLM failed; withholding answer: %s", exc)
         approved, reason = False, "Không thể hoàn tất kiểm chứng độc lập."

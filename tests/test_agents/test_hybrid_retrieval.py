@@ -1,5 +1,7 @@
 """Tests for retrieval context passed from semantic task routing."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from src.agent.nodes.retrieval import hybrid_retrieval
@@ -24,6 +26,7 @@ class _Store:
 async def test_retrieval_loc_theo_benh_nen_va_nhan_task_kind(monkeypatch):
     store = _Store()
     monkeypatch.setattr(hybrid_retrieval, "VectorStore", lambda: store)
+    monkeypatch.setattr(hybrid_retrieval, "get_rag_settings", lambda: SimpleNamespace(top_k=6))
 
     result = await hybrid_retrieval.hybrid_retrieval_node(
         {
@@ -37,7 +40,7 @@ async def test_retrieval_loc_theo_benh_nen_va_nhan_task_kind(monkeypatch):
         {
             "query": "Chế độ ăn buổi tối cho người tăng huyết áp",
             "disease": "hypertension",
-            "top_k": 8,
+            "top_k": 6,
         }
     ]
     assert result["retrieved_docs"][0]["title"] == "Chế độ ăn"
@@ -49,6 +52,7 @@ async def test_retrieval_loc_theo_benh_nen_va_nhan_task_kind(monkeypatch):
 async def test_retrieval_gom_ca_benh_dong_mac(monkeypatch):
     store = _Store()
     monkeypatch.setattr(hybrid_retrieval, "VectorStore", lambda: store)
+    monkeypatch.setattr(hybrid_retrieval, "get_rag_settings", lambda: SimpleNamespace(top_k=6))
 
     await hybrid_retrieval.hybrid_retrieval_node(
         {
@@ -61,3 +65,18 @@ async def test_retrieval_gom_ca_benh_dong_mac(monkeypatch):
     )
 
     assert store.calls[0]["disease"] == ["type2_diabetes", "hypertension"]
+
+
+@pytest.mark.asyncio
+async def test_retrieval_ton_trong_top_k_cau_hinh(monkeypatch):
+    store = _Store()
+    monkeypatch.setattr(hybrid_retrieval, "VectorStore", lambda: store)
+    monkeypatch.setattr(hybrid_retrieval, "get_rag_settings", lambda: SimpleNamespace(top_k=3))
+
+    result = await hybrid_retrieval.hybrid_retrieval_node(
+        {"query": "Cách theo dõi huyết áp", "patient_profile": {"primary_condition": "hypertension"}}
+    )
+
+    assert store.calls[0]["top_k"] == 3
+    assert result["metadata"]["retrieval_context"]["query"] == "Cách theo dõi huyết áp"
+    assert result["metadata"]["retrieval_context"]["top_k"] == 3

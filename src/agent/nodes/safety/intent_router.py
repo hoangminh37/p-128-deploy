@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 
 from src.agent.prompts.intent import intent_prompt
 from src.agent.state import AgentState
+from src.core.config import get_settings
 from src.core.logging import get_logger
 from src.services.guardrail.checker import classify_guardrail
 from src.services.llm.factory import get_fast_llm
@@ -139,7 +141,11 @@ async def intent_router_node(state: AgentState) -> AgentState:
     try:
         llm = get_fast_llm()
         chain = intent_prompt | llm
-        result = await chain.ainvoke({"query": query, "patient_context": _patient_context(state)})
+        timeout_seconds = get_settings().llm_fast_timeout_seconds
+        # HTTP timeout in ``get_fast_llm`` bounds the provider request.  The
+        # coroutine timeout is a second guard for a stalled SDK/transport.
+        async with asyncio.timeout(timeout_seconds):
+            result = await chain.ainvoke({"query": query, "patient_context": _patient_context(state)})
         intent, scope, task_kind = parse_intent_decision(str(result.content))
         is_red_flag = intent == "red_flag"
 
@@ -153,6 +159,15 @@ async def intent_router_node(state: AgentState) -> AgentState:
             "ood_kind": "greeting" if intent == "greeting" else "off_topic",
         }
 
+    except TimeoutError:
+        logger.warning("[intent_router] LLM timed out; defaulting to education")
+        return {
+            **state,
+            "intent": "education",
+            "scope": "in_scope",
+            "task_kind": "health_education",
+            "is_red_flag": False,
+        }
     except Exception as exc:
         logger.error("[intent_router] LLM failed, defaulting to education: %s", exc)
         return {

@@ -93,6 +93,21 @@ class DoneEvent(BaseModel):
     disclaimer: str = ""
 
 
+class TermAnnotation(BaseModel):
+    """Một tooltip thuật ngữ có căn cứ từ tài liệu đã duyệt.
+
+    Offsets dùng đơn vị UTF-16 để tương thích trực tiếp với ``String.slice``
+    của frontend, kể cả khi câu trả lời có emoji trước thuật ngữ.
+    """
+
+    term: str = Field(min_length=1, max_length=160)
+    start_offset: int = Field(ge=0)
+    end_offset: int = Field(ge=1)
+    short_explanation: str = Field(min_length=12, max_length=280)
+    source_chunk_id: str
+    source_document_id: str | None = None
+
+
 class ConversationSummary(BaseModel):
     conversation_id: str
     title: str
@@ -114,6 +129,7 @@ class ConversationMessage(BaseModel):
     status: Literal["answered", "partial", "red_flag", "refused", "referral"] | None = None
     citations: list[Citation] = Field(default_factory=list)
     support_level: Literal["fully", "partially", "no_support"] | None = None
+    annotations: list[TermAnnotation] = Field(default_factory=list)
 
 
 class ConversationDetail(BaseModel):

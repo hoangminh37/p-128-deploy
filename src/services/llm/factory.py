@@ -19,6 +19,8 @@ def get_llm(
     provider: str | None = None,
     max_tokens: int | None = None,
     temperature: float | None = None,
+    timeout: float | tuple[float, float] | None = None,
+    max_retries: int | None = None,
 ) -> BaseChatModel:
     """Factory function — chọn LLM provider theo config hoặc tham số.
 
@@ -37,6 +39,11 @@ def get_llm(
     provider = provider or settings.llm_provider
     max_tokens = max_tokens or settings.max_tokens_for(provider)
     temperature = settings.llm_temperature if temperature is None else temperature
+    request_options: dict[str, float | tuple[float, float] | int] = {}
+    if timeout is not None:
+        request_options["timeout"] = timeout
+    if max_retries is not None:
+        request_options["max_retries"] = max_retries
 
     if provider == "groq":
         if not settings.groq_api_key:
@@ -56,6 +63,7 @@ def get_llm(
             # chết cả `get_fast_llm()`, tức là chết ngay node intent_router,
             # tức là mọi câu hỏi chat đều hỏng.
             reasoning_effort=settings.llm_reasoning_effort,
+            **request_options,
         )
 
     if provider == "openai":
@@ -68,6 +76,7 @@ def get_llm(
             api_key=settings.openai_api_key,  # type: ignore[arg-type]
             temperature=temperature,
             max_tokens=max_tokens,
+            **request_options,
         )
 
     if provider == "openrouter":
@@ -91,6 +100,7 @@ def get_llm(
                 "HTTP-Referer": "https://github.com/AI20K-Build-Phase-Cohort-3/P-128",
                 "X-Title": "P-128 Health Education AI Agent",
             },
+            **request_options,
             # ĐỊNH TUYẾN THEO TỐC ĐỘ, KHÔNG THEO GIÁ.
             #
             # Cùng một id model, OpenRouter chuyển tiếp tới nhiều nhà cung cấp
@@ -144,6 +154,10 @@ def get_fast_llm() -> BaseChatModel:
         provider,
         max_tokens=settings.llm_max_tokens_fast,
         temperature=settings.agent_temperature,
+        timeout=settings.llm_fast_timeout_seconds,
+        # Router/preprocessor are allowed to fail open, so retrying a timed-out
+        # request only prolongs a chat that can safely continue without it.
+        max_retries=0,
     )
 
 
@@ -208,33 +222,38 @@ def with_provider_fallback(build_one: Callable[[str], Runnable]) -> Runnable:
 
 
 def get_quality_llm() -> BaseChatModel:
-    """Convenience: LLM cho generation/verification, theo LLM_PROVIDER trong .env.
+    """Return one quality model for callers that need model-specific APIs.
 
-    Bản trước luôn chọn OpenAI khi OPENAI_API_KEY có mặt, BỎ QUA LLM_PROVIDER.
-    Một key hết hạn mức vẫn là một chuỗi khác rỗng, nên toàn bộ node sinh câu trả
-    lời chết với lỗi 429 trong khi .env đã ghi rõ LLM_PROVIDER=groq. Nay tôn trọng
-    cấu hình, chỉ đổi provider khi provider được chọn thiếu key.
+    This remains a concrete ``BaseChatModel`` so callers such as ETL can safely
+    call ``with_structured_output``. Generation/verifier need runtime fallback
+    and must use ``get_quality_llm_with_fallback`` below instead.
     """
-    # Cấu hình RAG đã định nghĩa 0.0 cho nội dung y tế. Trước đây giá trị này
-    # không bao giờ được truyền vào factory nên generation vẫn lấy nhiệt độ
-    # chung 0.3, làm hai lượt cùng câu hỏi có thể cho hai kết quả khác nhau.
     settings = get_settings()
-    temperature = get_rag_settings().generation_temperature
-    provider = settings.llm_provider
+    providers = quality_providers()
+    if providers:
+        return _build_quality_llm(providers[0])
 
-    # Thiếu key của provider chính thì lùi sang provider khác CÒN KEY, thay vì
-    # chết ngay. Duyệt theo thứ tự cố định để hành vi lặp lại được.
-    co_key = {
-        "groq": bool(settings.groq_api_key),
-        "openai": bool(settings.openai_api_key),
-        "openrouter": bool(settings.openrouter_api_key),
-    }
-    if co_key.get(provider):
-        return get_llm(provider, temperature=temperature)
+    # Không provider nào có key — giữ thông báo lỗi cụ thể từ get_llm.
+    return _build_quality_llm(settings.llm_provider)
 
-    for du_bi in ("openrouter", "groq", "openai"):
-        if du_bi != provider and co_key[du_bi]:
-            return get_llm(du_bi, temperature=temperature)
 
-    # Không provider nào có key — để get_llm ném LLMError với thông báo rõ ràng.
-    return get_llm(provider, temperature=temperature)
+def _build_quality_llm(provider: str) -> BaseChatModel:
+    """Build a bounded deterministic quality model for one provider."""
+    settings = get_settings()
+    return get_llm(
+        provider,
+        temperature=get_rag_settings().generation_temperature,
+        timeout=settings.llm_quality_timeout_seconds,
+        max_retries=0,
+    )
+
+
+def get_quality_llm_with_fallback(build_one: Callable[[BaseChatModel], Runnable]) -> Runnable:
+    """Build a quality runnable that retries on the next configured provider.
+
+    A fallback must wrap the *completed chain*, not just the model. This keeps
+    the model a ``BaseChatModel`` while each provider-specific chain is built,
+    which is required by callers that apply structured output or a prompt pipe.
+    The provider order is stable and only includes configured API keys.
+    """
+    return with_provider_fallback(lambda provider: build_one(_build_quality_llm(provider)))

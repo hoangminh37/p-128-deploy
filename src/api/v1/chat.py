@@ -296,6 +296,7 @@ async def chat_stream(
     - ``step``: trạng thái từng node (realtime)
     - ``token``: từng từ của response đã verified
     - ``done``: citations + support_level + disclaimer
+    - ``annotations``: tooltip thuật ngữ, chạy sau done và không chặn câu trả lời
     """
 
     history = await _load_conversation_history(
@@ -460,19 +461,18 @@ async def chat_stream(
                 else ""
             )
 
-            db.add(
-                Message(
-                    id=message_id,
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    status=status,
-                    content=answer,
-                    citations=final_citations,
-                    support_level=final_support_level,
-                    disclaimer=disclaimer,
-                    meta_data=final_state.get("metadata", {}),
-                )
+            assistant_msg = Message(
+                id=message_id,
+                conversation_id=conversation_id,
+                role="assistant",
+                status=status,
+                content=answer,
+                citations=final_citations,
+                support_level=final_support_level,
+                disclaimer=disclaimer,
+                meta_data=final_state.get("metadata", {}),
             )
+            db.add(assistant_msg)
 
             await record_routine_updates(
                 db,
@@ -504,6 +504,41 @@ async def chat_stream(
                 ensure_ascii=False,
             )
             yield f"event: done\ndata: {done_payload}\n\n"
+
+            # ── Annotations event (bất đồng bộ, không block done) ─────────
+            # Chỉ chạy cho câu trả lời có nội dung giáo dục thực sự.
+            if status in ("answered", "partial") and answer and final_citations:
+                try:
+                    from src.agent.nodes.annotation.annotation_pipeline import run_annotation_pipeline
+                    # Truyền retrieved_docs từ state để dùng làm fallback
+                    # khi RAG search không tìm được định nghĩa riêng cho term
+                    answer_chunks = [
+                        {"content": d.get("content", ""), "chunk_id": d.get("chunk_id", ""), "document_id": d.get("document_id")}
+                        for d in final_state.get("retrieved_docs", [])
+                        if d.get("content")
+                    ]
+                    annotations = await run_annotation_pipeline(
+                        answer=answer,
+                        query=request.query,
+                        answer_chunks=answer_chunks,
+                    )
+                    # Lưu cùng message để tooltip không biến mất khi bệnh nhân
+                    # mở lại hội thoại. Không lưu audio/prompt mới, chỉ metadata
+                    # đã grounded từ câu trả lời được phép hiển thị.
+                    assistant_msg.meta_data = {
+                        **(assistant_msg.meta_data or {}),
+                        "term_annotations": annotations,
+                    }
+                    await db.commit()
+                    ann_payload = json.dumps(
+                        {"message_id": message_id, "annotations": annotations},
+                        ensure_ascii=False,
+                    )
+                    yield f"event: annotations\ndata: {ann_payload}\n\n"
+                    logger.info("[chat_stream] streamed %d annotations", len(annotations))
+                except Exception as ann_exc:
+                    # Annotation lỗi không được làm hỏng chat — im lặng bỏ qua
+                    logger.warning("[chat_stream] annotation pipeline error: %s", ann_exc)
 
         except Exception as exc:
             logger.error("[chat_stream] error: %s", exc)

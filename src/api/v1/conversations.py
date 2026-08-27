@@ -65,6 +65,7 @@ async def get_conversation_detail(
                 status=msg.status if msg.role == "assistant" else None,
                 citations=msg.citations if msg.role == "assistant" else [],
                 support_level=msg.support_level if msg.role == "assistant" else None,
+                annotations=(msg.meta_data or {}).get("term_annotations", []) if msg.role == "assistant" else [],
             )
         )
 
