@@ -177,8 +177,33 @@ class QuizSession(Base):
     answers = Column(JSON_TYPE, nullable=True)  # [int] — null khi chưa nộp
     score = Column(Integer, nullable=True)  # null khi chưa nộp
     total = Column(Integer, nullable=False, default=0)
-    hp_earned = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
     submitted_at = Column(DateTime, nullable=True)
 
     patient = relationship("Patient")
+
+
+try:
+    from pgvector.sqlalchemy import Vector
+except ImportError:
+    Vector = None
+
+
+class MedicalChunk(Base):
+    """Bảng lưu trữ chunk và vector embedding trên PostgreSQL (pgvector)."""
+
+    __tablename__ = "medical_chunks"
+
+    chunk_id = Column(String(120), primary_key=True)
+    doc_id = Column(String(80), nullable=False, index=True)
+    text = Column(Text, nullable=False)
+    embed_text = Column(Text, nullable=False)
+    disease = Column(String(50), nullable=True, index=True)
+    priority = Column(Float, default=0.0)
+    section_path = Column(String(255), nullable=True)
+    page_start = Column(Integer, nullable=True)
+    page_end = Column(Integer, nullable=True)
+    table_structure = Column(JSON_TYPE, nullable=True)
+    metadata_json = Column(JSON_TYPE, nullable=True)
+    embedding = Column(Vector(1024) if Vector is not None else Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+

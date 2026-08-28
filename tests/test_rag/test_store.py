@@ -324,3 +324,25 @@ class TestHitCitation:
 class TestStats:
     def test_dem_chunk_theo_tai_lieu(self, store):
         assert store.stats()["per_doc"] == {"a": 2, "b": 1}
+
+
+class TestDualModeVectorStore:
+    def test_tu_dong_chuyen_backend_theo_database_url(self, monkeypatch):
+        from src.core.config import get_settings
+        from src.rag.store import ChromaStore, PgVectorStore, VectorStore
+
+        # Khi database_url là postgresql
+        monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/db")
+        get_settings.cache_clear()
+        store_pg = VectorStore()
+        assert isinstance(store_pg, PgVectorStore)
+
+        # Khi database_url là sqlite
+        monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///./data/app.db")
+        get_settings.cache_clear()
+        store_sqlite = VectorStore()
+        assert isinstance(store_sqlite, ChromaStore)
+
+        get_settings.cache_clear()
+
+

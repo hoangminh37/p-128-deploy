@@ -327,11 +327,24 @@ class Hit:
 
 
 # -----------------------------------------------------------------------------
-# Vector store
+# Vector store (ChromaDB + PostgreSQL pgvector Dual-Mode)
 # -----------------------------------------------------------------------------
 
 
-class VectorStore:
+def is_postgres_backend() -> bool:
+    """Kiểm tra xem backend database có phải là PostgreSQL hay không."""
+    try:
+        from src.core.config import get_settings
+
+        db_url = get_settings().database_url
+        return "postgres" in db_url.lower()
+    except Exception:
+        return False
+
+
+class ChromaStore:
+    """Vector store cục bộ chạy bằng ChromaDB."""
+
     def __init__(self, settings: RagSettings | None = None, embedder: Embedder | None = None):
         import chromadb
 
@@ -346,12 +359,9 @@ class VectorStore:
 
     @property
     def embedder(self) -> Embedder:
-        # Nạp lười: mô hình local nặng vài GB, không nên nạp khi chỉ đọc thống kê.
         if self._embedder is None:
             self._embedder = make_embedder(self.settings)
         return self._embedder
-
-    # -- ghi ------------------------------------------------------------------
 
     def reset(self) -> None:
         """Xoá sạch collection. Dùng khi đổi cách chunk hoặc đổi model embedding."""
@@ -369,8 +379,6 @@ class VectorStore:
         batch = 256
         for i in range(0, len(chunks), batch):
             part = chunks[i : i + batch]
-            # cast: type stub của Chroma khai báo embeddings theo ndarray của
-            # numpy; list[list[float]] chạy đúng nhưng mypy không chấp nhận.
             self.collection.upsert(
                 ids=[c.chunk_id for c in part],
                 embeddings=cast(Any, vectors[i : i + batch]),
@@ -378,8 +386,6 @@ class VectorStore:
                 metadatas=cast(Any, [c.metadata for c in part]),
             )
         return len(chunks)
-
-    # -- đọc ------------------------------------------------------------------
 
     def search(
         self,
@@ -389,19 +395,10 @@ class VectorStore:
         top_k: int | None = None,
         min_similarity: float | None = None,
     ) -> list[Hit]:
-        """Truy xuất, lọc theo bệnh/quyền nguồn, rồi xếp lại có tính tới năm ban hành.
-
-        Lấy rộng (top_k_fetch) ở tầng vector rồi mới cắt xuống top_k: cách này
-        cho phần xếp lại có đủ ứng viên để làm việc, mà vẫn không phình context.
-        """
         s = self.settings
         top_k = top_k or s.top_k
         min_similarity = s.min_similarity if min_similarity is None else min_similarity
 
-        # Khoá lọc sinh thẳng từ mã bệnh, khớp với cột metadata mà
-        # DiseaseCatalog.metadata_flags() tạo ra lúc build chunk.  Một hồ sơ
-        # có bệnh đồng mắc cần lấy tài liệu thuộc *một trong các bệnh*, không
-        # được đánh rơi disease filter hoặc chỉ giữ bệnh chính.
         requested_diseases = [disease] if isinstance(disease, str) else (disease or [])
         requested_diseases = list(dict.fromkeys(item for item in requested_diseases if item))
         clauses: list[dict[str, Any]] = []
@@ -410,11 +407,6 @@ class VectorStore:
         elif requested_diseases:
             clauses.append({"$or": [{f"disease_{item}": True} for item in requested_diseases]})
 
-        # Vector store không phải nguồn sự thật của quyền sử dụng. Một job có
-        # thể hỏng sau khi Chroma nhận một phần chunk, nên agent luôn truyền
-        # allow-list từ Registry.approved(). ``[]`` có nghĩa không tài liệu nào
-        # được phép, đồng thời tránh gọi embedding cho một truy vấn chắc chắn
-        # không thể trả kết quả.
         if allowed_doc_ids is not None:
             approved_ids = list(dict.fromkeys(doc_id for doc_id in allowed_doc_ids if doc_id))
             if not approved_ids:
@@ -428,8 +420,6 @@ class VectorStore:
         else:
             where = {"$and": clauses}
 
-        # embed_query, không phải embed_documents — với Cohere đây là hai biểu
-        # diễn khác nhau và dùng nhầm sẽ làm tụt chất lượng truy xuất.
         vector = self.embedder.embed_query(query)
         res: Any = self.collection.query(
             query_embeddings=cast(Any, [vector]),
@@ -445,7 +435,6 @@ class VectorStore:
         dists = (res.get("distances") or [[]])[0]
 
         for cid, text, meta, dist in zip(ids, docs, metas, dists, strict=False):
-            # Chroma dùng khoảng cách cosine: distance = 1 - cosine_similarity.
             similarity = 1.0 - float(dist)
             if similarity < min_similarity:
                 continue
@@ -453,18 +442,10 @@ class VectorStore:
             score = similarity + s.recency_weight * priority
             hits.append(Hit(chunk_id=cid, text=text, metadata=dict(meta), similarity=similarity, score=score))
 
-        # Chroma có thể trả thứ tự khác nhau khi nhiều vector cùng điểm. ID
-        # chunk là khoá ổn định, nên dùng làm tie-breaker để context của LLM
-        # không đổi chỉ vì thứ tự ANN.
         hits.sort(key=lambda h: (-h.score, h.chunk_id))
         return hits[:top_k]
 
     def document_chunks(self, document_id: str) -> list[dict[str, Any]]:
-        """Return the approved, cleaned chunks of one document in reading order.
-
-        This is intentionally a metadata-only lookup, not a semantic search:
-        the client already knows the exact ``chunk_id`` from a verified citation.
-        """
         result: Any = self.collection.get(
             where=cast(Any, {"doc_id": document_id}),
             include=cast(Any, ["documents", "metadatas"]),
@@ -490,19 +471,9 @@ class VectorStore:
                 }
             )
 
-        # Chunk IDs have the stable shape ``doc_id::0004::digest``.  Sorting
-        # them lexicographically preserves source order without trusting the
-        # arbitrary order returned by Chroma.
         return sorted(chunks, key=lambda chunk: chunk["chunk_id"])
 
     def delete_by_doc(self, doc_id: str) -> int:
-        """Xoá mọi chunk của một tài liệu.
-
-        Cần cho luồng biên tập viên: khi gỡ tài liệu hoặc tải lên bản thay thế,
-        chunk cũ phải biến mất khỏi store. Không có hàm này thì nội dung đã bị
-        gỡ vẫn tiếp tục được trích dẫn cho bệnh nhân — chỉ còn cách xoá sạch
-        toàn bộ collection rồi ingest lại từ đầu.
-        """
         before = self.count()
         self.collection.delete(where=cast(Any, {"doc_id": doc_id}))
         removed = before - self.count()
@@ -513,10 +484,243 @@ class VectorStore:
         return self.collection.count()
 
     def stats(self) -> dict:
-        """Thống kê theo tài liệu, để kiểm tra store có đúng như manifest không."""
         got: Any = self.collection.get(include=cast(Any, ["metadatas"]))
         per_doc: dict[str, int] = {}
         for m in got.get("metadatas") or []:
             doc_id = str(m.get("doc_id", "?"))
             per_doc[doc_id] = per_doc.get(doc_id, 0) + 1
         return {"total": self.count(), "per_doc": dict(sorted(per_doc.items()))}
+
+
+class PgVectorStore:
+    """Vector store chuẩn production chạy trực tiếp trên PostgreSQL với pgvector."""
+
+    def __init__(self, settings: RagSettings | None = None, embedder: Embedder | None = None):
+        self.settings = settings or get_rag_settings()
+        self._embedder = embedder
+        self._sync_engine = None
+
+    @property
+    def embedder(self) -> Embedder:
+        if self._embedder is None:
+            self._embedder = make_embedder(self.settings)
+        return self._embedder
+
+    def _get_sync_engine(self):
+        if self._sync_engine is None:
+            from sqlalchemy import create_engine
+            from src.core.config import get_settings
+
+            db_url = get_settings().database_url
+            sync_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+            if sync_url.startswith("postgres://"):
+                sync_url = sync_url.replace("postgres://", "postgresql+psycopg2://", 1)
+            elif sync_url.startswith("postgresql://") and not sync_url.startswith("postgresql+psycopg2://"):
+                sync_url = sync_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+            self._sync_engine = create_engine(sync_url, pool_pre_ping=True)
+        return self._sync_engine
+
+    def reset(self) -> None:
+        from sqlalchemy import text
+
+        with self._get_sync_engine().begin() as conn:
+            conn.execute(text("TRUNCATE TABLE medical_chunks;"))
+
+    def upsert(self, chunks: list[Chunk]) -> int:
+        if not chunks:
+            return 0
+        from sqlalchemy.dialects.postgresql import insert
+        from src.models.domain import MedicalChunk
+
+        vectors = self.embedder.embed_documents([c.embed_text for c in chunks])
+        engine = self._get_sync_engine()
+
+        batch = 100
+        for i in range(0, len(chunks), batch):
+            part_chunks = chunks[i : i + batch]
+            part_vectors = vectors[i : i + batch]
+
+            rows = []
+            for c, vec in zip(part_chunks, part_vectors):
+                rows.append(
+                    {
+                        "chunk_id": c.chunk_id,
+                        "doc_id": c.doc_id,
+                        "text": c.text,
+                        "embed_text": c.embed_text,
+                        "disease": c.disease,
+                        "priority": float(c.priority or 0.0),
+                        "section_path": c.section_path,
+                        "page_start": c.page_start,
+                        "page_end": c.page_end,
+                        "table_structure": c.table_structure,
+                        "metadata_json": c.metadata,
+                        "embedding": vec,
+                    }
+                )
+
+            stmt = insert(MedicalChunk).values(rows)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[MedicalChunk.chunk_id],
+                set_={
+                    "text": stmt.excluded.text,
+                    "embed_text": stmt.excluded.embed_text,
+                    "disease": stmt.excluded.disease,
+                    "priority": stmt.excluded.priority,
+                    "section_path": stmt.excluded.section_path,
+                    "page_start": stmt.excluded.page_start,
+                    "page_end": stmt.excluded.page_end,
+                    "table_structure": stmt.excluded.table_structure,
+                    "metadata_json": stmt.excluded.metadata_json,
+                    "embedding": stmt.excluded.embedding,
+                },
+            )
+            with engine.begin() as conn:
+                conn.execute(stmt)
+
+        return len(chunks)
+
+    def search(
+        self,
+        query: str,
+        disease: str | list[str] | None = None,
+        allowed_doc_ids: list[str] | None = None,
+        top_k: int | None = None,
+        min_similarity: float | None = None,
+    ) -> list[Hit]:
+        s = self.settings
+        top_k = top_k or s.top_k
+        min_similarity = s.min_similarity if min_similarity is None else min_similarity
+
+        if allowed_doc_ids is not None:
+            approved_ids = list(dict.fromkeys(doc_id for doc_id in allowed_doc_ids if doc_id))
+            if not approved_ids:
+                return []
+
+        vector = self.embedder.embed_query(query)
+        engine = self._get_sync_engine()
+
+        from sqlalchemy import and_, or_, select
+        from src.models.domain import MedicalChunk
+
+        sim_col = (1.0 - MedicalChunk.embedding.cosine_distance(vector)).label("similarity")
+        score_col = (sim_col + s.recency_weight * MedicalChunk.priority).label("score")
+
+        filters = []
+        requested_diseases = [disease] if isinstance(disease, str) else (disease or [])
+        requested_diseases = list(dict.fromkeys(item for item in requested_diseases if item))
+        if requested_diseases:
+            disease_conditions = []
+            for d in requested_diseases:
+                disease_conditions.append(MedicalChunk.disease == d)
+                disease_conditions.append(
+                    MedicalChunk.metadata_json[f"disease_{d}"].as_boolean() == True
+                )
+            filters.append(or_(*disease_conditions))
+
+        if allowed_doc_ids is not None:
+            filters.append(MedicalChunk.doc_id.in_(approved_ids))
+
+        filters.append(sim_col >= min_similarity)
+
+        stmt = (
+            select(
+                MedicalChunk.chunk_id,
+                MedicalChunk.text,
+                MedicalChunk.metadata_json,
+                sim_col,
+                score_col,
+            )
+            .where(and_(*filters))
+            .order_by(score_col.desc(), MedicalChunk.chunk_id.asc())
+            .limit(s.top_k_fetch)
+        )
+
+        hits: list[Hit] = []
+        with engine.connect() as conn:
+            result = conn.execute(stmt)
+            for row in result:
+                cid, text_val, meta, sim, score = row
+                hits.append(
+                    Hit(
+                        chunk_id=str(cid),
+                        text=str(text_val),
+                        metadata=dict(meta or {}),
+                        similarity=float(sim),
+                        score=float(score),
+                    )
+                )
+
+        return hits[:top_k]
+
+    def document_chunks(self, document_id: str) -> list[dict[str, Any]]:
+        from sqlalchemy import select
+        from src.models.domain import MedicalChunk
+
+        engine = self._get_sync_engine()
+        stmt = (
+            select(MedicalChunk)
+            .where(MedicalChunk.doc_id == document_id)
+            .order_by(MedicalChunk.chunk_id.asc())
+        )
+        chunks: list[dict[str, Any]] = []
+        with engine.connect() as conn:
+            result = conn.execute(stmt)
+            for row in result.scalars():
+                start = row.page_start
+                end = row.page_end
+                chunks.append(
+                    {
+                        "chunk_id": str(row.chunk_id),
+                        "content": str(row.text or ""),
+                        "section_path": str(row.section_path or "") or None,
+                        "page_start": int(start) if start and start >= 1 else None,
+                        "page_end": int(end) if end and end >= 1 else None,
+                        "table": row.table_structure,
+                    }
+                )
+        return chunks
+
+    def delete_by_doc(self, doc_id: str) -> int:
+        from sqlalchemy import delete
+        from src.models.domain import MedicalChunk
+
+        engine = self._get_sync_engine()
+        with engine.begin() as conn:
+            result = conn.execute(delete(MedicalChunk).where(MedicalChunk.doc_id == doc_id))
+            removed = result.rowcount
+            logger.info("xoá %d chunk của %s từ pgvector", removed, doc_id)
+            return removed
+
+    def count(self) -> int:
+        from sqlalchemy import func, select
+        from src.models.domain import MedicalChunk
+
+        engine = self._get_sync_engine()
+        with engine.connect() as conn:
+            return conn.execute(select(func.count(MedicalChunk.chunk_id))).scalar() or 0
+
+    def stats(self) -> dict:
+        from sqlalchemy import func, select
+        from src.models.domain import MedicalChunk
+
+        engine = self._get_sync_engine()
+        with engine.connect() as conn:
+            total = conn.execute(select(func.count(MedicalChunk.chunk_id))).scalar() or 0
+            stmt = select(MedicalChunk.doc_id, func.count(MedicalChunk.chunk_id)).group_by(MedicalChunk.doc_id)
+            per_doc = {str(r[0]): int(r[1]) for r in conn.execute(stmt)}
+            return {"total": total, "per_doc": dict(sorted(per_doc.items()))}
+
+
+class VectorStore:
+    """Lớp bọc VectorStore đa tầng (Dual-Mode Router).
+    
+    Tự động chọn PgVectorStore khi kết nối PostgreSQL, hoặc ChromaStore khi chạy SQLite local.
+    """
+
+    def __new__(cls, settings: RagSettings | None = None, embedder: Embedder | None = None):
+        if is_postgres_backend():
+            return PgVectorStore(settings=settings, embedder=embedder)
+        return ChromaStore(settings=settings, embedder=embedder)
+
