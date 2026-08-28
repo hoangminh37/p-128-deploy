@@ -317,9 +317,7 @@ async def _retrieve_definition(
     try:
         async with search_limit:
             sources = list(
-                await asyncio.wait_for(
-                    asyncio.to_thread(_search_definition_sync, term), timeout=VECTOR_SEARCH_TIMEOUT
-                )
+                await asyncio.wait_for(asyncio.to_thread(_search_definition_sync, term), timeout=VECTOR_SEARCH_TIMEOUT)
             )
     except Exception as exc:
         logger.info("[term_annotation] no definition source for %r: %s", term, exc)
@@ -439,9 +437,7 @@ async def run_annotation_pipeline(
 ) -> list[dict]:
     """Return grounded annotations, or ``[]`` without affecting the chat turn."""
     try:
-        return await asyncio.wait_for(
-            _pipeline(answer, query, answer_chunks or []), timeout=ANNOTATION_TIMEOUT
-        )
+        return await asyncio.wait_for(_pipeline(answer, query, answer_chunks or []), timeout=ANNOTATION_TIMEOUT)
     except TimeoutError:
         logger.info("[term_annotation] stopped after %.0fs without delaying chat", ANNOTATION_TIMEOUT)
         return []
@@ -468,11 +464,7 @@ async def _pipeline(answer: str, query: str, answer_chunks: list[dict]) -> list[
             for item in validated
         )
     )
-    terms_with_sources = [
-        (item, sources)
-        for item, sources in zip(validated, source_lists, strict=True)
-        if sources
-    ]
+    terms_with_sources = [(item, sources) for item, sources in zip(validated, source_lists, strict=True) if sources]
     if not terms_with_sources:
         return []
 

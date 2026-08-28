@@ -19,15 +19,18 @@ def test_graph_chi_chua_cac_node_v2():
         "doctor_referral",
         "memory_checkpoint",
     } <= names
-    assert not {
-        "coref_resolution",
-        "query_rewrite",
-        "crag_evaluator",
-        "llm_generate",
-        "selfrag_verifier",
-        "partial_rewrite",
-        "safety_disclaimer",
-    } & names
+    assert (
+        not {
+            "coref_resolution",
+            "query_rewrite",
+            "crag_evaluator",
+            "llm_generate",
+            "selfrag_verifier",
+            "partial_rewrite",
+            "safety_disclaimer",
+        }
+        & names
+    )
 
 
 def test_safety_routing_ket_thuc_truoc_retrieval():

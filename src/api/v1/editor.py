@@ -168,9 +168,7 @@ async def _synchronize_source_queue_states(db: AsyncSession) -> None:
     SourceDoc record.
     """
     sources = {document.doc_id: document for document in uploaded_docs()}
-    result = await db.execute(
-        select(EditorQueueItemModel).filter(EditorQueueItemModel.origin == "editor_upload")
-    )
+    result = await db.execute(select(EditorQueueItemModel).filter(EditorQueueItemModel.origin == "editor_upload"))
     changed = False
     for item in result.scalars().all():
         source = sources.get(item.id)

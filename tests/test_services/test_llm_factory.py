@@ -27,9 +27,7 @@ def test_fast_agent_nodes_use_deterministic_temperature(monkeypatch):
     monkeypatch.setattr(factory, "get_llm", lambda *args, **kwargs: calls.append((args, kwargs)) or "LLM")
 
     assert factory.get_fast_llm() == "LLM"
-    assert calls == [
-        (("openai",), {"max_tokens": 512, "temperature": 0.0, "timeout": 12.0, "max_retries": 0})
-    ]
+    assert calls == [(("openai",), {"max_tokens": 512, "temperature": 0.0, "timeout": 12.0, "max_retries": 0})]
 
 
 def test_quality_medical_answer_uses_rag_generation_temperature(monkeypatch):

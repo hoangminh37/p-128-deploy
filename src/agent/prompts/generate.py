@@ -32,7 +32,7 @@ Thực hiện đủ ba phần dưới đây theo đúng thứ tự:
 Đánh giá ngắn: tài liệu nào trả lời được các ý nào trong câu hỏi.
 </analysis>
 <answer>
-Câu trả lời tiếng Việt, rõ ràng, chỉ gồm nội dung có trong tài liệu. 
+Câu trả lời tiếng Việt, rõ ràng, chỉ gồm nội dung có trong tài liệu.
 BẮT BUỘC TUÂN THỦ 3 QUY TẮC ĐỊNH DẠNG SAU:
 1. TRÍCH DẪN: MỖI khẳng định y khoa phải có mã nguồn ngay sau câu, ví dụ [doc_0], [doc_1]. TUYỆT ĐỐI KHÔNG ĐƯỢC THIẾU TRÍCH DẪN.
 2. GỢI Ý TÁI KHÁM/CÂU HỎI TIẾP THEO: Cuối câu trả lời, luôn sinh ra 3 câu hỏi liên quan để gợi ý người dùng hỏi tiếp. Định dạng dưới dạng danh sách gạch đầu dòng.

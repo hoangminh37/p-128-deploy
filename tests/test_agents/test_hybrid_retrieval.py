@@ -128,9 +128,7 @@ async def test_retrieval_timeout_khong_lam_treo_chat(monkeypatch):
     _approved_registry(monkeypatch)
 
     started_at = time.perf_counter()
-    result = await hybrid_retrieval.hybrid_retrieval_node(
-        {"query": "Đường huyết bao nhiêu là cao?", "metadata": {}}
-    )
+    result = await hybrid_retrieval.hybrid_retrieval_node({"query": "Đường huyết bao nhiêu là cao?", "metadata": {}})
 
     context = result["metadata"]["retrieval_context"]
     assert time.perf_counter() - started_at < 0.07

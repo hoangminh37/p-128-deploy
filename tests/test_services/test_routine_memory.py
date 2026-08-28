@@ -41,20 +41,26 @@ async def test_record_giu_memory_ben_vung_va_khu_trung_lap(tmp_path):
             )
         )
         await session.flush()
-        assert await record_routine_updates(
-            session,
-            patient_id="p_routine",
-            raw_updates=raw_updates,
-            source_text=source,
-        ) == 1
+        assert (
+            await record_routine_updates(
+                session,
+                patient_id="p_routine",
+                raw_updates=raw_updates,
+                source_text=source,
+            )
+            == 1
+        )
         await session.commit()
 
-        assert await record_routine_updates(
-            session,
-            patient_id="p_routine",
-            raw_updates=raw_updates,
-            source_text=source,
-        ) == 0
+        assert (
+            await record_routine_updates(
+                session,
+                patient_id="p_routine",
+                raw_updates=raw_updates,
+                source_text=source,
+            )
+            == 0
+        )
         await session.commit()
         entries = await load_routine_memory(session, "p_routine")
 

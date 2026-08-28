@@ -30,8 +30,7 @@ def test_prompt_term_detect_va_explain_chi_nhan_cac_bien_dau_vao_hop_dong() -> N
 def test_validate_terms_sau_khi_loai_candidate_sai_khong_cat_mat_thuat_ngu() -> None:
     """The detector may return a bad phrase first; valid later terms must survive."""
     answer = (
-        "Cần theo dõi HbA1c, eGFR, microalbumin niệu, kháng insulin, "
-        "bệnh võng mạc và nghiệm pháp dung nạp glucose."
+        "Cần theo dõi HbA1c, eGFR, microalbumin niệu, kháng insulin, bệnh võng mạc và nghiệm pháp dung nạp glucose."
     )
     detected = [_term("không có trong câu")] + [
         _term(value)

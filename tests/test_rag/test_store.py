@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.rag.config import RagSettings
-from src.rag.store import _TokenBudget, CohereEmbedder, Hit, VectorStore, make_embedder
+from src.rag.store import CohereEmbedder, Hit, VectorStore, _TokenBudget, make_embedder
 
 
 class FakeEmbedder:
@@ -344,5 +344,3 @@ class TestDualModeVectorStore:
         assert isinstance(store_sqlite, ChromaStore)
 
         get_settings.cache_clear()
-
-

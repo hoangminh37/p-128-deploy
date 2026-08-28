@@ -206,4 +206,3 @@ class MedicalChunk(Base):
     metadata_json = Column(JSON_TYPE, nullable=True)
     embedding = Column(Vector(1024) if Vector is not None else Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-

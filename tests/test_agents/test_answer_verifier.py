@@ -94,7 +94,9 @@ async def test_verifier_timeout_chan_cau_tra_loi(monkeypatch):
         "get_quality_llm_with_fallback",
         lambda _: RunnableLambda(never_returns),
     )
-    monkeypatch.setattr(answer_verifier, "get_settings", lambda: SimpleNamespace(llm_quality_total_timeout_seconds=0.01))
+    monkeypatch.setattr(
+        answer_verifier, "get_settings", lambda: SimpleNamespace(llm_quality_total_timeout_seconds=0.01)
+    )
 
     result = await answer_verifier.answer_verifier_node(
         {

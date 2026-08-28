@@ -252,8 +252,7 @@ def start_indexing(
         raise IngestError(f"Tài liệu {doc_id} đang được index")
     if doc.status not in {"pending_review", "index_failed"}:
         raise IngestError(
-            f"Chỉ có thể index tài liệu đang chờ duyệt hoặc index thất bại, "
-            f"{doc_id} đang là {doc.status}"
+            f"Chỉ có thể index tài liệu đang chờ duyệt hoặc index thất bại, {doc_id} đang là {doc.status}"
         )
 
     doc.status = "indexing"

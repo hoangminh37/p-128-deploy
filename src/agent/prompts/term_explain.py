@@ -31,7 +31,9 @@ Evidence từ tài liệu đã duyệt, được nhóm theo TERM id:
 
 Trả JSON array ngay:"""
 
-term_explain_prompt = ChatPromptTemplate.from_messages([
-    ("system", _SYSTEM),
-    ("human", _HUMAN),
-])
+term_explain_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", _SYSTEM),
+        ("human", _HUMAN),
+    ]
+)

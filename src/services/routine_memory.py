@@ -95,12 +95,13 @@ async def record_routine_updates(
         db.add(memory)
         entries: list[dict[str, Any]] = []
     else:
-        entries = [entry for entry in memory.entries if isinstance(entry, dict)] if isinstance(memory.entries, list) else []
+        entries = (
+            [entry for entry in memory.entries if isinstance(entry, dict)] if isinstance(memory.entries, list) else []
+        )
 
     now = datetime.now(UTC).isoformat()
     existing = {
-        (str(entry.get("category", "")), _compact(str(entry.get("fact", ""))).casefold()): entry
-        for entry in entries
+        (str(entry.get("category", "")), _compact(str(entry.get("fact", ""))).casefold()): entry for entry in entries
     }
     added = 0
     for update in updates:

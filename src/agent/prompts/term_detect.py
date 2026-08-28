@@ -44,7 +44,9 @@ Câu trả lời đã được kiểm chứng:
 
 Trả JSON array ngay:"""
 
-term_detect_prompt = ChatPromptTemplate.from_messages([
-    ("system", _SYSTEM),
-    ("human", _HUMAN),
-])
+term_detect_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", _SYSTEM),
+        ("human", _HUMAN),
+    ]
+)

@@ -531,10 +531,15 @@ async def chat_stream(
             if status in ("answered", "partial") and answer and final_citations:
                 try:
                     from src.agent.nodes.annotation.annotation_pipeline import run_annotation_pipeline
+
                     # Truyền retrieved_docs từ state để dùng làm fallback
                     # khi RAG search không tìm được định nghĩa riêng cho term
                     answer_chunks = [
-                        {"content": d.get("content", ""), "chunk_id": d.get("chunk_id", ""), "document_id": d.get("document_id")}
+                        {
+                            "content": d.get("content", ""),
+                            "chunk_id": d.get("chunk_id", ""),
+                            "document_id": d.get("document_id"),
+                        }
                         for d in final_state.get("retrieved_docs", [])
                         if d.get("content")
                     ]

@@ -207,9 +207,7 @@ class CohereEmbedder:
         out: list[list[float]] = []
         batch = self.settings.cohere_batch_size  # Cohere chặn ở 96 văn bản mỗi lần
         for i in range(0, len(texts), batch):
-            out.extend(
-                self._embed_batch(texts[i : i + batch], input_type, max_attempts=max_attempts)
-            )
+            out.extend(self._embed_batch(texts[i : i + batch], input_type, max_attempts=max_attempts))
             if len(texts) > batch:
                 logger.info("embedded %d/%d", min(i + batch, len(texts)), len(texts))
         return out
@@ -509,6 +507,7 @@ class PgVectorStore:
     def _get_sync_engine(self):
         if self._sync_engine is None:
             from sqlalchemy import create_engine
+
             from src.core.config import get_settings
 
             db_url = get_settings().database_url
@@ -531,6 +530,7 @@ class PgVectorStore:
         if not chunks:
             return 0
         from sqlalchemy.dialects.postgresql import insert
+
         from src.models.domain import MedicalChunk
 
         vectors = self.embedder.embed_documents([c.embed_text for c in chunks])
@@ -602,6 +602,7 @@ class PgVectorStore:
         engine = self._get_sync_engine()
 
         from sqlalchemy import and_, or_, select
+
         from src.models.domain import MedicalChunk
 
         sim_col = (1.0 - MedicalChunk.embedding.cosine_distance(vector)).label("similarity")
@@ -614,9 +615,7 @@ class PgVectorStore:
             disease_conditions = []
             for d in requested_diseases:
                 disease_conditions.append(MedicalChunk.disease == d)
-                disease_conditions.append(
-                    MedicalChunk.metadata_json[f"disease_{d}"].as_boolean() == True
-                )
+                disease_conditions.append(MedicalChunk.metadata_json[f"disease_{d}"].as_boolean().is_(True))
             filters.append(or_(*disease_conditions))
 
         if allowed_doc_ids is not None:
@@ -656,14 +655,11 @@ class PgVectorStore:
 
     def document_chunks(self, document_id: str) -> list[dict[str, Any]]:
         from sqlalchemy import select
+
         from src.models.domain import MedicalChunk
 
         engine = self._get_sync_engine()
-        stmt = (
-            select(MedicalChunk)
-            .where(MedicalChunk.doc_id == document_id)
-            .order_by(MedicalChunk.chunk_id.asc())
-        )
+        stmt = select(MedicalChunk).where(MedicalChunk.doc_id == document_id).order_by(MedicalChunk.chunk_id.asc())
         chunks: list[dict[str, Any]] = []
         with engine.connect() as conn:
             result = conn.execute(stmt)
@@ -684,6 +680,7 @@ class PgVectorStore:
 
     def delete_by_doc(self, doc_id: str) -> int:
         from sqlalchemy import delete
+
         from src.models.domain import MedicalChunk
 
         engine = self._get_sync_engine()
@@ -695,6 +692,7 @@ class PgVectorStore:
 
     def count(self) -> int:
         from sqlalchemy import func, select
+
         from src.models.domain import MedicalChunk
 
         engine = self._get_sync_engine()
@@ -703,6 +701,7 @@ class PgVectorStore:
 
     def stats(self) -> dict:
         from sqlalchemy import func, select
+
         from src.models.domain import MedicalChunk
 
         engine = self._get_sync_engine()
@@ -715,7 +714,7 @@ class PgVectorStore:
 
 class VectorStore:
     """Lớp bọc VectorStore đa tầng (Dual-Mode Router).
-    
+
     Tự động chọn PgVectorStore khi kết nối PostgreSQL, hoặc ChromaStore khi chạy SQLite local.
     """
 
@@ -723,4 +722,3 @@ class VectorStore:
         if is_postgres_backend():
             return PgVectorStore(settings=settings, embedder=embedder)
         return ChromaStore(settings=settings, embedder=embedder)
-

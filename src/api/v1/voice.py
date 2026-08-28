@@ -34,9 +34,7 @@ logger = get_logger(__name__)
 
 # MediaRecorder does not have one universal MIME type across Safari, Chromium
 # and Firefox. These are the formats the browser may produce for this UI.
-_ALLOWED_AUDIO_TYPES = frozenset(
-    {"audio/webm", "audio/mp4", "audio/mpeg", "audio/wav", "audio/ogg"}
-)
+_ALLOWED_AUDIO_TYPES = frozenset({"audio/webm", "audio/mp4", "audio/mpeg", "audio/wav", "audio/ogg"})
 
 
 def _require_patient_access(patient_id: str, current_user: UserInfo) -> None:
@@ -218,7 +216,9 @@ async def synthesize_verified_answer(
     await _get_patient(db, request.patient_id)
 
     result = await db.execute(
-        select(Message).join(Conversation).where(
+        select(Message)
+        .join(Conversation)
+        .where(
             Message.id == request.message_id,
             Message.role == "assistant",
             Message.status.in_(("answered", "partial", "refused", "referral")),
@@ -230,7 +230,9 @@ async def synthesize_verified_answer(
         # Red-flag answers are intentionally not available through TTS. The
         # user must see emergency guidance immediately instead of relying on
         # delayed audio playback.
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy câu trả lời có thể đọc thành tiếng")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy câu trả lời có thể đọc thành tiếng"
+        )
 
     settings = get_settings()
     if len(message.content) > settings.voice_tts_max_chars:
