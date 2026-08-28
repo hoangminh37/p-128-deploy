@@ -2,8 +2,9 @@
  * Hàng đợi duyệt, đường dẫn `/editor/queue`.
  *
  * BỘ LỌC MẶC ĐỊNH là "Đang xử lý", gồm cả `pending` lẫn `draft`. Hai trạng thái
- * này là việc còn phải làm; `approved` và `rejected` là việc đã xong, xem lại
- * được nhưng không được chen vào danh sách hằng ngày.
+ * này là việc còn phải làm; `indexing` đang chạy nền và `failed` cần BTV thử
+ * lại. `approved` và `rejected` là việc đã xong, xem lại được nhưng không được
+ * chen vào danh sách hằng ngày.
  *
  * Hợp đồng chỉ cho lọc một trạng thái mỗi lần gọi, nên bộ lọc mặc định bắn hai
  * request rồi gộp lại ở đây — xem `useEditorQueues`.
@@ -44,8 +45,8 @@ const FILTERS: readonly QueueFilter[] = [
   {
     id: 'active',
     label: 'Đang xử lý',
-    statuses: ['pending', 'draft'],
-    empty: 'Danh sách hiện không có mục nào đang soạn hoặc chờ duyệt.',
+    statuses: ['pending', 'draft', 'indexing', 'failed'],
+    empty: 'Danh sách hiện không có mục nào đang soạn, chờ duyệt, index hoặc cần thử lại.',
   },
   {
     id: 'approved',
@@ -128,8 +129,8 @@ export function EditorQueueScreen() {
     <div className="max-w-reading">
       <h1 className="text-ask font-semibold text-body">Hàng đợi duyệt</h1>
       <p className="mt-snug max-w-answer text-notice text-body">
-        Nội dung chờ vào thư viện trích dẫn. Mở một mục để xem toàn văn, chỉnh sửa
-        rồi duyệt hoặc từ chối.
+        Nguồn chỉ được agent dùng sau khi parse, chunk, embedding và index thành
+        công. Mở một mục để duyệt, theo dõi tiến độ hoặc xem lỗi để thử lại.
       </p>
 
       {/* ---- Bộ lọc trạng thái ---- */}

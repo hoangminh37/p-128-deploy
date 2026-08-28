@@ -12,12 +12,12 @@
  * thầm, không báo lỗi, không ai biết cho tới khi có người đi dò. Schema ở
  * `lib/schemas.ts` cũng canh đúng luật này ở tầng dữ liệu.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { useEditorQueueItem, useInvalidateEditorData } from '../app/editor'
-import { approveEditorQueueItem, rejectEditorQueueItem } from '../lib/api'
+import { approveEditorQueueItem, rejectEditorQueueItem, retryEditorSourceIndex } from '../lib/api'
 import { CONDITION_LABEL } from '../lib/conditions'
 import { formatDateTime } from '../lib/datetime'
 import { STATUS_LABEL } from '../lib/editorLabels'
@@ -42,7 +42,7 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
   )
 }
 
-function ItemForm({ item }: { item: EditorQueueItemDetail }) {
+function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged: () => void }) {
   const navigate = useNavigate()
   const invalidateEditorData = useInvalidateEditorData()
 
@@ -51,9 +51,18 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
   const [isRejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
 
+  const isSourceUpload = item.origin === 'editor_upload'
+  const isIndexing = item.status === 'indexing'
+  const isFailed = item.status === 'failed'
+
   function returnToQueue(): void {
     invalidateEditorData()
     void navigate('/editor/queue', { replace: true })
+  }
+
+  function refreshSourceJob(): void {
+    invalidateEditorData()
+    onChanged()
   }
 
   const approve = useMutation({
@@ -62,18 +71,23 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
         content,
         note: note.trim() === '' ? null : note.trim(),
       }),
-    onSuccess: returnToQueue,
+    onSuccess: isSourceUpload ? refreshSourceJob : returnToQueue,
   })
 
   const reject = useMutation({
     mutationFn: () => rejectEditorQueueItem(item.item_id, { reason }),
-    onSuccess: returnToQueue,
+    onSuccess: isSourceUpload ? refreshSourceJob : returnToQueue,
+  })
+
+  const retryIndex = useMutation({
+    mutationFn: () => retryEditorSourceIndex(item.item_id),
+    onSuccess: refreshSourceJob,
   })
 
   const isSettled = item.status === 'approved' || item.status === 'rejected'
   const hasConditions = item.conditions.length > 0
-  const isBusy = approve.isPending || reject.isPending
-  const canApprove = hasConditions && !isBusy
+  const isBusy = approve.isPending || reject.isPending || retryIndex.isPending
+  const canApprove = hasConditions && !isBusy && !isIndexing && !isFailed
   const canSendRejection = reason.trim() !== '' && !isBusy
 
   return (
@@ -155,6 +169,44 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
         <MetaRow label="Tạo lúc">{formatDateTime(item.created_at)}</MetaRow>
       </dl>
 
+      {isSourceUpload && (
+        <div className="mt-block rounded-card bg-canvas p-cozy">
+          <p className="font-display text-input font-semibold text-body">Tiến độ đưa vào RAG</p>
+          {isIndexing && (
+            <p role="status" className="font-display mt-hair text-question text-slate">
+              Đang parse, chunk, embedding và ghi vào Vector Store. Agent chưa thể dùng tài liệu này; trang sẽ tự cập nhật.
+            </p>
+          )}
+          {isFailed && (
+            <>
+              <p className="font-display mt-hair text-question text-alert">
+                Index chưa hoàn tất nên agent không thể dùng tài liệu này.
+              </p>
+              {item.source_index_error !== null && item.source_index_error !== undefined && (
+                <p className="font-display mt-snug rounded-card bg-sand p-snug text-question text-sand-deep">
+                  Lỗi: {item.source_index_error}
+                </p>
+              )}
+              {item.index_attempts !== null && item.index_attempts !== undefined && (
+                <p className="font-display mt-snug text-question text-slate">
+                  Đã chạy {item.index_attempts} lần.
+                </p>
+              )}
+            </>
+          )}
+          {item.status === 'approved' && (
+            <p className="font-display mt-hair text-question text-mint-deep">
+              {item.indexed_chunk_count ?? 0} đoạn đã index thành công. Agent có thể truy xuất tài liệu này.
+            </p>
+          )}
+          {item.status === 'pending' && (
+            <p className="font-display mt-hair text-question text-slate">
+              Tài liệu vẫn tách khỏi RAG cho đến khi bạn duyệt và index hoàn tất.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* ---- Kết quả đã chốt, nếu có ---- */}
       {isSettled && (
         <div className="mt-block rounded-card bg-surface p-cozy">
@@ -174,29 +226,41 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
         </div>
       )}
 
-      {/* ---- Nội dung, sửa được ---- */}
-      <div className="mt-block">
-        <label htmlFor="content" className={FIELD_LABEL_CLASS}>
-          Nội dung
-        </label>
-        <p id="content-hint" className="font-display mt-hair text-question text-slate">
-          Sửa trực tiếp ở đây trước khi duyệt. Đây chính là đoạn văn bệnh nhân sẽ
-          đọc, nên viết câu ngắn và tránh thuật ngữ không giải thích.
-        </p>
-        {/* `font-body` đúng như lúc render cho bệnh nhân, để người duyệt thấy
-            được nhịp đọc thật chứ không phải nhịp của một ô soạn thảo. */}
-        <textarea
-          id="content"
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-          rows={12}
-          disabled={isSettled}
-          aria-describedby="content-hint"
-          className={`${FIELD_TEXTAREA_CLASS} text-notice disabled:text-slate`}
-        />
-      </div>
+      {/* ---- Nội dung hoặc file nguồn ---- */}
+      {isSourceUpload ? (
+        <div className="mt-block">
+          <p className={FIELD_LABEL_CLASS}>Nội dung tài liệu nguồn</p>
+          <p className="font-display mt-hair text-question text-slate">
+            RAG luôn parse từ file gốc đã tải lên, không dùng ô nội dung rỗng hay bản sao rút gọn trong hàng đợi.
+          </p>
+          <Link
+            to={`/editor/documents/${encodeURIComponent(item.item_id)}`}
+            className="font-display mt-snug inline-flex min-h-touch items-center text-input font-semibold text-body underline underline-offset-4"
+          >
+            Mở toàn văn tài liệu
+          </Link>
+        </div>
+      ) : (
+        <div className="mt-block">
+          <label htmlFor="content" className={FIELD_LABEL_CLASS}>
+            Nội dung
+          </label>
+          <p id="content-hint" className="font-display mt-hair text-question text-slate">
+            Sửa trực tiếp ở đây trước khi duyệt. Đây chính là đoạn văn bệnh nhân sẽ đọc, nên viết câu ngắn và tránh thuật ngữ không giải thích.
+          </p>
+          <textarea
+            id="content"
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            rows={12}
+            disabled={isSettled}
+            aria-describedby="content-hint"
+            className={`${FIELD_TEXTAREA_CLASS} text-notice disabled:text-slate`}
+          />
+        </div>
+      )}
 
-      {!isSettled && (
+      {!isSettled && !isIndexing && (
         <>
           {/* ---- Ghi chú của người duyệt ---- */}
           <div className="mt-block">
@@ -230,14 +294,15 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
             </p>
           )}
 
-          {(approve.isError || reject.isError) && (
+          {(approve.isError || reject.isError || retryIndex.isError) && (
             <div className="mt-block">
               <ErrorNotice
-                error={approve.error ?? reject.error}
+                error={approve.error ?? reject.error ?? retryIndex.error}
                 retryLabel="Thử lại"
                 onRetry={() => {
                   if (approve.isError) approve.mutate()
-                  else reject.mutate()
+                  else if (reject.isError) reject.mutate()
+                  else retryIndex.mutate()
                 }}
               />
             </div>
@@ -248,6 +313,16 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
               nút `disabled` bị bàn phím bỏ qua hoàn toàn, nên người dùng bàn phím
               sẽ không bao giờ nghe được dòng giải thích vì sao nó chưa bấm được. */}
           <div className="mt-block flex flex-wrap gap-snug">
+            {isFailed && isSourceUpload ? (
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => retryIndex.mutate()}
+                className="motion-press font-display min-h-call flex-1 rounded-pill bg-mint px-cozy text-input font-bold text-mint-deep enabled:hover:bg-mint-press disabled:bg-canvas disabled:font-normal disabled:text-slate"
+              >
+                {retryIndex.isPending ? 'Đang bắt đầu lại…' : 'Thử lại index'}
+              </button>
+            ) : (
             <button
               type="button"
               aria-disabled={!canApprove}
@@ -266,8 +341,13 @@ function ItemForm({ item }: { item: EditorQueueItemDetail }) {
                   : 'cursor-not-allowed border-2 border-dashed border-slate bg-canvas font-normal text-slate'
               }`}
             >
-              {approve.isPending ? 'Đang duyệt…' : 'Duyệt'}
+              {approve.isPending
+                ? 'Đang bắt đầu index…'
+                : isSourceUpload
+                  ? 'Duyệt và bắt đầu index'
+                  : 'Duyệt'}
             </button>
+            )}
 
             <button
               type="button"
@@ -339,6 +419,12 @@ export function EditorItemScreen() {
   const { itemId } = useParams()
   const { data, isPending, isError, error, refetch } = useEditorQueueItem(itemId ?? '')
 
+  useEffect(() => {
+    if (data?.status !== 'indexing') return undefined
+    const timer = window.setTimeout(() => void refetch(), 2_000)
+    return () => window.clearTimeout(timer)
+  }, [data?.status, refetch])
+
   if (isPending) {
     return (
       <p
@@ -364,5 +450,5 @@ export function EditorItemScreen() {
 
   // `key` để đổi sang mục khác là dựng lại form từ đầu. Không có nó thì nội dung
   // đang sửa dở của mục trước sẽ dính sang mục sau.
-  return <ItemForm key={data.item_id} item={data} />
+  return <ItemForm key={data.item_id} item={data} onChanged={() => void refetch()} />
 }

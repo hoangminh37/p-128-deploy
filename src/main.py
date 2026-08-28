@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -48,7 +49,22 @@ async def lifespan(app: FastAPI):
     await ensure_routine_memory_schema()
     await ensure_patient_profile_schema()
 
+    # BackgroundTasks không sống qua restart. Đừng để một dòng "đang index"
+    # cũ trông như job còn chạy: đánh dấu bền vững để BTV nhìn thấy lỗi và chủ
+    # động retry, còn Registry.approved() vẫn giữ hàng rào không cho agent dùng.
+    from src.rag.ingest import recover_interrupted_indexes
+
+    interrupted = await asyncio.to_thread(recover_interrupted_indexes)
+    if interrupted:
+        logger.warning("RAG: %d job index bị gián đoạn, chờ biên tập viên thử lại", len(interrupted))
+
     ready, count, note = check_vectorstore()
+    # Retrieval đọc snapshot này trước khi mở Chroma. Nếu preflight đã thất bại
+    # thì mỗi câu hỏi phải fail-closed ngay, không được thử lại index hỏng và
+    # làm SSE đứng mãi ở bước tìm tài liệu.
+    from src.rag.runtime import set_rag_readiness
+
+    set_rag_readiness(ready=ready, chunk_count=count, note=note)
     if ready:
         logger.info("RAG: %d chunk trong kho vector", count)
     else:

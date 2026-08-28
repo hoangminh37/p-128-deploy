@@ -109,6 +109,8 @@ export function OriginBadge({ origin }: { origin: EditorItemOrigin }) {
 const STATUS_TONE: Record<EditorItemStatus, string> = {
   draft: 'bg-canvas text-slate',
   pending: 'bg-ink text-white',
+  indexing: 'bg-coral text-coral-deep',
+  failed: 'bg-alert-solid text-white',
   approved: 'bg-mint text-mint-deep',
   rejected: 'bg-sand text-sand-deep',
 }

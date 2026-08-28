@@ -22,10 +22,9 @@ import App from './App.tsx'
  * Quyết định có bật MSW hay không, dựa trên biến `VITE_ENABLE_MSW`.
  *
  * Vite luôn đưa biến môi trường vào mã dưới dạng chuỗi, nên chỉ hai chuỗi
- * `'true'` và `'false'` được coi là lựa chọn tường minh. Mọi giá trị khác, kể cả
- * khi biến không được đặt, rơi về mặc định theo chế độ chạy: bật ở dev, tắt ở
- * production. Mặc định này để người mới clone repo chạy được ngay bằng
- * `npm run dev` mà chưa cần dựng backend.
+ * Chỉ `'true'` bật MSW. Không có biến này thì frontend luôn gọi backend thật,
+ * kể cả ở development: màn quản trị y khoa không được âm thầm thay dữ liệu
+ * thực bằng fixture chỉ vì người dùng vừa clone repo.
  *
  * Cố ý viết thành một biểu thức phẳng chứ không tách ra hàm. Lúc build
  * production, Vite thay `import.meta.env` bằng hằng số rồi rút gọn cả biểu thức
@@ -34,9 +33,7 @@ import App from './App.tsx'
  * hàm thì bundler không rút gọn được nữa, và chunk mock ~436 kB quay lại nằm
  * trong bản phát hành dù mock vẫn tắt.
  */
-const MOCKING_ENABLED =
-  import.meta.env.VITE_ENABLE_MSW === 'true' ||
-  (import.meta.env.VITE_ENABLE_MSW !== 'false' && import.meta.env.DEV)
+const MOCKING_ENABLED = import.meta.env.VITE_ENABLE_MSW === 'true'
 
 /**
  * Bật MSW theo đúng hướng dẫn trong `mocks/browser.ts`.

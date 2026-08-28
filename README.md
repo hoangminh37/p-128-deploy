@@ -58,7 +58,7 @@ python scripts/init_db.py
 
 # Khởi chạy FastAPI Backend
 make run
-# Hoặc: uvicorn src.main:app --reload --port 8000
+# Hoặc: uvicorn src.main:app --reload --reload-dir src --port 8000
 ```
 
 ### 4. Cài đặt Frontend

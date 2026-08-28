@@ -220,7 +220,11 @@ class TestRegistryThat:
 
     def test_registry_that_hop_le(self):
         r = load_registry()
-        assert len(r.approved()) == 5
+        # `load_registry()` ghép thêm uploads.json ở môi trường đang chạy. Số
+        # tài liệu được BTV duyệt là dữ liệu vận hành, không phải hằng số của
+        # source tree; ép bằng 5 sẽ làm test sai ngay khi upload hợp lệ đầu tiên
+        # hoàn tất index.
+        assert r.approved()
         assert r.ranking_policy == "recency"
 
     def test_moi_tai_lieu_deu_thuoc_pham_vi(self):

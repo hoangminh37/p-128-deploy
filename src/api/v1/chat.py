@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -299,6 +300,7 @@ async def chat_stream(
     - ``annotations``: tooltip thuật ngữ, chạy sau done và không chặn câu trả lời
     """
 
+    request_started_at = perf_counter()
     history = await _load_conversation_history(
         db,
         patient_id=request.patient_id,
@@ -329,6 +331,8 @@ async def chat_stream(
 
         state = request.to_agent_state(patient_profile_dict, messages=history, patient_routine=routine_memory)
         final_state: dict = {}
+        node_started_at: dict[str, float] = {}
+        node_timings_ms: dict[str, int] = {}
 
         try:
             # ── Step events (realtime per node) ──────────────────────────
@@ -337,6 +341,7 @@ async def chat_stream(
                 event_type = event.get("event", "")
 
                 if event_type == "on_chain_start" and event_name in NODE_MESSAGES:
+                    node_started_at[str(event.get("run_id", event_name))] = perf_counter()
                     info = NODE_MESSAGES[event_name]
                     payload = json.dumps(
                         {
@@ -350,9 +355,22 @@ async def chat_stream(
 
                 # Trích xuất state từ bất kỳ node nào kết thúc
                 if event_type == "on_chain_end":
+                    run_id = str(event.get("run_id", event_name))
+                    started_at = node_started_at.pop(run_id, None)
+                    if started_at is not None and event_name in NODE_MESSAGES:
+                        elapsed_ms = round((perf_counter() - started_at) * 1000)
+                        node_timings_ms[event_name] = elapsed_ms
+                        logger.info("[chat_stream] node=%s completed in %d ms", event_name, elapsed_ms)
                     output = event.get("data", {}).get("output", {})
                     if isinstance(output, dict) and "response" in output:
                         final_state.update(output)
+
+            total_latency_ms = round((perf_counter() - request_started_at) * 1000)
+            final_state["metadata"] = {
+                **final_state.get("metadata", {}),
+                "request_timing_ms": {"total": total_latency_ms, "nodes": node_timings_ms},
+            }
+            logger.info("[chat_stream] completed graph in %d ms | nodes=%s", total_latency_ms, node_timings_ms)
 
             # Red-flag kết thúc trước persistence: không ghi query hay profile
             # nhạy cảm vào conversation/message tables.
@@ -373,6 +391,7 @@ async def chat_stream(
                         "support_level": None,
                         "intent": "red_flag",
                         "disclaimer": "⚠️ Tình huống có thể khẩn cấp. Hãy gọi 115 hoặc đến cơ sở cấp cứu gần nhất.",
+                        "latency_ms": total_latency_ms,
                     },
                     ensure_ascii=False,
                 )
@@ -500,6 +519,8 @@ async def chat_stream(
                     "support_level": final_support_level,
                     "intent": intent,
                     "disclaimer": disclaimer,
+                    "latency_ms": total_latency_ms,
+                    "node_timings_ms": node_timings_ms,
                 },
                 ensure_ascii=False,
             )
@@ -541,7 +562,11 @@ async def chat_stream(
                     logger.warning("[chat_stream] annotation pipeline error: %s", ann_exc)
 
         except Exception as exc:
-            logger.error("[chat_stream] error: %s", exc)
+            logger.error(
+                "[chat_stream] error after %d ms: %s",
+                round((perf_counter() - request_started_at) * 1000),
+                exc,
+            )
             error_payload = json.dumps({"error": str(exc)}, ensure_ascii=False)
             yield f"event: error\ndata: {error_payload}\n\n"
 

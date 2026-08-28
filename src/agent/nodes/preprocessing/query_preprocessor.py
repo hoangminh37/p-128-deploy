@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+from time import perf_counter
 
 from src.agent.prompts.rewrite import preprocess_prompt
 from src.agent.state import AgentState
+from src.core.config import get_settings
 from src.core.logging import get_logger
 from src.services.llm.factory import get_fast_llm
 from src.services.routine_memory import format_routine_memory
@@ -65,25 +68,32 @@ def _parse_response(raw: str, fallback_query: str) -> tuple[str, list[dict]]:
 async def query_preprocessor_node(state: AgentState) -> AgentState:
     """Chuẩn hoá câu hỏi trong một fast-LLM call; lỗi thì an toàn dùng query gốc."""
     query = state.get("query", "")
+    started_at = perf_counter()
 
     try:
         chain = preprocess_prompt | get_fast_llm()
-        result = await chain.ainvoke(
-            {
-                "query": query,
-                "history": _format_history(state.get("messages", [])),
-                "patient_profile": _format_profile(state.get("patient_profile", {})),
-                "patient_routine": format_routine_memory(state.get("patient_routine", [])),
-                "task_kind": state.get("task_kind", "health_education"),
-            }
-        )
+        async with asyncio.timeout(get_settings().llm_fast_timeout_seconds):
+            result = await chain.ainvoke(
+                {
+                    "query": query,
+                    "history": _format_history(state.get("messages", [])),
+                    "patient_profile": _format_profile(state.get("patient_profile", {})),
+                    "patient_routine": format_routine_memory(state.get("patient_routine", [])),
+                    "task_kind": state.get("task_kind", "health_education"),
+                }
+            )
         preprocessed, routine_updates = _parse_response(result.content, query)
+    except TimeoutError:
+        logger.warning("[query_preprocessor] timed out; using original query")
+        preprocessed = query
+        routine_updates = []
     except Exception as exc:
         logger.warning("[query_preprocessor] failed; using original query: %s", exc)
         preprocessed = query
         routine_updates = []
 
-    logger.info("[query_preprocessor] query prepared (%d chars)", len(preprocessed))
+    elapsed_ms = round((perf_counter() - started_at) * 1000)
+    logger.info("[query_preprocessor] query prepared (%d chars) in %d ms", len(preprocessed), elapsed_ms)
     return {
         **state,
         "preprocessed_query": preprocessed,
@@ -91,5 +101,6 @@ async def query_preprocessor_node(state: AgentState) -> AgentState:
         "metadata": {
             **state.get("metadata", {}),
             "preprocessed_query": preprocessed,
+            "preprocessing_latency_ms": elapsed_ms,
         },
     }

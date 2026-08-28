@@ -40,6 +40,8 @@ import { ThemeProvider } from './ui/ThemeProvider'
 import { LandingScreen } from './screens/LandingScreen'
 import { ChatScreen } from './screens/ChatScreen'
 import { EditorDashboardScreen } from './screens/EditorDashboardScreen'
+import { EditorDocumentViewerScreen } from './screens/EditorDocumentViewerScreen'
+import { EditorDocumentsScreen } from './screens/EditorDocumentsScreen'
 import { EditorItemScreen } from './screens/EditorItemScreen'
 import { EditorQueueScreen } from './screens/EditorQueueScreen'
 import { EditorUploadScreen } from './screens/EditorUploadScreen'
@@ -236,6 +238,22 @@ function App() {
                     element={
                       <RequireRole role="editor">
                         <EditorUploadScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="editor/documents"
+                    element={
+                      <RequireRole role="editor">
+                        <EditorDocumentsScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="editor/documents/:documentId"
+                    element={
+                      <RequireRole role="editor">
+                        <EditorDocumentViewerScreen />
                       </RequireRole>
                     }
                   />

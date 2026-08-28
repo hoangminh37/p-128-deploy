@@ -8,8 +8,9 @@ Vòng đời một tài liệu tải lên:
 
     stage_upload()   -> lưu file, tạo bản ghi status=pending_review
                         (CHƯA parse, CHƯA vào vector store)
+    start_indexing() -> đổi status=indexing và ghi lại lần chạy
     approve()        -> parse -> sửa cấu trúc -> chunk -> embed -> index,
-                        đổi status=approved
+                        chỉ đổi status=approved sau khi toàn bộ bước thành công
     reject()         -> chuyển sang quarantine, xoá file
     remove()         -> gỡ tài liệu đã duyệt, xoá sạch chunk khỏi store
 
@@ -92,6 +93,36 @@ def slugify(text: str, max_len: int = 60) -> str:
 
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _safe_error_message(error: Exception | str) -> str:
+    """Thông báo lỗi đủ hữu ích cho biên tập viên nhưng không thành traceback.
+
+    Lỗi được lưu xuống ``uploads.json`` và hiển thị lại ở UI, vì vậy không đưa
+    đường dẫn nội bộ hay chuỗi traceback dài vào đây. Log server vẫn giữ exception
+    đầy đủ qua ``logger.exception`` ở caller.
+    """
+    message = " ".join(str(error).split())
+    error_kind = f"{type(error).__module__}.{type(error).__name__}".casefold()
+    message_for_match = message.casefold()
+
+    # Lần chạy PDF đầu tiên của Docling cần model layout từ Hugging Face. Nếu
+    # máy chủ không ra Internet, exception gốc là một chuỗi httpx dài và không
+    # cho BTV biết cần làm gì. Biến nó thành lỗi vận hành cụ thể, còn traceback
+    # đầy đủ vẫn được logger.exception giữ ở tầng worker.
+    if (
+        "localentrynotfounderror" in error_kind
+        or "huggingface_hub" in error_kind
+        or "files on the hub" in message_for_match
+    ):
+        return (
+            "Docling chưa có model phân tích bố cục trên máy chủ và không thể tải từ Hugging Face. "
+            "Kiểm tra kết nối mạng hoặc cho phép máy chủ truy cập huggingface.co, rồi thử lại index."
+        )
+
+    if not message:
+        return "Không thể hoàn tất index tài liệu. Hãy thử lại hoặc kiểm tra file gốc."
+    return message[:800]
 
 
 def _require_docling() -> None:
@@ -200,6 +231,101 @@ def stage_upload(
 # -----------------------------------------------------------------------------
 
 
+def start_indexing(
+    doc_id: str,
+    started_by: str,
+    settings: RagSettings | None = None,
+) -> IngestResult:
+    """Chuyển một nguồn đã được duyệt biên tập sang job index.
+
+    Đây là thao tác nhanh, bền vững và phải được gọi *trước* khi đẩy job nặng
+    sang background. Nhờ vậy server hoặc worker chết giữa chừng cũng không thể
+    để giao diện nói nhầm rằng tài liệu đã được agent dùng.
+    """
+    settings = settings or get_rag_settings()
+    registry = load_registry(settings=settings)
+    doc = registry.by_id(doc_id)
+
+    if doc.status == "approved":
+        raise IngestError(f"Tài liệu {doc_id} đã index thành công rồi")
+    if doc.status == "indexing":
+        raise IngestError(f"Tài liệu {doc_id} đang được index")
+    if doc.status not in {"pending_review", "index_failed"}:
+        raise IngestError(
+            f"Chỉ có thể index tài liệu đang chờ duyệt hoặc index thất bại, "
+            f"{doc_id} đang là {doc.status}"
+        )
+
+    doc.status = "indexing"
+    doc.index_attempts += 1
+    doc.index_started_at = _now()
+    doc.index_started_by = started_by
+    doc.index_completed_at = None
+    doc.index_error = None
+    doc.indexed_chunks = None
+    _persist(doc, settings)
+
+    logger.info("bắt đầu index %s (lần %d)", doc_id, doc.index_attempts)
+    return IngestResult(
+        doc_id=doc_id,
+        status="indexing",
+        message="Đã bắt đầu parse, chunk và embedding tài liệu ở chế độ nền.",
+    )
+
+
+def mark_index_failed(
+    doc_id: str,
+    error: Exception | str,
+    settings: RagSettings | None = None,
+) -> None:
+    """Lưu thất bại của job index để BTV có thể xem và thử lại.
+
+    Hàm cố ý idempotent: background worker có thể gọi sau một lỗi phụ hoặc
+    lúc tiến trình đang shutdown mà không được làm hỏng trạng thái đã hoàn tất.
+    """
+    settings = settings or get_rag_settings()
+    try:
+        registry = load_registry(settings=settings)
+        doc = registry.by_id(doc_id)
+    except (FileNotFoundError, KeyError):
+        logger.warning("không ghi được lỗi index cho tài liệu không còn tồn tại: %s", doc_id)
+        return
+
+    if doc.status == "approved":
+        return
+
+    doc.status = "index_failed"
+    doc.index_completed_at = _now()
+    doc.index_error = _safe_error_message(error)
+    doc.indexed_chunks = None
+    _persist(doc, settings)
+
+
+def recover_interrupted_indexes(settings: RagSettings | None = None) -> list[str]:
+    """Đưa các job ``indexing`` bị dừng khi server restart về trạng thái retry.
+
+    FastAPI ``BackgroundTasks`` không phải hàng đợi durable. Thay vì âm thầm
+    chạy lại một job có thể tốn tiền/đụng kho vector hai lần, startup đánh dấu
+    rõ để biên tập viên chủ động nhấn "Thử lại index".
+    """
+    settings = settings or get_rag_settings()
+    docs = uploaded_docs(settings)
+    interrupted: list[str] = []
+    for doc in docs:
+        if doc.status != "indexing":
+            continue
+        doc.status = "index_failed"
+        doc.index_completed_at = _now()
+        doc.index_error = "Tác vụ index bị gián đoạn khi máy chủ khởi động lại. Hãy thử lại index."
+        doc.indexed_chunks = None
+        interrupted.append(doc.doc_id)
+
+    if interrupted:
+        save_uploads(docs, settings)
+        logger.warning("đã đánh dấu %d job index bị gián đoạn để thử lại: %s", len(interrupted), interrupted)
+    return interrupted
+
+
 def process(doc: SourceDoc, settings: RagSettings | None = None, catalog=None) -> tuple[list[Chunk], DropStat, dict]:
     """Parse -> sửa cấu trúc -> chunk cho một tài liệu. Không đụng vector store.
 
@@ -242,32 +368,46 @@ def approve(
     registry = load_registry(settings=settings)
     doc = registry.by_id(doc_id)
 
+    # Giữ tương thích với CLI cũ: gọi approve() trực tiếp vẫn khởi tạo job.
+    # API editor gọi start_indexing() trước rồi mới đẩy chính hàm này vào nền.
+    if doc.status in {"pending_review", "index_failed"}:
+        start_indexing(doc_id, approved_by, settings)
+        registry = load_registry(settings=settings)
+        doc = registry.by_id(doc_id)
+
     if doc.status == "approved":
         raise IngestError(f"Tài liệu {doc_id} đã được duyệt rồi")
-    if doc.status != "pending_review":
-        raise IngestError(f"Chỉ duyệt được tài liệu đang ở trạng thái pending_review, {doc_id} đang là {doc.status}")
+    if doc.status != "indexing":
+        raise IngestError(f"Tài liệu {doc_id} không ở trạng thái indexing (đang là {doc.status})")
 
-    chunks, drops, repairs = process(doc, settings, catalog=registry.catalog)
-    if not chunks:
-        raise IngestError(
-            f"Xử lý xong nhưng không ra chunk nào từ {doc_id}. "
-            "Nhiều khả năng file là bản scan không có lớp text, hoặc nội dung "
-            "toàn bảng biểu và ảnh. Kiểm tra data/interim/markdown/ để xem bộ "
-            "parse đọc ra được gì."
-        )
+    try:
+        chunks, drops, repairs = process(doc, settings, catalog=registry.catalog)
+        if not chunks:
+            raise IngestError(
+                f"Xử lý xong nhưng không ra chunk nào từ {doc_id}. "
+                "Nhiều khả năng file là bản scan không có lớp text, hoặc nội dung "
+                "toàn bảng biểu và ảnh. Kiểm tra data/interim/markdown/ để xem bộ "
+                "parse đọc ra được gì."
+            )
 
-    if store is None:
-        from src.rag.store import VectorStore
+        if store is None:
+            from src.rag.store import VectorStore
 
-        store = VectorStore(settings)
+            store = VectorStore(settings)
 
-    # Xoá trước rồi nạp lại, phòng trường hợp duyệt lại sau khi đã sửa.
-    store.delete_by_doc(doc_id)
-    store.upsert(chunks)
+        # Xoá trước rồi nạp lại, phòng trường hợp duyệt lại sau khi đã sửa.
+        store.delete_by_doc(doc_id)
+        store.upsert(chunks)
+    except Exception as exc:
+        mark_index_failed(doc_id, exc, settings)
+        raise
 
     doc.status = "approved"
     doc.approved_by = approved_by
     doc.approved_at = _now()
+    doc.index_completed_at = doc.approved_at
+    doc.index_error = None
+    doc.indexed_chunks = len(chunks)
     _persist(doc, settings)
 
     logger.info("duyệt %s: %d chunk vào store", doc_id, len(chunks))
@@ -294,6 +434,10 @@ def reject(doc_id: str, reasons: list[str], decided_by: str, settings: RagSettin
 
     if doc.status == "approved":
         raise IngestError(f"{doc_id} đã được duyệt — dùng remove() nếu muốn gỡ khỏi thư viện")
+    if doc.status == "indexing":
+        raise IngestError(f"{doc_id} đang được index, không thể từ chối giữa chừng")
+    if doc.status not in {"pending_review", "index_failed"}:
+        raise IngestError(f"Không thể từ chối tài liệu ở trạng thái {doc.status}")
     if not reasons:
         raise IngestError("Phải ghi lý do từ chối, để lần sau không ai tải lại nhầm")
 

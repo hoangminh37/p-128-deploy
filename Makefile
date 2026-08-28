@@ -2,7 +2,7 @@
         rag-parse rag-build rag-index rag-all rag-stats rag-test
 
 run:
-	.venv/bin/uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+	.venv/bin/uvicorn src.main:app --reload --reload-dir src --host 0.0.0.0 --port 8000
 
 test:
 	.venv/bin/pytest tests/ -v
@@ -57,4 +57,3 @@ docker-up:	## Khởi động toàn bộ stack (backend)
 
 docker-down:	## Dừng toàn bộ stack
 	docker compose down
-

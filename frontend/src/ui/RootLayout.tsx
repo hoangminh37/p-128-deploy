@@ -44,6 +44,8 @@ const DESKTOP_QUERY = '(min-width: 1024px)'
 function editorTitle(pathname: string): string {
   if (pathname.startsWith('/editor/queue/')) return 'Duyệt nội dung'
   if (pathname.startsWith('/editor/queue')) return 'Hàng đợi duyệt'
+  if (pathname.startsWith('/editor/documents/')) return 'Xem tài liệu'
+  if (pathname.startsWith('/editor/documents')) return 'Tài liệu nguồn'
   if (pathname.startsWith('/editor/out-of-scope')) return 'Câu hỏi chưa trả lời được'
   if (pathname.startsWith('/editor/upload')) return 'Tải lên tài liệu'
   return 'Tổng quan'

@@ -46,7 +46,7 @@ cp .env.example .env
 pip install -r requirements.txt
 
 # 4. Run development server
-uvicorn src.main:app --reload
+uvicorn src.main:app --reload --reload-dir src
 ```
 
 ## Project Structure

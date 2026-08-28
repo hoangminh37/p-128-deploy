@@ -76,6 +76,11 @@ raw/vn-moh-3192-2010-htn.pdf
 Hỏi Khanh để lấy bộ file, hoặc tải lại theo trường `url` trong `registry.yaml`
 (một số tài liệu chưa điền url, đang chờ biên tập viên bổ sung).
 
+Màn **Biên tập viên → Tài liệu nguồn** chỉ mở toàn văn khi file thật có trong
+`raw/`: PDF được xem nguyên bản, còn Markdown được render theo GFM. Nếu máy chủ
+chỉ có vector store (như môi trường clone mới) thì giao diện sẽ nói rõ “Bản gốc
+chưa có trên máy chủ này”; không tạo preview từ chunk hay dùng dữ liệu thay thế.
+
 ## Chạy pipeline
 
 ```bash

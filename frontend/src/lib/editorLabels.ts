@@ -13,6 +13,8 @@ import type { EditorItemOrigin, EditorItemStatus } from './schemas'
 export const STATUS_LABEL: Record<EditorItemStatus, string> = {
   draft: 'Nháp',
   pending: 'Chờ duyệt',
+  indexing: 'Đang index',
+  failed: 'Index thất bại',
   approved: 'Đã duyệt',
   rejected: 'Đã từ chối',
 }

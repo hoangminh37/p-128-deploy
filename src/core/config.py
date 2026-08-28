@@ -160,6 +160,21 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dim: int = 1536
 
+    # ── Voice ───────────────────────────────────────────────────────────────
+    # Voice always uses OPENAI_API_KEY on the server. Keeping this separate
+    # from the chat provider is intentional: transcription and speech are
+    # OpenAI audio APIs, while the LangGraph nodes may use another LLM provider.
+    voice_transcribe_model: str = "gpt-transcribe"
+    voice_tts_model: str = "gpt-4o-mini-tts"
+    voice_tts_voice: str = "alloy"
+    voice_api_timeout_seconds: float = Field(default=20.0, ge=1.0, le=120.0)
+    # Browser recordings are ephemeral: this is a request-size guard, not a
+    # storage quota. It remains below the audio API upload limit.
+    voice_max_audio_bytes: int = Field(default=10_000_000, ge=1_000_000, le=25_000_000)
+    # A long answer should remain readable even if it cannot be synthesized in
+    # one request. This bound protects cost and avoids an unbounded TTS job.
+    voice_tts_max_chars: int = Field(default=6_000, ge=200, le=10_000)
+
     # ── LangSmith Tracing ───────────────────────────────────────────────────
     langchain_api_key: str = ""
     langchain_tracing_v2: bool = True

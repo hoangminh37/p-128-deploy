@@ -15,6 +15,7 @@ import {
   conversationListSchema,
   editorApproveRequestSchema,
   editorDashboardSchema,
+  editorSourceDocumentListSchema,
   editorQueueItemDetailSchema,
   editorQueueListSchema,
   editorRejectRequestSchema,
@@ -36,6 +37,7 @@ import {
   type EditorQueueItemDetail,
   type EditorQueueList,
   type EditorRejectRequest,
+  type EditorSourceDocumentList,
   type LoginRequest,
   type LoginResponse,
   type OutOfScopeList,
@@ -58,6 +60,10 @@ import {
   type QuizSubmitResponse,
   type QuizHistoryResponse,
   type SourceDocument,
+  voiceSpeechRequestSchema,
+  voiceTranscriptionSchema,
+  type VoiceSpeechRequest,
+  type VoiceTranscription,
 } from './schemas'
 
 // ---------------------------------------------------------------------------
@@ -171,6 +177,8 @@ const HTTP_USER_MESSAGES: Record<number, string> = {
   // việc bấm hai lần khi mạng chậm, nên câu chữ phải trấn an chứ không doạ.
   409: 'Mục này đã được xử lý trước đó rồi. Bạn hãy tải lại danh sách để xem trạng thái mới nhất.',
   422: 'Thông tin gửi lên chưa đúng định dạng máy chủ yêu cầu. Vui lòng kiểm tra lại.',
+  413: 'Bản ghi âm quá dài. Bạn hãy nói ngắn hơn rồi thử lại.',
+  415: 'Trình duyệt đã gửi định dạng âm thanh chưa được hỗ trợ. Bạn hãy thử lại bằng trình duyệt hiện đại.',
   500: 'Hệ thống gặp sự cố khi xử lý câu hỏi. Vui lòng thử lại sau ít phút.',
   503: 'Trợ lý đang tạm thời không phản hồi. Vui lòng thử lại sau ít phút.',
 }
@@ -503,6 +511,20 @@ export type StreamDoneEvent = {
   support_level: ChatResponse['support_level']
   intent: string
   disclaimer: string
+  /** Thời gian từ khi backend nhận request đến khi graph hoàn tất. */
+  latency_ms?: number
+  /** Thời gian mỗi node, dùng cho quan sát hiệu năng khi cần. */
+  node_timings_ms?: Record<string, number>
+}
+
+export type ChatStreamCallbacks = {
+  /** Only emitted by `/voice/chat/stream`, before the normal agent events. */
+  onTranscript?: (transcript: string) => void
+  onStep?: (event: StreamStepEvent) => void
+  onToken?: (text: string) => void
+  onDone?: (event: StreamDoneEvent) => void
+  onAnnotations?: (event: AnnotationsEvent) => void
+  onError?: (error: ApiError) => void
 }
 
 /**
@@ -516,13 +538,7 @@ export type StreamDoneEvent = {
  */
 export async function streamChatMessage(
   payload: ChatRequest,
-  callbacks: {
-    onStep?: (event: StreamStepEvent) => void
-    onToken?: (text: string) => void
-    onDone?: (event: StreamDoneEvent) => void
-    onAnnotations?: (event: AnnotationsEvent) => void
-    onError?: (error: ApiError) => void
-  },
+  callbacks: ChatStreamCallbacks,
 ): Promise<void> {
   assertValidRequestBody(chatRequestSchema, payload, 'POST /chat/stream')
 
@@ -560,61 +576,174 @@ export async function streamChatMessage(
     })
   }
 
+  return consumeChatSse(response, url, callbacks)
+}
+
+/**
+ * Send a recording to the server-owned voice flow. The browser receives the
+ * same SSE events as text chat, preceded by the transcript event that the
+ * server derived from the recording.
+ */
+export async function streamVoiceChatMessage(
+  params: {
+    patientId: string
+    conversationId: string | null
+    audio: Blob
+  },
+  callbacks: ChatStreamCallbacks,
+): Promise<void> {
+  const url = `${BASE_URL}${API_PREFIX}/voice/chat/stream`
+  const formData = new FormData()
+  formData.set('patient_id', params.patientId)
+  if (params.conversationId !== null) formData.set('conversation_id', params.conversationId)
+
+  const filename = params.audio.type.startsWith('audio/mp4')
+    ? 'patient-question.m4a'
+    : params.audio.type.startsWith('audio/mpeg')
+      ? 'patient-question.mp3'
+      : 'patient-question.webm'
+  formData.set('audio', params.audio, filename)
+
+  const headers: Record<string, string> = {}
+  if (authToken !== null && authToken !== '') headers.Authorization = `Bearer ${authToken}`
+
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  } catch (cause) {
+    const timedOut = cause instanceof DOMException && cause.name === 'TimeoutError'
+    throw new ApiError({
+      kind: timedOut ? 'timeout' : 'network',
+      userMessage: timedOut
+        ? `Dịch vụ giọng nói xử lý quá lâu (hơn ${TIMEOUT_MS / 1000} giây). Vui lòng thử lại.`
+        : 'Không kết nối được tới dịch vụ giọng nói. Vui lòng kiểm tra mạng rồi thử lại.',
+      logMessage: `Voice chat stream lỗi: POST ${url}`,
+      cause,
+    })
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) onUnauthorized?.()
+    const detail = await readErrorDetail(response)
+    throw new ApiError({
+      kind: 'http',
+      userMessage:
+        HTTP_USER_MESSAGES[response.status] ??
+        'Không thể xử lý câu hỏi bằng giọng nói lúc này. Vui lòng thử lại.',
+      logMessage: `HTTP ${response.status}: POST ${url}${detail ? ` — ${detail}` : ''}`,
+      status: response.status,
+      detail,
+    })
+  }
+
+  return consumeChatSse(response, url, callbacks)
+}
+
+/** One SSE parser shared by text and server-owned voice chat. */
+async function consumeChatSse(
+  response: Response,
+  url: string,
+  callbacks: ChatStreamCallbacks,
+): Promise<void> {
   const reader = response.body?.getReader()
-  if (!reader) return
+  if (!reader) {
+    throw new ApiError({
+      kind: 'network',
+      userMessage: 'Máy chủ không thể mở luồng trả lời. Bạn hãy bấm Gửi lại câu hỏi.',
+      logMessage: `Response không có body stream: POST ${url}`,
+    })
+  }
 
   const decoder = new TextDecoder()
   let buffer = ''
+  let receivedDone = false
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
 
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
+      buffer += decoder.decode(value, { stream: true })
+      // Chunk mạng không trùng ranh giới SSE. Tách theo frame hoàn chỉnh thay
+      // vì theo từng lần reader.read(), nếu không `event:` và `data:` có thể
+      // nằm ở hai chunk khác nhau và làm mất event `done`.
+      const frames = buffer.split(/\r?\n\r?\n/)
+      buffer = frames.pop() ?? ''
 
-    let eventType = ''
-    let dataLine = ''
+      for (const frame of frames) {
+        let eventType = ''
+        const dataLines: string[] = []
+        for (const line of frame.split(/\r?\n/)) {
+          if (line.startsWith('event:')) {
+            eventType = line.slice(6).trim()
+          } else if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).trim())
+          }
+        }
 
-    for (const line of lines) {
-      if (line.startsWith('event: ')) {
-        eventType = line.slice(7).trim()
-      } else if (line.startsWith('data: ')) {
-        dataLine = line.slice(6).trim()
-      } else if (line === '' && eventType && dataLine) {
+        const dataLine = dataLines.join('\n')
+        if (!eventType || !dataLine) continue
+
         // Một SSE event hoàn chỉnh
         try {
           const parsed: unknown = JSON.parse(dataLine)
           if (typeof parsed !== 'object' || parsed === null) continue
 
-          if (eventType === 'step' && callbacks.onStep) {
+          if (eventType === 'transcript' && callbacks.onTranscript) {
+            const transcript = (parsed as { transcript?: unknown }).transcript
+            if (typeof transcript === 'string' && transcript.trim()) {
+              callbacks.onTranscript(transcript.trim())
+            }
+          } else if (eventType === 'step' && callbacks.onStep) {
             callbacks.onStep(parsed as StreamStepEvent)
           } else if (eventType === 'token' && callbacks.onToken) {
             callbacks.onToken((parsed as { text: string }).text)
-          } else if (eventType === 'done' && callbacks.onDone) {
-            callbacks.onDone(parsed as StreamDoneEvent)
+          } else if (eventType === 'done') {
+            receivedDone = true
+            callbacks.onDone?.(parsed as StreamDoneEvent)
           } else if (eventType === 'annotations' && callbacks.onAnnotations) {
             const result = annotationsEventSchema.safeParse(parsed)
             if (result.success) {
               callbacks.onAnnotations(result.data)
             }
-          } else if (eventType === 'error' && callbacks.onError) {
-            callbacks.onError(
+          } else if (eventType === 'error') {
+            callbacks.onError?.(
               new ApiError({
                 kind: 'http',
                 userMessage: (parsed as { error: string }).error ?? 'Lỗi từ server.',
                 logMessage: `SSE error event: ${dataLine}`,
               }),
             )
+            return
           }
         } catch {
-          // JSON parse lỗi — bỏ qua dòng này
+          // JSON parse lỗi — bỏ qua frame này.
         }
-        eventType = ''
-        dataLine = ''
       }
     }
+  } catch (cause) {
+    const timedOut = cause instanceof DOMException && cause.name === 'TimeoutError'
+    throw new ApiError({
+      kind: timedOut ? 'timeout' : 'network',
+      userMessage: timedOut
+        ? `Máy chủ xử lý quá lâu (hơn ${TIMEOUT_MS / 1000} giây). Vui lòng thử lại.`
+        : 'Kết nối tới máy chủ bị ngắt khi đang xử lý câu hỏi. Bạn hãy bấm Gửi lại câu hỏi.',
+      logMessage: `SSE bị ngắt: POST ${url}`,
+      cause,
+    })
+  }
+
+  if (!receivedDone) {
+    throw new ApiError({
+      kind: 'network',
+      userMessage: 'Kết nối tới máy chủ bị ngắt trước khi có câu trả lời. Bạn hãy bấm Gửi lại câu hỏi.',
+      logMessage: `SSE kết thúc không có done event: POST ${url}`,
+    })
   }
 }
 
@@ -678,6 +807,105 @@ export function getConversationDetail(
 }
 
 // ---------------------------------------------------------------------------
+// Voice
+// ---------------------------------------------------------------------------
+
+/**
+ * Chuyển một bản ghi ngắn thành chữ. Không đặt `Content-Type` bằng tay: trình
+ * duyệt cần tự thêm multipart boundary cho FormData.
+ */
+export async function transcribeVoiceAudio(params: {
+  patientId: string
+  audio: Blob
+}): Promise<VoiceTranscription> {
+  const { patientId, audio } = params
+  const url = `${BASE_URL}${API_PREFIX}/voice/transcriptions`
+  const formData = new FormData()
+  formData.set('patient_id', patientId)
+  formData.set('audio', audio, 'patient-question.webm')
+
+  const headers: Record<string, string> = {}
+  if (authToken !== null && authToken !== '') headers.Authorization = `Bearer ${authToken}`
+
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  } catch (cause) {
+    const timedOut = cause instanceof DOMException && cause.name === 'TimeoutError'
+    throw new ApiError({
+      kind: timedOut ? 'timeout' : 'network',
+      userMessage: timedOut
+        ? `Dịch vụ giọng nói xử lý quá lâu (hơn ${TIMEOUT_MS / 1000} giây). Vui lòng thử lại.`
+        : 'Không kết nối được tới dịch vụ giọng nói. Vui lòng kiểm tra mạng rồi thử lại.',
+      logMessage: `Voice transcription lỗi: POST ${url}`,
+      cause,
+    })
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) onUnauthorized?.()
+    const detail = await readErrorDetail(response)
+    throw new ApiError({
+      kind: 'http',
+      userMessage: HTTP_USER_MESSAGES[response.status] ?? 'Không thể nhận diện lời nói lúc này. Vui lòng thử lại.',
+      logMessage: `HTTP ${response.status}: POST ${url}${detail ? ` — ${detail}` : ''}`,
+      status: response.status,
+      detail,
+    })
+  }
+
+  let payload: unknown
+  try {
+    payload = await response.json()
+  } catch (cause) {
+    throw new ApiError({
+      kind: 'validation',
+      userMessage: 'Dịch vụ giọng nói trả về dữ liệu không đọc được. Vui lòng thử lại.',
+      logMessage: `Voice transcription response không phải JSON: POST ${url}`,
+      cause,
+    })
+  }
+
+  const parsed = voiceTranscriptionSchema.safeParse(payload)
+  if (!parsed.success) {
+    throw new ApiError({
+      kind: 'validation',
+      userMessage: 'Dịch vụ giọng nói trả về dữ liệu không đúng định dạng. Vui lòng thử lại.',
+      logMessage: `Voice transcription response sai schema: ${z.prettifyError(parsed.error)}`,
+      issues: parsed.error.issues,
+      cause: parsed.error,
+    })
+  }
+  return parsed.data
+}
+
+/** Lấy MP3 của một câu trả lời đã được agent lưu và xác minh. */
+export async function getVoiceSpeechAudio(
+  payload: VoiceSpeechRequest,
+): Promise<Blob> {
+  assertValidRequestBody(voiceSpeechRequestSchema, payload, 'POST /voice/speech')
+  const response = await sendRequest({
+    path: '/voice/speech',
+    method: 'POST',
+    body: payload,
+  })
+  const audio = await response.blob()
+  if (audio.size === 0) {
+    throw new ApiError({
+      kind: 'validation',
+      userMessage: 'Dịch vụ giọng nói chưa tạo được âm thanh. Vui lòng thử lại.',
+      logMessage: 'Voice speech response rỗng: POST /voice/speech',
+    })
+  }
+  return audio
+}
+
+// ---------------------------------------------------------------------------
 // Mục 8: Quản trị nội dung
 //
 // Bảy hàm dưới đây chỉ chạy được với tài khoản có `role` bằng `editor`. Vai trò
@@ -692,6 +920,40 @@ export function getEditorDashboard(): Promise<EditorDashboard> {
     method: 'GET',
     schema: editorDashboardSchema,
   })
+}
+
+/** Danh sách nguồn thật trong registry RAG, kèm trạng thái duyệt và index. */
+export function listEditorSourceDocuments(): Promise<EditorSourceDocumentList> {
+  return request({
+    path: '/editor/documents',
+    method: 'GET',
+    schema: editorSourceDocumentListSchema,
+  })
+}
+
+/** File gốc của nguồn chỉ được tải khi biên tập viên chủ động mở toàn văn.
+ *
+ * Không dùng `request()` ở đây vì PDF/Markdown là bytes, không phải JSON. Vẫn
+ * đi qua `sendRequest()` để giữ nguyên timeout, xử lý 401 và cách chuẩn hoá
+ * lỗi của toàn bộ lớp API. Caller giữ Blob cục bộ thay vì đưa file lớn vào cache
+ * TanStack Query.
+ */
+export async function getEditorSourceDocumentFile(documentId: string): Promise<Blob> {
+  const response = await sendRequest({
+    path: `/editor/documents/${encodeURIComponent(documentId)}/file`,
+    method: 'GET',
+  })
+
+  try {
+    return await response.blob()
+  } catch (cause) {
+    throw new ApiError({
+      kind: 'validation',
+      userMessage: 'Không đọc được file gốc từ máy chủ. Vui lòng thử lại sau.',
+      logMessage: `Không đọc được file gốc: GET /editor/documents/${documentId}/file`,
+      cause,
+    })
+  }
 }
 
 /**
@@ -763,6 +1025,15 @@ export async function rejectEditorQueueItem(
   })
 }
 
+/** Chạy lại parse/chunk/embedding cho một nguồn từng index thất bại. */
+export function retryEditorSourceIndex(itemId: string): Promise<EditorQueueItemDetail> {
+  return request({
+    path: `/editor/queue/${encodeURIComponent(itemId)}/retry-index`,
+    method: 'POST',
+    schema: editorQueueItemDetailSchema,
+  })
+}
+
 /** Mục 8 — câu hỏi thư viện chưa trả lời được, xếp theo số lượt hỏi giảm dần. */
 export function listOutOfScopeLogs(): Promise<OutOfScopeList> {
   return request({
@@ -792,7 +1063,7 @@ export function createDraftFromLog(logId: string): Promise<EditorQueueItemDetail
  * Do UploadFile dùng FormData nên chúng ta gửi qua một hàm fetch riêng, không dùng request()
  * vì request() đang mặc định content-type là application/json.
  */
-export async function uploadDocument(formData: FormData): Promise<void> {
+export async function uploadDocument(formData: FormData): Promise<EditorQueueItemDetail> {
   const url = `${BASE_URL}${API_PREFIX}/editor/queue/upload`
   
   const headers: Record<string, string> = {}
@@ -815,6 +1086,17 @@ export async function uploadDocument(formData: FormData): Promise<void> {
       userMessage: HTTP_USER_MESSAGES[response.status] ?? 'Lỗi khi tải lên tài liệu.',
       logMessage: `HTTP ${response.status} khi upload document`,
       status: response.status,
+    })
+  }
+
+  try {
+    return editorQueueItemDetailSchema.parse(await response.json())
+  } catch (cause) {
+    throw new ApiError({
+      kind: 'validation',
+      userMessage: 'Máy chủ đã nhận tài liệu nhưng trả về dữ liệu không đúng định dạng. Vui lòng tải lại hàng đợi.',
+      logMessage: 'Response sai schema: POST /editor/queue/upload',
+      cause,
     })
   }
 }

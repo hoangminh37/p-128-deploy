@@ -13,6 +13,7 @@ import {
   getEditorDashboard,
   getEditorQueueItem,
   listEditorQueue,
+  listEditorSourceDocuments,
   listOutOfScopeLogs,
   type ApiError,
 } from '../lib/api'
@@ -20,6 +21,7 @@ import type {
   EditorDashboard,
   EditorItemStatus,
   EditorQueueItemDetail,
+  EditorSourceDocumentList,
   OutOfScopeList,
 } from '../lib/schemas'
 
@@ -28,6 +30,7 @@ const EDITOR_KEY_ROOT = 'editor'
 
 export const editorKeys = {
   dashboard: () => [EDITOR_KEY_ROOT, 'dashboard'] as const,
+  documents: () => [EDITOR_KEY_ROOT, 'documents'] as const,
   queue: (status: EditorItemStatus) => [EDITOR_KEY_ROOT, 'queue', status] as const,
   item: (itemId: string) => [EDITOR_KEY_ROOT, 'item', itemId] as const,
   outOfScope: () => [EDITOR_KEY_ROOT, 'out-of-scope'] as const,
@@ -58,6 +61,14 @@ export function useEditorDashboard() {
   return useQuery<EditorDashboard, ApiError>({
     queryKey: editorKeys.dashboard(),
     queryFn: getEditorDashboard,
+  })
+}
+
+/** Thư viện nguồn thật — tách hẳn khỏi hàng đợi công việc biên tập. */
+export function useEditorSourceDocuments() {
+  return useQuery<EditorSourceDocumentList, ApiError>({
+    queryKey: editorKeys.documents(),
+    queryFn: listEditorSourceDocuments,
   })
 }
 
