@@ -183,7 +183,8 @@ class CohereEmbedder:
         )
 
         resp = None
-        for attempt in range(max_attempts):
+        total_attempts = max(max_attempts, len(self.api_keys) * 2)
+        for attempt in range(total_attempts):
             try:
                 resp = self.client.embed(
                     model=self.settings.cohere_embedding_model,
@@ -193,20 +194,25 @@ class CohereEmbedder:
                 )
                 break
             except TooManyRequestsError:
+                has_multiple = len(self._clients) > 1
                 self._rotate_key()
-                if attempt == max_attempts - 1:
+                if attempt == total_attempts - 1:
                     break
-                wait = 1.0 * (attempt + 1) if input_type == "search_query" else 15 * (attempt + 1)
+                wait = (
+                    0.1
+                    if has_multiple
+                    else (1.0 * (attempt + 1) if input_type == "search_query" else 15 * (attempt + 1))
+                )
                 logger.warning(
-                    "Cohere trả 429, chờ %.1fs rồi thử lại (lần %d/%d)",
+                    "Cohere trả 429, đổi key / chờ %.1fs rồi thử lại (lần %d/%d)",
                     wait,
                     attempt + 1,
-                    max_attempts,
+                    total_attempts,
                 )
                 time.sleep(wait)
         if resp is None:
             raise RuntimeError(
-                f"Cohere liên tục trả 429 sau {max_attempts} lần thử. "
+                f"Cohere liên tục trả 429 sau {total_attempts} lần thử. "
                 "Hạ RAG_COHERE_TOKENS_PER_MINUTE hoặc kiểm tra hạn mức tài khoản."
             )
 
