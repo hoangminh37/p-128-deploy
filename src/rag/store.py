@@ -534,7 +534,10 @@ class PgVectorStore:
         from sqlalchemy import text
 
         with self._get_sync_engine().begin() as conn:
-            conn.execute(text("TRUNCATE TABLE medical_chunks;"))
+            if "postgres" in str(conn.engine.url):
+                conn.execute(text("TRUNCATE TABLE medical_chunks;"))
+            else:
+                conn.execute(text("DELETE FROM medical_chunks;"))
 
     def upsert(self, chunks: list[Chunk]) -> int:
         if not chunks:
@@ -670,11 +673,21 @@ class PgVectorStore:
         from src.models.domain import MedicalChunk
 
         engine = self._get_sync_engine()
-        stmt = select(MedicalChunk).where(MedicalChunk.doc_id == document_id).order_by(MedicalChunk.chunk_id.asc())
+        stmt = (
+            select(
+                MedicalChunk.chunk_id,
+                MedicalChunk.text,
+                MedicalChunk.section_path,
+                MedicalChunk.page_start,
+                MedicalChunk.page_end,
+                MedicalChunk.table_structure,
+            )
+            .where(MedicalChunk.doc_id == document_id)
+            .order_by(MedicalChunk.chunk_id.asc())
+        )
         chunks: list[dict[str, Any]] = []
         with engine.connect() as conn:
-            result = conn.execute(stmt)
-            for row in result.scalars():
+            for row in conn.execute(stmt):
                 start = row.page_start
                 end = row.page_end
                 chunks.append(

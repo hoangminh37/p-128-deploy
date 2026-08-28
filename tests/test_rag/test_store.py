@@ -336,6 +336,7 @@ class TestDualModeVectorStore:
         get_settings.cache_clear()
         store_pg = VectorStore()
         assert isinstance(store_pg, PgVectorStore)
+        assert store_pg.collection is store_pg
 
         # Khi database_url là sqlite
         monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///./data/app.db")
@@ -344,3 +345,54 @@ class TestDualModeVectorStore:
         assert isinstance(store_sqlite, ChromaStore)
 
         get_settings.cache_clear()
+
+    def test_pgvector_store_method_parity(self):
+        from sqlalchemy import create_engine
+
+        from src.models.domain import Base, MedicalChunk
+        from src.rag.store import PgVectorStore
+
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+
+        store = PgVectorStore()
+        store._sync_engine = engine
+
+        assert store.count() == 0
+        assert store.collection.count() == 0
+        assert store.stats() == {"total": 0, "per_doc": {}}
+
+        with engine.begin() as conn:
+            conn.execute(
+                MedicalChunk.__table__.insert().values(
+                    chunk_id="doc1::001",
+                    doc_id="doc1",
+                    text="Chăm sóc bệnh tiểu đường",
+                    embed_text="Chăm sóc bệnh tiểu đường",
+                    disease="type2_diabetes",
+                    priority=1.0,
+                    section_path="Section > Sub",
+                    page_start=5,
+                    page_end=6,
+                    table_structure={"headers": ["A"], "rows": [["1"]]},
+                    metadata_json={"disease_type2_diabetes": True},
+                    embedding=[0.05] * 1024,
+                )
+            )
+
+        assert store.count() == 1
+        assert store.stats() == {"total": 1, "per_doc": {"doc1": 1}}
+
+        doc_chunks = store.document_chunks("doc1")
+        assert len(doc_chunks) == 1
+        assert doc_chunks[0]["chunk_id"] == "doc1::001"
+        assert doc_chunks[0]["content"] == "Chăm sóc bệnh tiểu đường"
+        assert doc_chunks[0]["page_start"] == 5
+        assert doc_chunks[0]["page_end"] == 6
+        assert doc_chunks[0]["table"] == {"headers": ["A"], "rows": [["1"]]}
+
+        assert store.delete_by_doc("doc1") == 1
+        assert store.count() == 0
+
+        store.reset()
+        assert store.count() == 0
