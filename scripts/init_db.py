@@ -60,7 +60,7 @@ async def seed_medical_chunks(session: AsyncSession, reset: bool = False):
 
                     # Trích xuất các trường cấu trúc
                     doc_id = str(meta.get("doc_id", "?"))
-                    disease = str(meta.get("disease", "")) or None
+                    disease = str(meta.get("disease") or meta.get("diseases") or "") or None
                     priority = float(meta.get("priority", 0.0) or 0.0)
                     section_path = str(meta.get("section_path", "")) or None
                     page_start = int(meta.get("page_start", -1) or -1)

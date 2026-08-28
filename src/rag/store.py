@@ -625,6 +625,7 @@ class PgVectorStore:
             disease_conditions = []
             for d in requested_diseases:
                 disease_conditions.append(MedicalChunk.disease == d)
+                disease_conditions.append(MedicalChunk.disease.like(f"%{d}%"))
                 disease_conditions.append(MedicalChunk.metadata_json[f"disease_{d}"].as_boolean().is_(True))
             filters.append(or_(*disease_conditions))
 
@@ -708,6 +709,10 @@ class PgVectorStore:
         engine = self._get_sync_engine()
         with engine.connect() as conn:
             return conn.execute(select(func.count(MedicalChunk.chunk_id))).scalar() or 0
+
+    @property
+    def collection(self):
+        return self
 
     def stats(self) -> dict:
         from sqlalchemy import func, select

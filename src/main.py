@@ -32,7 +32,7 @@ def check_vectorstore() -> tuple[bool, int, str]:
     try:
         from src.rag.store import VectorStore
 
-        count = VectorStore().collection.count()
+        count = VectorStore().count()
     except Exception as exc:  # pragma: no cover — kho hỏng hoặc thiếu thư viện
         return False, 0, f"không mở được kho vector: {exc}"
 
