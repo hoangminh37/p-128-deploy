@@ -108,6 +108,7 @@ async def seed_medical_chunks(session: AsyncSession, reset: bool = False):
             print(f"  ✅ Đã nạp thành công {inserted} vector chunks vào PostgreSQL!")
             return
         except Exception as exc:
+            await session.rollback()
             print(f"  ⚠️ Không đọc được từ ChromaDB ({exc}), thử nạp từ JSONL...")
 
     # Fallback: Đọc từ chunks.jsonl
@@ -165,8 +166,15 @@ async def init_db(reset: bool = False):
             await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
-        # Tạo HNSW index trên PostgreSQL
+        # Cập nhật kiểu cột và tạo HNSW index trên PostgreSQL
         if engine.dialect.name == "postgresql":
+            try:
+                await conn.execute(text("ALTER TABLE medical_chunks ALTER COLUMN section_path TYPE TEXT;"))
+                await conn.execute(text("ALTER TABLE medical_chunks ALTER COLUMN doc_id TYPE VARCHAR(120);"))
+                await conn.execute(text("ALTER TABLE medical_chunks ALTER COLUMN disease TYPE VARCHAR(120);"))
+            except Exception:
+                pass
+
             try:
                 await conn.execute(
                     text(
