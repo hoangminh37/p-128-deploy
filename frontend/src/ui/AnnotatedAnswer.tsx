@@ -208,6 +208,24 @@ function AnnotatedTerm({ annotation, value }: { annotation: TermAnnotation; valu
 // Public component
 // ---------------------------------------------------------------------------
 
+function renderInlineFormatting(rawText: string) {
+  if (!rawText.includes('*') && !rawText.includes('_')) {
+    return rawText
+  }
+  // Tách **in đậm** trước, sau đó xử lý text thường
+  const boldParts = rawText.split(/(\*\*.*?\*\*)/g)
+  return boldParts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+      return (
+        <strong key={`b-${i}`} className="font-semibold text-ink">
+          {part.slice(2, -2)}
+        </strong>
+      )
+    }
+    return part
+  })
+}
+
 /**
  * Render một đoạn văn bản với annotations highlight.
  *
@@ -227,14 +245,14 @@ export function AnnotatedText({
 
   // Fast path: không có annotation nào → tránh map + JSX overhead
   if (segments.every((s) => s.kind === 'text')) {
-    return <>{text}</>
+    return <>{renderInlineFormatting(text)}</>
   }
 
   return (
     <>
       {segments.map((segment, index) =>
         segment.kind === 'text' ? (
-          <span key={index}>{segment.value}</span>
+          <span key={index}>{renderInlineFormatting(segment.value)}</span>
         ) : (
           <AnnotatedTerm
             key={index}
