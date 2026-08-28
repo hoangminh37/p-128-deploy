@@ -506,7 +506,7 @@ class PgVectorStore:
 
     def _get_sync_engine(self):
         if self._sync_engine is None:
-            from sqlalchemy import create_engine
+            from sqlalchemy import create_engine, event
 
             from src.core.config import get_settings
 
@@ -518,6 +518,16 @@ class PgVectorStore:
                 sync_url = sync_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
             self._sync_engine = create_engine(sync_url, pool_pre_ping=True)
+
+            @event.listens_for(self._sync_engine, "connect")
+            def on_sync_connect(dbapi_connection, connection_record):
+                try:
+                    import pgvector.psycopg2
+
+                    pgvector.psycopg2.register_vector(dbapi_connection)
+                except Exception:
+                    pass
+
         return self._sync_engine
 
     def reset(self) -> None:
