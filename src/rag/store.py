@@ -132,19 +132,32 @@ class CohereEmbedder:
         import cohere
 
         self.settings = settings or get_rag_settings()
-        if not self.settings.cohere_api_key:
+        raw_key = self.settings.cohere_api_key or ""
+        self.api_keys = [k.strip() for k in raw_key.split(",") if k.strip()]
+        if not self.api_keys:
             raise RuntimeError(
                 "Thiếu COHERE_API_KEY. Lấy khoá miễn phí tại https://dashboard.cohere.com/api-keys "
                 "rồi thêm dòng COHERE_API_KEY=... vào .env"
             )
-        # Không để SDK tự retry trong request của người bệnh: tầng retrieval
-        # đã có deadline tổng, còn retry 429 có kiểm soát chỉ dành cho ingest.
-        self.client = cohere.ClientV2(
-            api_key=self.settings.cohere_api_key,
-            timeout=self.settings.cohere_timeout_seconds,
-            max_retries=0,
-        )
+        self._current_key_idx = 0
+        self._clients = [
+            cohere.ClientV2(
+                api_key=k,
+                timeout=self.settings.cohere_timeout_seconds,
+                max_retries=0,
+            )
+            for k in self.api_keys
+        ]
         self._budget = _TokenBudget(self.settings.cohere_tokens_per_minute)
+
+    @property
+    def client(self):
+        return self._clients[self._current_key_idx]
+
+    def _rotate_key(self):
+        if len(self._clients) > 1:
+            self._current_key_idx = (self._current_key_idx + 1) % len(self._clients)
+            logger.info("Chuyển sang Cohere API key dự phòng index %d", self._current_key_idx)
 
     def _embed_batch(
         self,
@@ -180,13 +193,12 @@ class CohereEmbedder:
                 )
                 break
             except TooManyRequestsError:
+                self._rotate_key()
                 if attempt == max_attempts - 1:
                     break
-                # Bộ điều tiết ước lượng token bằng tokenizer khác Cohere nên
-                # vẫn có thể lệch. Lùi dần rồi thử lại thay vì bỏ cả lần ingest.
-                wait = 20 * (attempt + 1)
+                wait = 1.0 * (attempt + 1) if input_type == "search_query" else 15 * (attempt + 1)
                 logger.warning(
-                    "Cohere trả 429, chờ %ds rồi thử lại (lần %d/%d)",
+                    "Cohere trả 429, chờ %.1fs rồi thử lại (lần %d/%d)",
                     wait,
                     attempt + 1,
                     max_attempts,
@@ -216,7 +228,7 @@ class CohereEmbedder:
         return self._call(texts, "search_document", max_attempts=5)
 
     def embed_query(self, text: str) -> list[float]:
-        return self._call([text], "search_query", max_attempts=1)[0]
+        return self._call([text], "search_query", max_attempts=3)[0]
 
 
 class LocalEmbedder:
