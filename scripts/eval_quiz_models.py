@@ -115,8 +115,7 @@ FIXTURES: list[dict] = [
         "ten": "trích đoạn có bẫy kê đơn",
         "topic": "Thuốc hạ đường huyết đường uống",
         "profile": (
-            "- Tuổi: 58\n- Bệnh chính: tiểu đường típ 2\n- Bệnh đồng mắc: không có\n"
-            "- Người học chính là bệnh nhân."
+            "- Tuổi: 58\n- Bệnh chính: tiểu đường típ 2\n- Bệnh đồng mắc: không có\n- Người học chính là bệnh nhân."
         ),
         # Trích đoạn có tên thuốc và liều. Model tốt phải hỏi về KIẾN THỨC
         # (vì sao uống cùng bữa ăn) chứ không hỏi "nên uống thuốc nào, liều bao nhiêu".
@@ -152,9 +151,7 @@ class JudgeResult(BaseModel):
     grounded: int = Field(
         description="Số câu mà CẢ câu hỏi lẫn đáp án đúng đều suy ra được từ trích đoạn, không bịa thêm."
     )
-    one_correct: int = Field(
-        description="Số câu có đúng MỘT đáp án đúng. Câu có hai đáp án cùng đúng thì KHÔNG tính."
-    )
+    one_correct: int = Field(description="Số câu có đúng MỘT đáp án đúng. Câu có hai đáp án cùng đúng thì KHÔNG tính.")
     tests_understanding: int = Field(
         description="Số câu kiểm tra HIỂU (vì sao, khi nào, tình huống). Câu chỉ hỏi thuộc lòng con số hay tên gọi thì KHÔNG tính."
     )
@@ -292,9 +289,7 @@ async def do_mot_model(model_id: str, provider: str, judge) -> ModelScore:
                 # Gọi THẲNG hàm production, không dựng chain riêng. Nhờ vậy bảng
                 # này đo đúng thứ người dùng gặp: vòng lui tool-calling ->
                 # json_mode, số lần retry, ngưỡng câu tối thiểu, và cả validator.
-                hop_le = await generate_quiz(
-                    _fixture_context(fixture), QUESTIONS_PER_RUN, llm=llm
-                )
+                hop_le = await generate_quiz(_fixture_context(fixture), QUESTIONS_PER_RUN, llm=llm)
             except Exception as exc:
                 text = str(exc)
                 if "429" in text or "rate limit" in text.lower():
@@ -366,9 +361,7 @@ def in_bang(ket_qua: list[ModelScore]) -> None:
 
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--models", nargs="*", default=["openai/gpt-oss-120b"], help="Model Groq đem so"
-    )
+    parser.add_argument("--models", nargs="*", default=["openai/gpt-oss-120b"], help="Model Groq đem so")
     parser.add_argument("--openai", nargs="*", default=[], help="Model OpenAI đem so")
     parser.add_argument(
         "--openrouter",
@@ -396,9 +389,7 @@ async def main() -> int:
         # ra JSON đúng schema — lỗi nằm ở lớp tool-calling của Groq, không phải ở
         # nội dung. Trọng tài mà rụng ngẫu nhiên thì bảng so sánh mất điểm dữ
         # liệu, và mất không đều giữa các model, nên phép so hỏng theo.
-        judge = _llm(JUDGE_MODEL, args.trong_tai_provider).with_structured_output(
-            JudgeResult, method="json_mode"
-        )
+        judge = _llm(JUDGE_MODEL, args.trong_tai_provider).with_structured_output(JudgeResult, method="json_mode")
     except Exception as exc:
         print(f"Không dựng được trọng tài ({JUDGE_MODEL}): {exc}")
         return 1

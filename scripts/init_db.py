@@ -66,6 +66,23 @@ async def seed_medical_chunks(session: AsyncSession, reset: bool = False):
                     page_start = int(meta.get("page_start", -1) or -1)
                     page_end = int(meta.get("page_end", -1) or -1)
 
+                    # Parse table_structure safely
+                    table_struct = meta.get("table_structure")
+                    if isinstance(table_struct, str):
+                        if table_struct.strip() in ("", "null", "None"):
+                            table_struct = None
+                        else:
+                            try:
+                                table_struct = json.loads(table_struct)
+                            except Exception:
+                                table_struct = None
+
+                    clean_meta = dict(meta)
+                    clean_meta["table_structure"] = table_struct
+
+                    # Convert embedding to clean float list
+                    embedding_list = [float(v) for v in emb] if emb is not None else None
+
                     chunk_models.append(
                         MedicalChunk(
                             chunk_id=cid,
@@ -77,9 +94,9 @@ async def seed_medical_chunks(session: AsyncSession, reset: bool = False):
                             section_path=section_path,
                             page_start=page_start if page_start >= 1 else None,
                             page_end=page_end if page_end >= 1 else None,
-                            table_structure=meta.get("table_structure"),
-                            metadata_json=meta,
-                            embedding=emb,
+                            table_structure=table_struct,
+                            metadata_json=clean_meta,
+                            embedding=embedding_list,
                         )
                     )
 
@@ -94,9 +111,7 @@ async def seed_medical_chunks(session: AsyncSession, reset: bool = False):
             print(f"  ⚠️ Không đọc được từ ChromaDB ({exc}), thử nạp từ JSONL...")
 
     # Fallback: Đọc từ chunks.jsonl
-    jsonl_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "data", "processed", "chunks.jsonl")
-    )
+    jsonl_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "processed", "chunks.jsonl"))
     if os.path.exists(jsonl_path):
         from src.rag.chunk import Chunk
         from src.rag.store import make_embedder
@@ -246,4 +261,3 @@ async def init_db(reset: bool = False):
 if __name__ == "__main__":
     reset_flag = "--reset" in sys.argv
     asyncio.run(init_db(reset=reset_flag))
-

@@ -18,7 +18,7 @@ from statistics import mean, stdev
 
 # ── Cấu hình ─────────────────────────────────────────────────────────────────
 NUM_RUNS = 5
-SIMULATED_LLM_LATENCY_MS = 30   # ms mỗi token — tiêu biểu cho Groq streaming
+SIMULATED_LLM_LATENCY_MS = 30  # ms mỗi token — tiêu biểu cho Groq streaming
 ANSWER_MARKER = '"answer":'
 
 # ── Mẫu JSON output từ LLM (nhả ra từng token ~30ms một) ────────────────────
@@ -29,7 +29,7 @@ SIMULATED_LLM_OUTPUT = (
     "1. **Đường và đồ ngọt**: bánh kẹo, nước ngọt có gas.\\n\\n"
     "2. **Tinh bột tinh chế**: cơm trắng, bánh mì trắng, bún.\\n\\n"
     "3. **Chất béo bão hòa**: thịt mỡ, đồ chiên rán.\\n\\n"
-    "Thay vào đó nên ăn: rau xanh, ngũ cốc nguyên hạt, đạm nạc [doc_0].\", "
+    'Thay vào đó nên ăn: rau xanh, ngũ cốc nguyên hạt, đạm nạc [doc_0].", '
     '"claims": [{"cited_doc_id": "doc_0", "sentence": "Ăn rau xanh giúp kiểm soát đường huyết"}]}'
 )
 
@@ -41,8 +41,8 @@ import json as _json  # noqa: E402
 EXPECTED_ANSWER: str = _json.loads(SIMULATED_LLM_OUTPUT)["answer"]
 
 
-
 # ── Mô phỏng astream_events từ LangGraph ─────────────────────────────────────
+
 
 async def _mock_astream_events(token_size: int = 3):
     """Giả lập luồng sự kiện từ LangGraph astream_events.
@@ -62,7 +62,7 @@ async def _mock_astream_events(token_size: int = 3):
 
     # Phát từng token nhỏ
     for i in range(0, len(text), token_size):
-        token = text[i: i + token_size]
+        token = text[i : i + token_size]
         await asyncio.sleep(SIMULATED_LLM_LATENCY_MS / 1000)
         yield {
             "event": "on_chat_model_stream",
@@ -84,15 +84,18 @@ async def _mock_astream_events(token_size: int = 3):
 
 class _MockChunk:
     """Mock AIMessageChunk."""
+
     def __init__(self, content: str):
         self.content = content
 
 
 # ── Logic buffer — COPY từ chat.py để kiểm tra cô lập ──────────────────────
 
+
 async def _simulate_streaming(run_id: int) -> dict:
     """Mô phỏng đúng logic buffer regex từ chat.py và đo các chỉ số."""
     import re as _re
+
     _raw_buffer: str = ""
     _streamed_len: int = 0
     _answer_re = _re.compile(r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)"?', _re.DOTALL)
@@ -143,6 +146,7 @@ async def _simulate_streaming(run_id: int) -> dict:
 
 # ── Kiểm tra tính đúng đắn của nội dung ─────────────────────────────────────
 
+
 def _validate_output(result: dict) -> list[str]:
     """Kiểm tra token stream không bị lẫn cú pháp JSON."""
     errors = []
@@ -155,13 +159,11 @@ def _validate_output(result: dict) -> list[str]:
             errors.append(f"❌ Lỗi: Chuỗi JSON '{f}' bị lọt vào token stream!")
 
     # 2. Nội dung phải khớp với expected (normalize whitespace)
-    norm_actual   = " ".join(text.split())
+    norm_actual = " ".join(text.split())
     norm_expected = " ".join(EXPECTED_ANSWER.split())
     if norm_actual != norm_expected:
         errors.append(
-            f"❌ Lỗi: Nội dung không khớp!\n"
-            f"   Mong đợi: {norm_expected[:80]}...\n"
-            f"   Nhận được: {norm_actual[:80]}..."
+            f"❌ Lỗi: Nội dung không khớp!\n   Mong đợi: {norm_expected[:80]}...\n   Nhận được: {norm_actual[:80]}..."
         )
 
     # 3. Phải có token
@@ -172,6 +174,7 @@ def _validate_output(result: dict) -> list[str]:
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
+
 
 async def main() -> None:
     line = "─" * 60
@@ -202,8 +205,8 @@ async def main() -> None:
         )
 
     # Kết quả
-    ttft_avg  = mean(ttft_list)
-    ttft_std  = stdev(ttft_list) if len(ttft_list) > 1 else 0
+    ttft_avg = mean(ttft_list)
+    ttft_std = stdev(ttft_list) if len(ttft_list) > 1 else 0
     total_avg = mean(total_list)
 
     print(f"\n{line}")
@@ -211,7 +214,7 @@ async def main() -> None:
     print(f"{line}")
     print(f"  TTFT trung bình  : {ttft_avg:6.0f} ms ± {ttft_std:.0f} ms")
     print(f"  Hoàn thành TB    : {total_avg:6.0f} ms")
-    print(f"  Tỷ lệ TTFT/Total : {ttft_avg/total_avg*100:.1f}%")
+    print(f"  Tỷ lệ TTFT/Total : {ttft_avg / total_avg * 100:.1f}%")
     print()
 
     # Phân tích TTFT
@@ -239,10 +242,10 @@ async def main() -> None:
     if ttft_avg < total_avg * 0.5 and not all_errors:
         print("  ✅  PASS — True Streaming hoạt động đúng.")
         print(f"         Token đầu tiên xuất hiện sau {ttft_avg:.0f} ms")
-        print(f"         ({ttft_avg/total_avg*100:.0f}% tổng thời gian) — người dùng thấy chữ sớm.")
+        print(f"         ({ttft_avg / total_avg * 100:.0f}% tổng thời gian) — người dùng thấy chữ sớm.")
     else:
         if ttft_avg >= total_avg * 0.5:
-            print(f"  ⚠️   CẢNH BÁO: TTFT chiếm {ttft_avg/total_avg*100:.0f}% tổng thời gian.")
+            print(f"  ⚠️   CẢNH BÁO: TTFT chiếm {ttft_avg / total_avg * 100:.0f}% tổng thời gian.")
             print("         Buffer logic cần xem xét lại.")
         if all_errors:
             print(f"  ❌  Có {len(set(all_errors))} lỗi cần sửa.")

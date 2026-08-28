@@ -33,6 +33,7 @@ class Quiz(BaseModel):
         ),
     )
 
+
 class MicroArticle(BaseModel):
     title: str = Field(description="Tiêu đề bài học ngắn gọn, thân thiện với bệnh nhân (dưới 15 chữ)")
     full_content: str = Field(
@@ -50,7 +51,10 @@ class MicroArticle(BaseModel):
         description="Bản tóm tắt siêu ngắn (khoảng 80-100 chữ) dùng cho banner micro-learning hàng ngày."
     )
     category: str = Field(description="Danh mục bệnh (ví dụ: hypertension, type2_diabetes)")
-    quiz: Quiz | None = Field(default=None, description="Câu hỏi trắc nghiệm 4 đáp án, đánh giá hiểu biết thực sự, không hỏi theo kiểu máy móc")
+    quiz: Quiz | None = Field(
+        default=None,
+        description="Câu hỏi trắc nghiệm 4 đáp án, đánh giá hiểu biết thực sự, không hỏi theo kiểu máy móc",
+    )
 
 
 class ArticleBatch(BaseModel):

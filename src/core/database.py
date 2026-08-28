@@ -7,10 +7,26 @@ from src.core.config import get_settings
 
 settings = get_settings()
 
+
+async def _init_asyncpg_connection(connection):
+    try:
+        await connection.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+        from pgvector.asyncpg import register_vector
+
+        await register_vector(connection)
+    except Exception:
+        pass
+
+
+connect_args = {}
+if "postgres" in settings.database_url:
+    connect_args["init"] = _init_asyncpg_connection
+
 engine = create_async_engine(
     settings.database_url,
     echo=False,
     future=True,
+    connect_args=connect_args,
 )
 
 async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
