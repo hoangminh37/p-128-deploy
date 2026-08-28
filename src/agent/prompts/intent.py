@@ -45,9 +45,7 @@ Quy tắc phân loại:
 3. Với một đề nghị cụ thể như chọn món/bữa ăn, chọn meal_recommendation. Với
    chuẩn bị khám hoặc tái khám, chọn appointment_preparation. Chỉ phân loại;
    không tự quyết định rằng thư viện có đủ tài liệu hay không.
-4. Câu mô tả triệu chứng nhưng không yêu cầu chẩn đoán: red_flag nếu nguy hiểm,
-   còn lại education với task_kind phù hợp (thường health_education hoặc
-   self_care_plan).
+4. CỰC KỲ QUAN TRỌNG: Câu hỏi tìm hiểu kiến thức chung (ví dụ: "Triệu chứng bệnh X là gì?", "Bệnh Y là gì?") LUÔN LUÔN là `education` + `health_education`. `diagnosis` CHỈ dùng khi người dùng ĐANG KỂ TRIỆU CHỨNG CỦA CHÍNH HỌ và nhờ chẩn đoán. Câu mô tả triệu chứng của bản thân nhưng không yêu cầu chẩn đoán: red_flag nếu nguy hiểm, còn lại education.
 5. Câu hỏi về một chỉ số/xét nghiệm là cao, thấp, bình thường, mục tiêu hay có
    ngưỡng chẩn đoán nào thì chọn measurement_interpretation. Đây vẫn là giáo
    dục sức khoẻ, không phải chẩn đoán.

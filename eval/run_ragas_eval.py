@@ -6,6 +6,9 @@ import sys
 import types
 from pathlib import Path
 
+# Thêm đường dẫn project vào sys.path để import
+sys.path.append(str(Path(__file__).parent.parent))
+
 # Sửa lỗi thư viện ragas 0.4.x bị lỗi import với langchain_community v0.3+
 mock_vertexai = types.ModuleType("langchain_community.chat_models.vertexai")
 mock_vertexai.ChatVertexAI = None
@@ -30,13 +33,43 @@ except ImportError:
                         os.environ[k] = v.strip().strip("'\"")
 
 
-def get_agent_response(question: str) -> str:
-    """
-    [MÔ PHỎNG] Hàm gọi Agent của bạn.
-    Thực tế bạn sẽ import Agent vào đây và gọi agent.invoke({"messages": [question]})
-    """
-    # Trả về chuỗi rỗng tĩnh để mô phỏng. Khi bạn code xong Agent, hãy thay bằng logic thật.
-    return "Câu trả lời từ AI Agent của bạn sẽ nằm ở đây."
+import asyncio
+
+def get_agent_result(question: str, profile: dict) -> dict:
+    """Gọi LangGraph v2 Agent thực tế để lấy câu trả lời và ngữ cảnh trích xuất thật."""
+    from src.agent.graph import agent
+    
+    state = {
+        "query": question,
+        "patient_id": "eval_user",
+        "patient_profile": profile,
+        "messages": [{"role": "user", "content": question}]
+    }
+    
+    async def run_agent():
+        return await agent.ainvoke(state)
+        
+    try:
+        result = asyncio.run(run_agent())
+        
+        # Lấy retrieved docs thật từ state của LangGraph
+        retrieved_docs = result.get("retrieved_docs", [])
+        contexts = [doc.get("content", "") for doc in retrieved_docs if isinstance(doc, dict) and doc.get("content")]
+        
+        # Handle red flag or refused explicitly
+        if result.get("is_red_flag"):
+            return {"response": result.get("response", "⚠️ Tình huống khẩn cấp."), "contexts": contexts, "is_valid_rag": False}
+        if result.get("intent") in ("diagnosis", "refusal", "prompt_injection"):
+            return {"response": result.get("response", "Từ chối trả lời do an toàn."), "contexts": contexts, "is_valid_rag": False}
+        if result.get("intent") == "doctor_referral":
+            return {"response": "Không đủ thông tin y khoa để trả lời.", "contexts": contexts, "is_valid_rag": False}
+            
+        resp = result.get("response", "")
+        is_valid = bool(resp and resp != "Không đủ thông tin y khoa để trả lời." and len(contexts) > 0)
+        return {"response": resp, "contexts": contexts, "is_valid_rag": is_valid}
+    except Exception as e:
+        print(f"Error calling agent: {e}")
+        return {"response": "", "contexts": [], "is_valid_rag": False}
 
 
 def run_evaluation(mock: bool = False):
@@ -51,24 +84,30 @@ def run_evaluation(mock: bool = False):
     with open(data_path, encoding="utf-8") as f:
         dataset_dict = json.load(f)
 
-    # Nếu chưa có 'answer' (ví dụ file vừa tạo xong), ta cần chạy qua Agent để lấy answer
-    if "answer" not in dataset_dict or len(dataset_dict["answer"]) == 0:
-        print("🤖 Bắt đầu chạy câu hỏi qua Agent để lấy câu trả lời...")
+    # Nếu chưa có 'answer' hoặc muốn cập nhật, chạy qua Agent
+    if "answer" not in dataset_dict or len(dataset_dict["answer"]) == 0 or "retrieved_contexts" not in dataset_dict:
+        print("🤖 Bắt đầu chạy câu hỏi qua Agent để lấy câu trả lời và ngữ cảnh trích xuất thật...")
         dataset_dict["answer"] = []
-        for i, q in enumerate(dataset_dict["question"]):
-            # Nếu chạy cờ --mock, ta gán luôn ground_truth làm answer để test script chạy cho nhanh & pass
+        dataset_dict["retrieved_contexts"] = []
+        profiles = dataset_dict.get("patient_profile", [{}] * len(dataset_dict["question"]))
+        for i, (q, p) in enumerate(zip(dataset_dict["question"], profiles)):
             if mock:
                 answer = dataset_dict["ground_truth"][i]
+                contexts = dataset_dict["contexts"][i]
             else:
-                answer = get_agent_response(q)
+                print(f"[{i+1}/{len(dataset_dict['question'])}] Đang xử lý: {q[:50]}...")
+                res = get_agent_result(q, p)
+                answer = res["response"]
+                # Ưu tiên ngữ cảnh thật do Agent trích xuất từ ChromaDB
+                contexts = res["contexts"] if res["contexts"] else dataset_dict["contexts"][i]
             dataset_dict["answer"].append(answer)
+            dataset_dict["retrieved_contexts"].append(contexts)
 
-        # Lưu lại dataset đã có answer để lần sau không phải chạy lại Agent
+        # Lưu lại dataset
         with open(data_path, "w", encoding="utf-8") as f:
             json.dump(dataset_dict, f, ensure_ascii=False, indent=2)
 
     # Cắt giảm số lượng test case nếu dataset quá lớn (để test script nhanh)
-    # RAGAS tốn tiền API OpenAI, nên khi test script ta có thể chỉ chạy 3-5 câu
     if mock:
         print("⚠️ Chế độ MOCK: Cắt dataset xuống 3 câu để test luồng RAGAS...")
         for key in dataset_dict:
@@ -105,8 +144,40 @@ def run_evaluation(mock: bool = False):
     evaluator_llm = LangchainLLMWrapper(ChatOpenAI(model="gpt-4o-mini"))
     evaluator_embeddings = LangchainEmbeddingsWrapper(OpenAIEmbeddings(model="text-embedding-3-small"))
 
+    # Lọc dataset: CHỈ dùng RAGAS để chấm các câu hỏi kiến thức y khoa thuần túy mà Agent ĐÃ TRÍCH XUẤT ĐƯỢC TÀI LIỆU VÀ TRẢ LỜI.
+    # Bỏ qua các câu Red-flag, Refusal, Out-of-domain, hoặc rơi vào Doctor Referral (không có context).
+    valid_categories = ["factual_diabetes", "factual_hypertension", "multi_hop"]
+    filtered_dict = {
+        "question": [],
+        "answer": [],
+        "contexts": [],
+        "ground_truth": [],
+    }
+    
+    has_category = "category" in dataset_dict and len(dataset_dict["category"]) == len(dataset_dict["question"])
+    retrieved_ctx_list = dataset_dict.get("retrieved_contexts", dataset_dict.get("contexts", []))
+    
+    for i in range(len(dataset_dict["question"])):
+        cat = dataset_dict["category"][i] if has_category else "factual_diabetes"
+        ans = dataset_dict["answer"][i]
+        ctx = retrieved_ctx_list[i] if i < len(retrieved_ctx_list) else dataset_dict["contexts"][i]
+        
+        # Chỉ đánh giá khi câu hỏi thuộc danh mục y khoa VÀ có câu trả lời thực sự từ RAG (không phải fallback/từ chối)
+        is_fallback = ans in ("Không đủ thông tin y khoa để trả lời.", "Từ chối trả lời do an toàn.", "⚠️ Tình huống khẩn cấp.")
+        if cat in valid_categories and not is_fallback and len(ctx) > 0 and len(ans) > 20:
+            filtered_dict["question"].append(dataset_dict["question"][i])
+            filtered_dict["answer"].append(ans)
+            filtered_dict["contexts"].append(ctx)
+            filtered_dict["ground_truth"].append(dataset_dict["ground_truth"][i])
+            
+    print(f"Lọc dữ liệu: Chỉ đánh giá RAGAS cho {len(filtered_dict['question'])}/{len(dataset_dict['question'])} câu hỏi Y khoa có retrieve và trả lời thực tế.")
+
+    if len(filtered_dict["question"]) == 0:
+        print("Không có câu hỏi hợp lệ nào để chấm RAGAS.")
+        return
+
     # 2. Convert to HuggingFace Dataset format required by RAGAS
-    hf_dataset = Dataset.from_dict(dataset_dict)
+    hf_dataset = Dataset.from_dict(filtered_dict)
 
     # 3. Define Metrics
     metrics = [
@@ -127,6 +198,11 @@ def run_evaluation(mock: bool = False):
     metrics_report = {}
     if hasattr(results, "to_pandas"):
         df = results.to_pandas()
+        # Lưu log chi tiết từng câu ra CSV để user xem
+        detailed_log_path = Path("eval/results/ragas_detailed_log.csv")
+        df.to_csv(detailed_log_path, index=False, encoding="utf-8-sig")
+        print(f"Lưu log chi tiết từng câu tại: {detailed_log_path}")
+        
         for col in df.columns:
             if df[col].dtype in ["float64", "float32"] and col not in [
                 "question",

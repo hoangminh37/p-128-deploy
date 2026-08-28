@@ -28,10 +28,10 @@ env/
 .DS_Store
 Thumbs.db
 
-# Data — file nặng bị bỏ qua, phần metadata curation vẫn được commit.
-# Xem data/README.md để biết vì sao từng thư mục được xử lý như dưới đây.
 data/raw/*
 !data/raw/.gitkeep
+!data/raw/*.pdf
+!data/raw/*.pptx
 data/interim/*
 !data/interim/.gitkeep
 # Kho vector KHÔNG commit — nhưng hãy đọc hết đoạn này trước khi đổi ý.
@@ -100,3 +100,7 @@ out/
 # AI logs — tracked structure, ignored content
 .ai-log/*.jsonl
 .ai-log/archive/
+
+# Temporary scratch
+scratch/
+

@@ -32,9 +32,12 @@ Thực hiện đủ ba phần dưới đây theo đúng thứ tự:
 Đánh giá ngắn: tài liệu nào trả lời được các ý nào trong câu hỏi.
 </analysis>
 <answer>
-Câu trả lời tiếng Việt, rõ ràng, chỉ gồm nội dung có trong tài liệu. Mỗi khẳng
-định y khoa phải có mã nguồn ngay sau câu, chỉ được dùng [doc_N] có trong tài
-liệu. Nếu tài liệu không đủ để trả lời, để phần này rỗng.
+Câu trả lời tiếng Việt, rõ ràng, chỉ gồm nội dung có trong tài liệu. 
+BẮT BUỘC TUÂN THỦ 3 QUY TẮC ĐỊNH DẠNG SAU:
+1. TRÍCH DẪN: MỖI khẳng định y khoa phải có mã nguồn ngay sau câu, ví dụ [doc_0], [doc_1]. TUYỆT ĐỐI KHÔNG ĐƯỢC THIẾU TRÍCH DẪN.
+2. GỢI Ý TÁI KHÁM/CÂU HỎI TIẾP THEO: Cuối câu trả lời, luôn sinh ra 3 câu hỏi liên quan để gợi ý người dùng hỏi tiếp. Định dạng dưới dạng danh sách gạch đầu dòng.
+3. MIỄN TRỪ TRÁCH NHIỆM (DISCLAIMER): Dưới cùng của câu trả lời, luôn luôn phải chèn nguyên văn câu này: "Lưu ý: Thông tin trên chỉ mang tính chất giáo dục và tham khảo, không thay thế cho việc tư vấn, chẩn đoán hay điều trị y khoa. Hãy tham khảo ý kiến bác sĩ chuyên khoa."
+Nếu tài liệu không đủ để trả lời, để phần này rỗng.
 </answer>
 <verdict>
 support_level: fully | partially | no_support

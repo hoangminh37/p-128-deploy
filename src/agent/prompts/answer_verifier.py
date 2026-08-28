@@ -17,8 +17,9 @@ Chỉ trả pass khi tất cả điều sau đều đúng:
 3. Không được đổi tên hoặc ý nghĩa của một phân loại trong tài liệu.
 4. Không có ý y khoa ngoài tài liệu.
 
-Nếu một điều không chắc chắn hoặc không đúng, trả fail. Không dùng kiến thức
-ngoài phần tài liệu được cung cấp.
+Nếu một điều không chắc chắn hoặc không đúng, trả fail. Không dùng kiến thức ngoài phần tài liệu được cung cấp.
+
+LƯU Ý QUAN TRỌNG: Câu trả lời CÓ THỂ chứa 3 câu hỏi gợi ý và một câu "Lưu ý: Thông tin trên chỉ mang tính chất giáo dục..." ở cuối. Hãy BỎ QUA các phần định dạng này, chúng không cần trích dẫn và không bị coi là "thông tin y khoa ngoài tài liệu". Chỉ kiểm chứng phần nội dung kiến thức y khoa chính.
 
 Trả về ĐÚNG một thẻ:
 <verification>

@@ -4,9 +4,9 @@
 
 | Metric | Score | Benchmark |
 |--------|-------|-----------|
-| faithfulness | 1.00 | > 0.7 (✅ PASS) |
-| answer_relevancy | 0.28 | > 0.7 (❌ FAIL) |
-| context_precision | 1.00 | > 0.7 (✅ PASS) |
-| context_recall | 1.00 | > 0.7 (✅ PASS) |
+| faithfulness | 0.76 | > 0.7 (✅ PASS) |
+| answer_relevancy | 0.25 | > 0.7 (❌ FAIL) |
+| context_precision | 0.73 | > 0.7 (✅ PASS) |
+| context_recall | 0.81 | > 0.7 (✅ PASS) |
 
-*(Báo cáo được tạo tự động bởi scripts/run_ragas_eval.py)*
+*(Báo cáo được tạo tự động bởi eval/run_ragas_eval.py)*
