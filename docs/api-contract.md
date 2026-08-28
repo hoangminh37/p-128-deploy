@@ -57,6 +57,9 @@ Dùng định dạng lỗi mặc định của FastAPI:
 | POST | `/api/v1/patients/profile` | Tạo hoặc cập nhật hồ sơ bệnh nhân |
 | GET | `/api/v1/patients/{patient_id}/profile` | Đọc hồ sơ |
 | GET | `/api/v1/sources/documents/{document_id}?chunk_id={chunk_id}` | Mở tài liệu đã duyệt và đánh dấu đúng đoạn agent đã trích dẫn |
+| POST | `/api/v1/voice/transcriptions` | Chuyển một bản ghi ngắn thành chữ. Form data: `patient_id`, `audio`; âm thanh không được lưu |
+| POST | `/api/v1/voice/chat/stream` | Một lượt chat bằng giọng nói hoàn chỉnh. Form data: `patient_id`, `conversation_id` (tuỳ chọn), `audio`; server tự STT rồi chạy chính luồng Agent/RAG SSE. Event đầu là `transcript`, sau đó là `step`/`token`/`done`/`annotations` như `/chat/stream` |
+| POST | `/api/v1/voice/speech` | Đọc một câu trả lời agent đã lưu thành MP3. JSON: `patient_id`, `message_id` |
 | POST | `/api/v1/chat` | Gửi câu hỏi, nhận câu trả lời |
 | POST | `/api/v1/chat/stream` | Cùng câu hỏi, nhận dần bằng SSE. Xem mục 10 |
 | GET | `/api/v1/conversations/{patient_id}` | Danh sách phiên hội thoại |
@@ -65,7 +68,8 @@ Dùng định dạng lỗi mặc định của FastAPI:
 | GET | `/api/v1/editor/queue` | Danh sách mục chờ duyệt |
 | GET | `/api/v1/editor/queue/{item_id}` | Chi tiết một mục chờ duyệt |
 | POST | `/api/v1/editor/queue/upload` | Tải tài liệu lên, đưa vào hàng chờ duyệt. **Form data**, không phải JSON |
-| POST | `/api/v1/editor/queue/{item_id}/approve` | Duyệt, đưa vào thư viện chính thức |
+| POST | `/api/v1/editor/queue/{item_id}/approve` | Duyệt nguồn và bắt đầu job index nền |
+| POST | `/api/v1/editor/queue/{item_id}/retry-index` | Chạy lại một job index nguồn đã thất bại |
 | POST | `/api/v1/editor/queue/{item_id}/reject` | Từ chối, bắt buộc kèm lý do |
 | GET | `/api/v1/editor/out-of-scope` | Câu hỏi thư viện chưa trả lời được |
 | POST | `/api/v1/editor/out-of-scope/{log_id}/draft` | Tạo mục nháp từ một câu hỏi |
@@ -488,7 +492,9 @@ chứa PII, còn câu hỏi thì là chữ tự do nên phải làm sạch chủ
 | :-- | :-- | :-- |
 | `status` | `draft` | Mới tạo từ log câu hỏi, biên tập viên chưa soạn xong |
 | | `pending` | Đã soạn xong, đang chờ duyệt |
-| | `approved` | Đã duyệt, nội dung nằm trong thư viện chính thức |
+| | `indexing` | Nguồn đã được duyệt biên tập, đang parse/chunk/embed/index; agent chưa dùng được |
+| | `failed` | Job index nguồn thất bại; giữ file và lỗi để chạy lại |
+| | `approved` | Với nguồn upload: index đã thành công và agent dùng được. Với `question_log`: chỉ là quyết định duyệt nội dung, không tự tạo nguồn RAG |
 | | `rejected` | Bị từ chối, không vào thư viện |
 | `origin` | `question_log` | Sinh ra từ một câu hỏi ngoài phạm vi mà bệnh nhân đã hỏi |
 | | `editor_upload` | Biên tập viên tự thêm tài liệu, theo FR4.1 |
@@ -551,7 +557,7 @@ ra là thấy ngay danh sách chờ duyệt. Truyền giá trị khác để xem
 | `origin` | enum | `question_log` hoặc `editor_upload` |
 | `topics` | string[] | Thẻ chủ đề, có thể rỗng |
 | `created_at` | string | ISO 8601 có offset múi giờ |
-| `status` | enum | `draft`, `pending`, `approved`, `rejected` |
+| `status` | enum | `draft`, `pending`, `indexing`, `failed`, `approved`, `rejected` |
 
 Sắp theo `created_at` giảm dần, mới nhất lên đầu.
 
@@ -590,6 +596,10 @@ Toàn bộ những gì màn duyệt chi tiết cần, trong một lần gọi.
 | `reject_reason` | string hoặc null | Lý do từ chối, chỉ có khi `status` là `rejected` |
 | `reviewed_at` | string hoặc null | Thời điểm duyệt hoặc từ chối |
 | `reviewed_by` | string hoặc null | `user_id` của biên tập viên đã xử lý |
+| `source_approval_status` | enum hoặc null | Lifecycle thật trong `uploads.json`: `pending_review`, `indexing`, `index_failed`, `approved`; `null` với `question_log` |
+| `source_index_error` | string hoặc null | Lỗi gần nhất có thể hành động, chỉ có khi index nguồn thất bại |
+| `indexed_chunk_count` | int hoặc null | Số chunk đã ghi thành công; chỉ có khi nguồn đã index |
+| `index_attempts` | int hoặc null | Số lần chạy index của nguồn |
 
 Ba trường `source_url`, `issuer`, `doc_code` chính là ba trường `url`, `issuer`, `doc_code` của
 `Citation` ở mục 5. Duyệt xong thì nội dung này trở thành nguồn mà bệnh nhân nhìn thấy cạnh
@@ -603,10 +613,47 @@ trong hồ sơ; nội dung không gắn bệnh nào sẽ không bao giờ đư�
 
 404 nếu `item_id` không tồn tại.
 
+### GET /api/v1/editor/documents
+
+Danh sách thư viện nguồn thực tế của RAG, dành cho vai trò `editor`. Đây không
+phải `editor_queue`: mỗi dòng là một tài liệu đã đăng ký trong `registry.yaml`,
+`uploads.json`, hoặc lịch sử quarantine. Hai trạng thái phải được đọc độc lập:
+
+| Trường | Ý nghĩa |
+| :-- | :-- |
+| `approval_status` | Lifecycle nguồn: `pending_review`, `indexing`, `index_failed`, `approved` hoặc `quarantined` |
+| `index_status` | `indexing`, `failed`, `indexed`, `not_indexed`, `not_applicable` hoặc `unavailable` |
+| `index_attempts`, `index_error` | Lần chạy và lỗi gần nhất, để BTV quyết định chạy lại hoặc từ chối |
+| `viewer_type` | `pdf`, `markdown`, hoặc `unsupported`, suy từ file gốc thực tế |
+| `source_file_available` | File gốc hiện có trên server này hay không |
+
+Một tài liệu vẫn có thể `approval_status = approved` và `index_status = indexed`
+nhưng `source_file_available = false`: vector store chỉ cần các chunk đã xử lý,
+còn PDF/Markdown gốc không được commit vào Git. Frontend phải hiển thị rõ trạng
+thái này, không tạo preview hoặc URL giả.
+
+### GET /api/v1/editor/documents/{document_id}/file
+
+Trả file gốc PDF hoặc Markdown cho biên tập viên đã đăng nhập để màn xem toàn
+văn tải theo yêu cầu. Endpoint kiểm tra `document_id` qua registry, giới hạn
+đường dẫn trong `data/raw`, và không trả bất kỳ tệp nào bên ngoài kho tài liệu.
+
+| Mã | Khi nào |
+| :-- | :-- |
+| 200 | File PDF (`application/pdf`) hoặc Markdown (`text/markdown`) có trong kho |
+| 404 | Không có tài liệu hoặc file gốc không nằm trên server hiện tại |
+| 415 | File gốc có định dạng khác PDF/Markdown, chưa có màn xem trực tiếp |
+| 401 / 403 | Chưa đăng nhập / không phải biên tập viên |
+
+Frontend tải PDF thành `Blob` có Authorization rồi nhúng Object URL cục bộ; không
+đặt endpoint thẳng trong iframe vì iframe không mang Bearer token. Markdown được
+render bằng GFM và không cho phép HTML thô từ file upload.
+
 ### POST /api/v1/editor/queue/upload
 
 Biên tập viên tự thêm tài liệu, tức FR4.1. Tài liệu tải lên KHÔNG tự vào thư viện: nó nằm ở
-hàng đợi chờ duyệt, và chỉ vào thư viện sau khi có người bấm duyệt ở endpoint bên dưới.
+hàng đợi chờ duyệt. Không có ETL bài học, mock hay QueueItem phụ nào được sinh ngầm từ upload
+này; mỗi upload tương ứng đúng một `SourceDoc` và một job index.
 
 **Endpoint DUY NHẤT của hợp đồng này không dùng JSON.** Body là `multipart/form-data`, vì có
 file đính kèm. Đừng đặt `Content-Type` bằng tay — để trình duyệt tự sinh kèm `boundary`.
@@ -641,11 +688,12 @@ Response 201, trả về đúng object của `GET /editor/queue/{item_id}`, vớ
 | 422 | Thiếu một trong năm trường bắt buộc |
 
 Tài liệu ở bước này mới chỉ được lưu lại và ghi vào hàng chờ — **chưa parse, chưa cắt chunk,
-chưa embed**. Toàn bộ phần nặng đó chạy khi duyệt, xem điểm 7 của mục 12.
+chưa embed**. `Registry.approved()` không trả nguồn này nên agent không thể truy xuất nó.
 
 ### POST /api/v1/editor/queue/{item_id}/approve
 
-Duyệt và đưa vào thư viện chính thức. Cả hai trường trong body đều không bắt buộc.
+Duyệt một nguồn upload và bắt đầu job nền parse → sửa cấu trúc → chunk → embedding → index.
+Cả hai trường trong body đều không bắt buộc.
 
 ```json
 {
@@ -659,11 +707,21 @@ Duyệt và đưa vào thư viện chính thức. Cả hai trường trong body 
 | `content` | string | không | Nội dung đã chỉnh sửa. Bỏ trống thì giữ nguyên `content` đang có |
 | `note` | string | không | Ghi chú của người duyệt, lưu vào `review_note` |
 
-Response 200 trả về đúng object của `GET /editor/queue/{item_id}` sau khi cập nhật: `status`
-thành `approved`, `reviewed_at` và `reviewed_by` được điền.
+Với `editor_upload`, response 200 trả `status: indexing` và
+`source_approval_status: indexing`; đó **không** có nghĩa agent đã dùng được. Chỉ worker hoàn
+tất toàn bộ bước và ghi chunk thành công mới chuyển cả hai về `approved`. Nếu lỗi, chúng là
+`failed` / `index_failed` kèm `source_index_error`; không chunk nào của nguồn được phép dùng
+để trả lời. Với `question_log`, endpoint chỉ chốt nội dung trong hàng đợi và không gọi RAG.
 
 Duyệt một mục đã `approved` hoặc `rejected` trả **409**. Duyệt là hành động một chiều, và một
 nút bấm hai lần vì mạng chậm không được phép ghi vào thư viện hai lần.
+
+### POST /api/v1/editor/queue/{item_id}/retry-index
+
+Không có body. Chỉ áp dụng cho `editor_upload` có lifecycle nguồn bằng `index_failed`.
+Endpoint tăng `index_attempts`, xoá lỗi cũ, chuyển về `indexing` và đẩy job nền mới. Trả 409
+nếu mục không phải nguồn upload hoặc job chưa ở trạng thái thất bại. Nếu server restart giữa
+lúc chạy, startup chuyển job dở dang về `index_failed` thay vì giả vờ vẫn đang chạy.
 
 ### POST /api/v1/editor/queue/{item_id}/reject
 
@@ -1078,14 +1136,10 @@ cho khớp `AgentState.query` trong `ARCHITECTURE.md`.
 6. Cơ chế xác thực ở mục 3 dùng JWT hay session phía máy chủ. Nếu JWT thì token sống bao lâu,
    và có refresh token không. Ba câu này quyết định frontend phải làm gì khi token hết hạn:
    im lặng xin token mới, hay đá người dùng về màn đăng nhập giữa lúc đang đọc câu trả lời
-7. Duyệt một mục ở mục 8 thì ghi vào vector store bằng cách nào. Cụ thể: chunking và embedding
-   chạy ngay trong request `approve` rồi mới trả 200, hay đẩy vào hàng đợi nền và trả 200 trước.
-   Và có cần một bước reindex riêng nữa không, hay ghi thêm là dùng được luôn.
-
-   Câu trả lời quyết định frontend hiện gì sau khi bấm Duyệt. Nếu ghi đồng bộ thì báo "đã vào
-   thư viện" là đúng. Nếu chạy nền thì phải báo "đang xử lý, vài phút nữa trợ lý mới dùng
-   được" — nói sai chỗ này thì biên tập viên tưởng nội dung đã sống, đi kiểm tra bằng cách hỏi
-   trợ lý, thấy vẫn trả `referral`, và kết luận là hệ thống hỏng
+7. **Đã implement:** duyệt một `editor_upload` tạo job nền. Trạng thái thật nằm ở `SourceDoc`
+   trong `uploads.json`: `pending_review → indexing → approved` hoặc `index_failed`. Chỉ
+   `approved` được `Registry.approved()` trả cho RAG. Người duyệt xem tiến độ/lỗi ở hàng đợi
+   và dùng `retry-index` khi cần; không có bước reindex riêng hay trạng thái "đã duyệt" giả.
 8. Hai trường `height_cm` và `weight_kg` mới thêm ở mục 4. Backend dùng chúng thế nào — chỉ để
    lọc tài liệu theo thể trạng, hay có đưa thẳng vào prompt của agent. Và cần xác nhận rằng
    chúng không dẫn tới việc sinh chỉ tiêu cân nặng, mục tiêu giảm cân hay số calo cụ thể trong

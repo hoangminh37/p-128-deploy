@@ -26,6 +26,7 @@ export function EditorNav({ onNavigate }: { onNavigate?: () => void }) {
 
   const items: NavItem[] = [
     { to: '/editor', label: 'Tổng quan', end: true },
+    { to: '/editor/documents', label: 'Tài liệu nguồn' },
     { to: '/editor/queue', label: 'Hàng đợi duyệt', count: data?.pending_count },
     {
       to: '/editor/out-of-scope',

@@ -6,11 +6,13 @@ khoảng cách thành độ tương đồng, và cộng điểm ưu tiên theo n
 """
 
 import json
+import sys
+from types import SimpleNamespace
 
 import pytest
 
 from src.rag.config import RagSettings
-from src.rag.store import Hit, VectorStore, make_embedder
+from src.rag.store import _TokenBudget, CohereEmbedder, Hit, VectorStore, make_embedder
 
 
 class FakeEmbedder:
@@ -101,6 +103,30 @@ class TestEmbeddingConfig:
         assert RagSettings(embedding_provider="local").embedding_model == "BAAI/bge-m3"
         assert RagSettings(embedding_provider="openai").embedding_model == "text-embedding-3-small"
 
+    def test_cohere_client_co_deadline_va_khong_tu_retry(self, monkeypatch):
+        """Timeout SDK phải nhỏ hơn deadline retrieval để request chat không treo."""
+
+        captured: dict = {}
+
+        class FakeClientV2:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+        monkeypatch.setitem(sys.modules, "cohere", SimpleNamespace(ClientV2=FakeClientV2))
+        settings = RagSettings(COHERE_API_KEY="test-key", cohere_timeout_seconds=4.0)
+
+        CohereEmbedder(settings)
+
+        assert captured["timeout"] == 4.0
+        assert captured["max_retries"] == 0
+
+    def test_query_khong_cho_rate_limit(self):
+        budget = _TokenBudget(tokens_per_minute=10)
+        budget.consume(10)
+
+        with pytest.raises(RuntimeError, match="không chờ"):
+            budget.consume(1, wait=False)
+
 
 class TestAsymmetricEmbedding:
     """Câu hỏi và tài liệu phải đi qua hai đường khác nhau.
@@ -146,6 +172,23 @@ class TestSearchFilter:
     def test_khong_loc_khi_khong_chi_dinh_benh(self, store):
         store.search("abc")
         assert store.collection.last_query["where"] is None
+
+    def test_loc_theo_allow_list_tai_lieu_da_duyet(self, store):
+        store.search("abc", allowed_doc_ids=["doc-a", "doc-b"])
+        assert store.collection.last_query["where"] == {"doc_id": {"$in": ["doc-a", "doc-b"]}}
+
+    def test_ghep_allow_list_voi_loc_benh(self, store):
+        store.search("abc", disease="hypertension", allowed_doc_ids=["doc-a"])
+        assert store.collection.last_query["where"] == {
+            "$and": [
+                {"disease_hypertension": True},
+                {"doc_id": {"$in": ["doc-a"]}},
+            ]
+        }
+
+    def test_allow_list_rong_khong_goi_embedding(self, store):
+        assert store.search("abc", allowed_doc_ids=[]) == []
+        assert store.embedder.query_calls == []
 
 
 class TestSearchScoring:

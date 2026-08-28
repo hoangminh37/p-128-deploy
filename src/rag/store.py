@@ -95,7 +95,7 @@ class _TokenBudget:
         self.limit = tokens_per_minute
         self._window: deque[tuple[float, int]] = deque()
 
-    def consume(self, tokens: int) -> None:
+    def consume(self, tokens: int, *, wait: bool = True) -> None:
         while True:
             now = time.monotonic()
             while self._window and now - self._window[0][0] >= 60:
@@ -106,9 +106,18 @@ class _TokenBudget:
                 self._window.append((now, tokens))
                 return
 
-            wait = 60 - (now - self._window[0][0]) + 0.5
-            logger.info("chờ %.0fs cho hạn mức token của Cohere (đã dùng %d/%d)", wait, used, self.limit)
-            time.sleep(wait)
+            wait_seconds = 60 - (now - self._window[0][0]) + 0.5
+            if not wait:
+                raise RuntimeError(
+                    "Đã chạm hạn mức embedding Cohere tạm thời; không chờ trong lúc xử lý câu hỏi người bệnh."
+                )
+            logger.info(
+                "chờ %.0fs cho hạn mức token của Cohere (đã dùng %d/%d)",
+                wait_seconds,
+                used,
+                self.limit,
+            )
+            time.sleep(wait_seconds)
 
 
 class CohereEmbedder:
@@ -128,18 +137,40 @@ class CohereEmbedder:
                 "Thiếu COHERE_API_KEY. Lấy khoá miễn phí tại https://dashboard.cohere.com/api-keys "
                 "rồi thêm dòng COHERE_API_KEY=... vào .env"
             )
-        self.client = cohere.ClientV2(api_key=self.settings.cohere_api_key)
+        # Không để SDK tự retry trong request của người bệnh: tầng retrieval
+        # đã có deadline tổng, còn retry 429 có kiểm soát chỉ dành cho ingest.
+        self.client = cohere.ClientV2(
+            api_key=self.settings.cohere_api_key,
+            timeout=self.settings.cohere_timeout_seconds,
+            max_retries=0,
+        )
         self._budget = _TokenBudget(self.settings.cohere_tokens_per_minute)
 
-    def _embed_batch(self, part: list[str], input_type: str) -> list[list[float]]:
-        """Gọi API một lô, có điều tiết trước và thử lại nếu vẫn dính 429."""
+    def _embed_batch(
+        self,
+        part: list[str],
+        input_type: str,
+        *,
+        max_attempts: int,
+    ) -> list[list[float]]:
+        """Gọi API một lô, có điều tiết trước và thử lại nếu vẫn dính 429.
+
+        ``search_query`` phải trả về nhanh để agent còn có thể fail-closed;
+        vì vậy chỉ gọi một lần. Ingest chạy nền thì có thể chờ và thử lại.
+        """
         from cohere.errors import TooManyRequestsError
 
         from src.rag.chunk import count_tokens
 
-        self._budget.consume(sum(count_tokens(t) for t in part))
+        # Chỉ ingest nền được phép chờ cửa sổ rate-limit. Nếu truy vấn chat
+        # chạm giới hạn, trả fail-closed ngay để không giữ SSE của người dùng.
+        self._budget.consume(
+            sum(count_tokens(t) for t in part),
+            wait=input_type != "search_query",
+        )
 
-        for attempt in range(5):
+        resp = None
+        for attempt in range(max_attempts):
             try:
                 resp = self.client.embed(
                     model=self.settings.cohere_embedding_model,
@@ -149,14 +180,22 @@ class CohereEmbedder:
                 )
                 break
             except TooManyRequestsError:
+                if attempt == max_attempts - 1:
+                    break
                 # Bộ điều tiết ước lượng token bằng tokenizer khác Cohere nên
                 # vẫn có thể lệch. Lùi dần rồi thử lại thay vì bỏ cả lần ingest.
                 wait = 20 * (attempt + 1)
-                logger.warning("Cohere trả 429, chờ %ds rồi thử lại (lần %d/5)", wait, attempt + 1)
+                logger.warning(
+                    "Cohere trả 429, chờ %ds rồi thử lại (lần %d/%d)",
+                    wait,
+                    attempt + 1,
+                    max_attempts,
+                )
                 time.sleep(wait)
-        else:
+        if resp is None:
             raise RuntimeError(
-                "Cohere liên tục trả 429 sau 5 lần thử. Hạ RAG_COHERE_TOKENS_PER_MINUTE hoặc nâng cấp gói tài khoản."
+                f"Cohere liên tục trả 429 sau {max_attempts} lần thử. "
+                "Hạ RAG_COHERE_TOKENS_PER_MINUTE hoặc kiểm tra hạn mức tài khoản."
             )
 
         vectors = resp.embeddings.float_
@@ -164,20 +203,22 @@ class CohereEmbedder:
             raise RuntimeError("Cohere trả về không có vector float — kiểm tra tham số embedding_types")
         return [list(v) for v in vectors]
 
-    def _call(self, texts: list[str], input_type: str) -> list[list[float]]:
+    def _call(self, texts: list[str], input_type: str, *, max_attempts: int) -> list[list[float]]:
         out: list[list[float]] = []
         batch = self.settings.cohere_batch_size  # Cohere chặn ở 96 văn bản mỗi lần
         for i in range(0, len(texts), batch):
-            out.extend(self._embed_batch(texts[i : i + batch], input_type))
+            out.extend(
+                self._embed_batch(texts[i : i + batch], input_type, max_attempts=max_attempts)
+            )
             if len(texts) > batch:
                 logger.info("embedded %d/%d", min(i + batch, len(texts)), len(texts))
         return out
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        return self._call(texts, "search_document")
+        return self._call(texts, "search_document", max_attempts=5)
 
     def embed_query(self, text: str) -> list[float]:
-        return self._call([text], "search_query")[0]
+        return self._call([text], "search_query", max_attempts=1)[0]
 
 
 class LocalEmbedder:
@@ -344,10 +385,11 @@ class VectorStore:
         self,
         query: str,
         disease: str | list[str] | None = None,
+        allowed_doc_ids: list[str] | None = None,
         top_k: int | None = None,
         min_similarity: float | None = None,
     ) -> list[Hit]:
-        """Truy xuất, lọc theo bệnh, rồi xếp lại có tính tới năm ban hành.
+        """Truy xuất, lọc theo bệnh/quyền nguồn, rồi xếp lại có tính tới năm ban hành.
 
         Lấy rộng (top_k_fetch) ở tầng vector rồi mới cắt xuống top_k: cách này
         cho phần xếp lại có đủ ứng viên để làm việc, mà vẫn không phình context.
@@ -362,12 +404,29 @@ class VectorStore:
         # được đánh rơi disease filter hoặc chỉ giữ bệnh chính.
         requested_diseases = [disease] if isinstance(disease, str) else (disease or [])
         requested_diseases = list(dict.fromkeys(item for item in requested_diseases if item))
+        clauses: list[dict[str, Any]] = []
         if len(requested_diseases) == 1:
-            where: dict[str, Any] | None = {f"disease_{requested_diseases[0]}": True}
+            clauses.append({f"disease_{requested_diseases[0]}": True})
         elif requested_diseases:
-            where = {"$or": [{f"disease_{item}": True} for item in requested_diseases]}
+            clauses.append({"$or": [{f"disease_{item}": True} for item in requested_diseases]})
+
+        # Vector store không phải nguồn sự thật của quyền sử dụng. Một job có
+        # thể hỏng sau khi Chroma nhận một phần chunk, nên agent luôn truyền
+        # allow-list từ Registry.approved(). ``[]`` có nghĩa không tài liệu nào
+        # được phép, đồng thời tránh gọi embedding cho một truy vấn chắc chắn
+        # không thể trả kết quả.
+        if allowed_doc_ids is not None:
+            approved_ids = list(dict.fromkeys(doc_id for doc_id in allowed_doc_ids if doc_id))
+            if not approved_ids:
+                return []
+            clauses.append({"doc_id": {"$in": approved_ids}})
+
+        if not clauses:
+            where: dict[str, Any] | None = None
+        elif len(clauses) == 1:
+            where = clauses[0]
         else:
-            where = None
+            where = {"$and": clauses}
 
         # embed_query, không phải embed_documents — với Cohere đây là hai biểu
         # diễn khác nhau và dùng nhầm sẽ làm tụt chất lượng truy xuất.

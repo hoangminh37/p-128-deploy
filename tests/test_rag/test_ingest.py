@@ -18,10 +18,12 @@ from src.rag.config import RagSettings
 from src.rag.ingest import (
     IngestError,
     list_pending,
+    recover_interrupted_indexes,
     reject,
     remove,
     slugify,
     stage_upload,
+    start_indexing,
 )
 from src.rag.registry import load_registry
 
@@ -222,6 +224,11 @@ class TestApproveGuards:
         with pytest.raises(IngestError, match="không ra chunk nào"):
             ingest.approve(r.doc_id, "bs.binh", settings=settings, store=FakeStore())
 
+        doc = load_registry(settings=settings).by_id(r.doc_id)
+        assert doc.status == "index_failed"
+        assert doc.index_error is not None
+        assert doc.indexed_chunks is None
+
     def test_duyet_thanh_cong_thi_xoa_cu_roi_nap_moi(self, settings, monkeypatch):
         from src.rag import ingest
         from src.rag.chunk import Chunk, DropStat
@@ -244,6 +251,9 @@ class TestApproveGuards:
         assert doc.status == "approved"
         assert doc.approved_by == "bs.binh"
         assert doc.approved_at is not None
+        assert doc.index_attempts == 1
+        assert doc.index_completed_at == doc.approved_at
+        assert doc.indexed_chunks == 1
 
     def test_sau_khi_duyet_thi_vao_thu_vien(self, settings, monkeypatch):
         from src.rag import ingest
@@ -260,3 +270,61 @@ class TestApproveGuards:
         registry = load_registry(settings=settings)
         assert len(registry.approved()) == 1
         assert registry.pending() == []
+
+
+class TestIndexLifecycle:
+    def test_bat_dau_index_duoc_ghi_ben_vung_truoc_khi_chay_job(self, settings):
+        result = stage_upload("a.pdf", b"%PDF", settings=settings, **VALID)
+
+        started = start_indexing(result.doc_id, "bs.binh", settings=settings)
+        doc = load_registry(settings=settings).by_id(result.doc_id)
+
+        assert started.status == "indexing"
+        assert doc.status == "indexing"
+        assert doc.index_attempts == 1
+        assert doc.index_started_by == "bs.binh"
+        assert doc.index_started_at is not None
+        assert doc not in load_registry(settings=settings).approved()
+
+    def test_khong_cho_chay_trung_mot_job_index(self, settings):
+        result = stage_upload("a.pdf", b"%PDF", settings=settings, **VALID)
+        start_indexing(result.doc_id, "bs.binh", settings=settings)
+
+        with pytest.raises(IngestError, match="đang được index"):
+            start_indexing(result.doc_id, "bs.an", settings=settings)
+
+    def test_loi_parser_duoc_luu_de_thu_lai_va_khong_duoc_phep_truy_xuat(self, settings, monkeypatch):
+        from src.rag import ingest
+
+        result = stage_upload("a.pdf", b"%PDF", settings=settings, **VALID)
+        monkeypatch.setattr(ingest, "process", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("file hỏng")))
+
+        with pytest.raises(RuntimeError, match="file hỏng"):
+            ingest.approve(result.doc_id, "bs.binh", settings=settings, store=FakeStore())
+
+        doc = load_registry(settings=settings).by_id(result.doc_id)
+        assert doc.status == "index_failed"
+        assert doc.index_error == "file hỏng"
+        assert doc.index_attempts == 1
+        assert load_registry(settings=settings).approved() == []
+
+    def test_khoi_dong_lai_bien_job_dang_chay_thanh_can_thu_lai(self, settings):
+        result = stage_upload("a.pdf", b"%PDF", settings=settings, **VALID)
+        start_indexing(result.doc_id, "bs.binh", settings=settings)
+
+        assert recover_interrupted_indexes(settings) == [result.doc_id]
+        doc = load_registry(settings=settings).by_id(result.doc_id)
+        assert doc.status == "index_failed"
+        assert "gián đoạn" in (doc.index_error or "")
+
+    def test_loi_tai_model_docling_duoc_chuyen_thanh_huong_dan_cho_btv(self):
+        from src.rag.ingest import _safe_error_message
+
+        error = RuntimeError(
+            "An error happened while trying to locate the files on the Hub, "
+            "and we cannot find the appropriate snapshot folder."
+        )
+
+        message = _safe_error_message(error)
+        assert "Hugging Face" in message
+        assert "huggingface.co" in message

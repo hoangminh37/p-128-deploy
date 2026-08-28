@@ -254,7 +254,15 @@ function TurnActions({ turn }: { turn: Turn }) {
   )
 }
 
-export function AnswerTurn({ turn }: { turn: Turn }) {
+export function AnswerTurn({
+  turn,
+  onListen,
+  isListening = false,
+}: {
+  turn: Turn
+  onListen?: () => void
+  isListening?: boolean
+}) {
   const isRedFlag = turn.status === 'red_flag'
 
   /**
@@ -290,6 +298,17 @@ export function AnswerTurn({ turn }: { turn: Turn }) {
       <div className={isRedFlag ? 'mt-cozy' : 'mt-block'}>
         <ResponseBody turn={turn} />
       </div>
+
+      {!isRedFlag && onListen !== undefined && (
+        <button
+          type="button"
+          onClick={onListen}
+          disabled={isListening}
+          className="motion-press font-display mt-snug min-h-touch rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas disabled:text-slate"
+        >
+          {isListening ? 'Đang đọc câu trả lời…' : 'Nghe câu trả lời'}
+        </button>
+      )}
 
       {/* Không mời sao chép hay lưu ở `red_flag`. Việc cần làm bây giờ là gọi
           115, không phải sắp xếp giấy tờ. */}

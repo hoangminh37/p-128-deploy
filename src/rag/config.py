@@ -94,6 +94,10 @@ class RagSettings(BaseSettings):
     # nhau vài phần trăm, và đâm vào trần thì cả lần ingest hỏng giữa chừng.
     # Nâng lên nếu team lên gói trả phí.
     cohere_tokens_per_minute: int = Field(default=80_000, ge=1000)
+    # Giới hạn cho MỘT request embedding. Đây là lớp bảo vệ thứ hai bên trong
+    # RAG_RETRIEVAL_TIMEOUT_SECONDS: SDK Cohere không được phép treo một query
+    # người dùng vô hạn khi mạng hoặc provider có sự cố.
+    cohere_timeout_seconds: float = Field(default=6.0, ge=1.0, le=60.0)
     # Khoá đọc thẳng từ biến COHERE_API_KEY, không có tiền tố RAG_.
     cohere_api_key: str = Field(default="", validation_alias="COHERE_API_KEY")
 
@@ -126,6 +130,14 @@ class RagSettings(BaseSettings):
 
     # ---- Vector store -------------------------------------------------------
     collection_name: str = "medical_docs"
+
+    # Mở Chroma, tạo embedding câu hỏi hoặc đọc index cục bộ đều là I/O. Không
+    # để một file index hỏng, ổ đĩa chậm hoặc SDK embedding treo giữ SSE vô hạn.
+    # Hết thời gian, agent fail-closed sang doctor_referral; có thể điều chỉnh
+    # bằng RAG_RETRIEVAL_TIMEOUT_SECONDS mà không phải sửa node.
+    # 10 giây chừa thời gian nạp SDK ở request đầu tiên; riêng request Cohere
+    # bị giới hạn 6 giây nên một provider treo vẫn không giữ giao diện vô hạn.
+    retrieval_timeout_seconds: float = Field(default=10.0, ge=1.0, le=120.0)
 
     # ---- Truy xuất ----------------------------------------------------------
     # Lấy rộng ở tầng vector rồi mới xếp lại — cách này rẻ hơn nhiều so với

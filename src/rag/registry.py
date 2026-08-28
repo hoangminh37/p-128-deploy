@@ -25,11 +25,20 @@ Disease = str
 Authority = Literal["vn_moh", "international"]
 
 # Trạng thái vòng đời của một tài liệu:
-#   approved        — đã được biên tập viên duyệt, được phép vào vector store
+#   approved        — index thành công, được phép vào vector store
 #   pending_review  — biên tập viên vừa tải lên, ĐANG CHỜ DUYỆT, chưa được index
+#   indexing        — đang parse/chunk/embed/index; vẫn KHÔNG được agent dùng
+#   index_failed    — index thất bại; giữ file và lỗi để biên tập viên thử lại
 #   draft           — đang soạn, không đụng tới
 #   quarantined     — đã xem xét và loại
-DocStatus = Literal["approved", "pending_review", "draft", "quarantined"]
+DocStatus = Literal[
+    "approved",
+    "pending_review",
+    "indexing",
+    "index_failed",
+    "draft",
+    "quarantined",
+]
 
 
 class SourceDoc(BaseModel):
@@ -56,6 +65,16 @@ class SourceDoc(BaseModel):
     # tài liệu nền được cấu hình sẵn trong registry.yaml.
     uploaded_at: str | None = None
     uploaded_by: str | None = None
+
+    # Trạng thái job index nằm cùng bản ghi nguồn thay vì chỉ nằm trong hàng
+    # đợi UI. uploads.json vì thế là nguồn sự thật duy nhất cho câu hỏi an
+    # toàn quan trọng nhất: "agent đã được phép dùng tài liệu này chưa?".
+    index_attempts: int = Field(default=0, ge=0)
+    index_started_at: str | None = None
+    index_started_by: str | None = None
+    index_completed_at: str | None = None
+    index_error: str | None = None
+    indexed_chunks: int | None = Field(default=None, ge=0)
 
     # Được tính sau khi nạp cả danh sách, không đọc từ YAML.
     recency_rank: int = Field(default=0, exclude=True)
@@ -131,6 +150,14 @@ class Registry(BaseModel):
     def pending(self) -> list[SourceDoc]:
         """Tài liệu biên tập viên đã tải lên nhưng chưa duyệt — chưa được index."""
         return [d for d in self.documents if d.status == "pending_review"]
+
+    def indexing(self) -> list[SourceDoc]:
+        """Tài liệu đang xử lý nền; tuyệt đối chưa thuộc thư viện RAG."""
+        return [d for d in self.documents if d.status == "indexing"]
+
+    def failed(self) -> list[SourceDoc]:
+        """Tài liệu giữ lại để biên tập viên xem lỗi và chạy lại index."""
+        return [d for d in self.documents if d.status == "index_failed"]
 
     def by_id(self, doc_id: str) -> SourceDoc:
         for d in self.documents:
@@ -279,3 +306,18 @@ def save_uploads(docs: list[SourceDoc], settings: RagSettings | None = None) -> 
 def uploaded_docs(settings: RagSettings | None = None) -> list[SourceDoc]:
     """Chỉ những tài liệu do biên tập viên tải lên, không gồm bộ tài liệu nền."""
     return _load_uploads(settings or get_rag_settings())
+
+
+def quarantined_uploads(settings: RagSettings | None = None) -> list[QuarantinedDoc]:
+    """Những tài liệu upload đã bị từ chối, giữ để hiển thị lịch sử vận hành.
+
+    ``reject()`` đưa file gốc vào quarantine và ghi metadata ở đây thay vì để
+    nó lẫn với registry đang hoạt động. Hàm đọc riêng giúp giao diện biên tập
+    vẫn liệt kê được trạng thái từ chối mà không có nguy cơ nạp nó vào RAG.
+    """
+    settings = settings or get_rag_settings()
+    path = settings.raw_dir.parent / "quarantine" / "rejected.json"
+    if not path.exists():
+        return []
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return [QuarantinedDoc.model_validate(item) for item in raw]

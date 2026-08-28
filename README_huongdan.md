@@ -64,7 +64,7 @@ Hooks tự động log mọi AI prompt khi dùng Claude Code, Cursor, Codex, Gem
 
 ```bash
 # Chạy FastAPI backend
-uvicorn src.main:app --reload --port 8000
+uvicorn src.main:app --reload --reload-dir src --port 8000
 
 # Mở Swagger UI
 # http://localhost:8000/docs

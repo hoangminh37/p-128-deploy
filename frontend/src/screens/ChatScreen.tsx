@@ -9,9 +9,13 @@ import {
 import { useDailyLesson, useCompleteLesson } from '../app/learning'
 import {
   getConversationDetail,
+  getVoiceSpeechAudio,
   streamChatMessage,
+  streamVoiceChatMessage,
   type ApiError,
+  type ChatStreamCallbacks,
   type CompleteLessonResponse,
+  type StreamDoneEvent,
   type StreamStepEvent,
 } from '../lib/api'
 import {
@@ -26,6 +30,7 @@ import { ErrorNotice } from '../ui/ErrorNotice'
 import { LibraryIcon } from '../ui/icons'
 import { QuizPanel } from '../ui/QuizPanel'
 import { SuggestedQuestions } from '../ui/SuggestedQuestions'
+import { VoiceChatWidget, type VoiceSubmitResult } from '../ui/VoiceChatWidget'
 
 /**
  * Ghép lịch sử của mục 7 thành các lượt.
@@ -54,6 +59,25 @@ function historyToTurns(messages: ConversationMessage[]): Turn[] {
 
   return turns
 }
+
+/** Prefer the patient-facing error emitted by the API layer over a debug log. */
+function voiceErrorMessage(error: unknown): string {
+  if (
+    error !== null &&
+    typeof error === 'object' &&
+    'userMessage' in error &&
+    typeof error.userMessage === 'string'
+  ) {
+    return error.userMessage
+  }
+  return error instanceof Error && error.message
+    ? error.message
+    : 'Không thể đọc câu trả lời thành tiếng. Bạn hãy thử lại.'
+}
+
+type AskResult =
+  | { ok: true; messageId: string; canSpeak: boolean; question: string }
+  | { ok: false; error: unknown }
 
 /**
  * Lời cập nhật trong lúc chờ câu trả lời.
@@ -415,8 +439,23 @@ export function ChatScreen({
   const [currentStep, setCurrentStep] = useState<StreamStepEvent | null>(null)
   const [streamedAnswer, setStreamedAnswer] = useState('')
   const [streamError, setStreamError] = useState<ApiError | null>(null)
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+  const [isVoiceModeOpen, setVoiceModeOpen] = useState(false)
 
   const endRef = useRef<HTMLDivElement>(null)
+  const audioUrlsRef = useRef(new Map<string, string>())
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Object URLs hold in-memory audio. They are private to this tab and are
+  // released when the screen closes instead of accumulating across a session.
+  useEffect(() => {
+    return () => {
+      activeAudioRef.current?.pause()
+      for (const url of audioUrlsRef.current.values()) URL.revokeObjectURL(url)
+      audioUrlsRef.current.clear()
+    }
+  }, [])
 
   const historyQuery = useQuery<ConversationDetail | null, ApiError>({
     queryKey: conversationDetailQueryKey(patientId, openedConversationId),
@@ -443,11 +482,59 @@ export function ChatScreen({
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [turns.length, isStreaming, streamedAnswer])
 
-  async function ask(question: string) {
-    const trimmed = question.trim()
-    if (trimmed.length < MIN_QUERY_LENGTH || isStreaming) return
+  async function playAnswer(messageId: string): Promise<void> {
+    if (patientId === null) return
+    setVoiceError(null)
 
-    setPendingQuestion(trimmed)
+    try {
+      let audioUrl = audioUrlsRef.current.get(messageId)
+      if (audioUrl === undefined) {
+        const audioBlob = await getVoiceSpeechAudio({
+          patient_id: patientId,
+          message_id: messageId,
+        })
+        audioUrl = URL.createObjectURL(audioBlob)
+        audioUrlsRef.current.set(messageId, audioUrl)
+      }
+
+      activeAudioRef.current?.pause()
+      const player = new Audio(audioUrl)
+      activeAudioRef.current = player
+      setSpeakingMessageId(messageId)
+      player.onended = () => {
+        if (activeAudioRef.current === player) setSpeakingMessageId(null)
+      }
+      player.onerror = () => {
+        if (activeAudioRef.current === player) {
+          setSpeakingMessageId(null)
+          setVoiceError('Không thể phát âm thanh. Bạn vẫn có thể đọc câu trả lời trên màn hình.')
+        }
+      }
+      await player.play()
+    } catch (error) {
+      setSpeakingMessageId(null)
+      setVoiceError(voiceErrorMessage(error))
+    }
+  }
+
+  async function ask(question: string, voiceAudio?: Blob): Promise<AskResult> {
+    const trimmed = question.trim()
+    if (voiceAudio === undefined && trimmed.length < MIN_QUERY_LENGTH) {
+      return {
+        ok: false,
+        error: new Error(`Câu hỏi cần ít nhất ${MIN_QUERY_LENGTH} ký tự để trợ lý hiểu bạn.`),
+      }
+    }
+    if (isStreaming) {
+      return {
+        ok: false,
+        error: new Error('Trợ lý đang xử lý câu hỏi trước. Bạn hãy chờ một chút rồi thử lại.'),
+      }
+    }
+
+    const initialQuestion = voiceAudio === undefined ? trimmed : 'Đang nhận diện lời nói…'
+    let resolvedQuestion = initialQuestion
+    setPendingQuestion(initialQuestion)
     setDraft('')
     setIsStreaming(true)
     setStreamError(null)
@@ -458,73 +545,131 @@ export function ChatScreen({
       icon: '',
     })
 
-    // Giữ message_id của lượt đang streaming để patch annotations sau khi done
     const pendingMessageIdRef = { current: '' }
+    let completed: AskResult | null = null
+    let streamFailure: ApiError | null = null
 
     try {
       let accumulatedAnswer = ''
-
-      await streamChatMessage(
-        {
-          query: trimmed,
-          patient_id: patientId ?? '',
-          conversation_id: conversationId,
+      const callbacks: ChatStreamCallbacks = {
+        onTranscript: (transcript) => {
+          resolvedQuestion = transcript
+          setDraft(transcript)
+          setPendingQuestion(transcript)
         },
-        {
-          onStep: (step) => {
-            setCurrentStep(step)
-          },
-          onToken: (token) => {
-            accumulatedAnswer += token
-            setStreamedAnswer(accumulatedAnswer)
-          },
-          onDone: (done) => {
-            const finalAnswer = done.answer || accumulatedAnswer
-            const messageKey = done.message_id || `m_${Date.now()}`
-            pendingMessageIdRef.current = messageKey
-            setTurns((previous) => [
-              ...previous,
-              {
-                key: messageKey,
-                question: trimmed,
-                status: done.status,
-                answer: finalAnswer,
-                citations: done.citations || [],
-                disclaimer: done.disclaimer || null,
-                // annotations sẽ đến sau qua onAnnotations
-                annotations: undefined,
-              },
-            ])
-            setConversationId(done.conversation_id)
-            setPendingQuestion(null)
-            setIsStreaming(false)
-            setCurrentStep(null)
-            setStreamedAnswer('')
-
-            void queryClient.invalidateQueries({
-              queryKey: conversationsQueryKey(patientId),
-            })
-          },
-          onAnnotations: (event) => {
-            // Patch annotations vào đúng turn theo message_id
-            const targetKey = event.message_id || pendingMessageIdRef.current
-            if (!targetKey) return
-            setTurns((previous) =>
-              previous.map((t) =>
-                t.key === targetKey ? { ...t, annotations: event.annotations } : t,
-              ),
-            )
-          },
-          onError: (err) => {
-            setStreamError(err)
-            setIsStreaming(false)
-          },
+        onStep: (step: StreamStepEvent) => {
+          setCurrentStep(step)
         },
-      )
+        onToken: (token) => {
+          accumulatedAnswer += token
+          setStreamedAnswer(accumulatedAnswer)
+        },
+        onDone: (done: StreamDoneEvent) => {
+          const finalAnswer = done.answer || accumulatedAnswer
+          const messageKey = done.message_id || `m_${Date.now()}`
+          pendingMessageIdRef.current = messageKey
+          setTurns((previous) => [
+            ...previous,
+            {
+              key: messageKey,
+              question: resolvedQuestion,
+              status: done.status,
+              answer: finalAnswer,
+              citations: done.citations || [],
+              disclaimer: done.disclaimer || null,
+              annotations: undefined,
+            },
+          ])
+          setConversationId(done.conversation_id)
+          setPendingQuestion(null)
+          setIsStreaming(false)
+          setCurrentStep(null)
+          setStreamedAnswer('')
+          void queryClient.invalidateQueries({
+            queryKey: conversationsQueryKey(patientId),
+          })
+          completed = {
+            ok: true,
+            messageId: messageKey,
+            question: resolvedQuestion,
+            // Red-flag guidance must remain visible and actionable.
+            canSpeak: done.status !== 'red_flag',
+          }
+        },
+        onAnnotations: (event) => {
+          const targetKey = event.message_id || pendingMessageIdRef.current
+          if (!targetKey) return
+          setTurns((previous) =>
+            previous.map((turn) =>
+              turn.key === targetKey ? { ...turn, annotations: event.annotations } : turn,
+            ),
+          )
+        },
+        onError: (err) => {
+          streamFailure = err
+          setStreamError(err)
+          setIsStreaming(false)
+          setCurrentStep(null)
+          setStreamedAnswer('')
+        },
+      }
+
+      if (voiceAudio === undefined) {
+        await streamChatMessage(
+          {
+            query: trimmed,
+            patient_id: patientId ?? '',
+            conversation_id: conversationId,
+          },
+          callbacks,
+        )
+      } else {
+        await streamVoiceChatMessage(
+          {
+            patientId: patientId ?? '',
+            conversationId: conversationId,
+            audio: voiceAudio,
+          },
+          callbacks,
+        )
+      }
+
+      if (streamFailure !== null) return { ok: false, error: streamFailure }
+      if (completed !== null) return completed
+
+      const error = new Error('Trợ lý chưa hoàn tất câu trả lời. Bạn hãy thử lại.')
+      setIsStreaming(false)
+      setCurrentStep(null)
+      setStreamedAnswer('')
+      return { ok: false, error }
     } catch (err) {
       setStreamError(err as ApiError)
       setIsStreaming(false)
+      return { ok: false, error: err }
     }
+  }
+
+  async function sendVoiceAudio(audio: Blob): Promise<VoiceSubmitResult> {
+    if (patientId === null) {
+      throw new Error('Bạn cần mở hồ sơ trước khi hỏi bằng giọng nói.')
+    }
+    const result = await ask('', audio)
+    if (!result.ok) throw result.error
+    return { transcript: result.question, ...result }
+  }
+
+  async function loadVoiceSpeech(messageId: string): Promise<Blob> {
+    if (patientId === null) {
+      throw new Error('Bạn cần mở hồ sơ trước khi nghe câu trả lời.')
+    }
+    return getVoiceSpeechAudio({ patient_id: patientId, message_id: messageId })
+  }
+
+  function openVoiceMode(): void {
+    activeAudioRef.current?.pause()
+    setSpeakingMessageId(null)
+    setVoiceError(null)
+    setVoiceModeOpen(true)
   }
 
   const isEmpty =
@@ -554,7 +699,8 @@ export function ChatScreen({
     (lastTurn?.status === 'answered' || lastTurn?.status === 'partial')
 
   return (
-    <div className="flex flex-1 flex-col">
+    <>
+      <div className="flex flex-1 flex-col">
       <div className="flex-1 pb-turn">
         {!hasQuestionHeading && <h1 className="sr-only">Hỏi đáp sức khỏe</h1>}
 
@@ -582,11 +728,21 @@ export function ChatScreen({
         )}
 
         {historyTurns.map((turn) => (
-          <AnswerTurn key={turn.key} turn={turn} />
+          <AnswerTurn
+            key={turn.key}
+            turn={turn}
+            onListen={() => void playAnswer(turn.key)}
+            isListening={speakingMessageId === turn.key}
+          />
         ))}
 
         {turns.map((turn) => (
-          <AnswerTurn key={turn.key} turn={turn} />
+          <AnswerTurn
+            key={turn.key}
+            turn={turn}
+            onListen={() => void playAnswer(turn.key)}
+            isListening={speakingMessageId === turn.key}
+          />
         ))}
 
         {/* ── Khối Streaming: lời cập nhật trước, rồi câu trả lời khi có ─── */}
@@ -652,14 +808,29 @@ export function ChatScreen({
           Việc cần làm bây giờ là đi khám. Khi nào bạn đã ổn và muốn hỏi tiếp,
           bạn hãy bấm “Câu hỏi mới”.
         </p>
-      ) : (
+      ) : !isVoiceModeOpen ? (
         <ChatComposer
           value={draft}
           onChange={setDraft}
           onSubmit={() => void ask(draft)}
+          onStartVoice={patientId === null ? undefined : openVoiceMode}
           disabled={isStreaming}
         />
+      ) : null}
+      {voiceError !== null && (
+        <p role="alert" className="font-display mt-tight max-w-answer text-question text-alert">
+          {voiceError}
+        </p>
       )}
-    </div>
+      </div>
+
+      {isVoiceModeOpen && patientId !== null && (
+        <VoiceChatWidget
+          onClose={() => setVoiceModeOpen(false)}
+          onSubmitAudio={sendVoiceAudio}
+          onLoadSpeech={loadVoiceSpeech}
+        />
+      )}
+    </>
   )
 }

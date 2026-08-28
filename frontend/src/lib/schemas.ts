@@ -398,6 +398,8 @@ export const conversationDetailSchema = z.object({
 export const editorItemStatusSchema = z.enum([
   'draft',
   'pending',
+  'indexing',
+  'failed',
   'approved',
   'rejected',
 ])
@@ -416,6 +418,57 @@ export const editorItemOriginSchema = z.enum(['question_log', 'editor_upload'])
 export const editorDashboardSchema = z.object({
   pending_count: z.number().int().min(0),
   out_of_scope_count: z.number().int().min(0),
+})
+
+/** Nguồn thật trong registry RAG, không phải một mục công việc ở editor queue. */
+export const editorSourceOriginSchema = z.enum(['system', 'editor_upload'])
+export const editorSourceApprovalStatusSchema = z.enum([
+  'approved',
+  'pending_review',
+  'indexing',
+  'index_failed',
+  'draft',
+  'quarantined',
+])
+export const editorSourceIndexStatusSchema = z.enum([
+  'indexed',
+  'indexing',
+  'failed',
+  'not_indexed',
+  'not_applicable',
+  'unavailable',
+])
+/** Cách frontend có thể trình bày file gốc, không phải trạng thái RAG. */
+export const editorSourceViewerTypeSchema = z.enum(['pdf', 'markdown', 'unsupported'])
+const editorSourceStatusTimeSchema = z.union([
+  z.iso.datetime({ offset: true }),
+  z.iso.date(),
+])
+
+export const editorSourceDocumentSchema = z.object({
+  document_id: z.string(),
+  title: z.string(),
+  issuer: z.string(),
+  doc_code: z.string().nullable(),
+  published: z.string(),
+  conditions: z.array(z.string()),
+  source_origin: editorSourceOriginSchema,
+  approval_status: editorSourceApprovalStatusSchema,
+  index_status: editorSourceIndexStatusSchema,
+  chunk_count: z.number().int().min(0).nullable(),
+  url: z.string().nullable(),
+  uploaded_at: z.iso.datetime({ offset: true }).nullable(),
+  viewer_type: editorSourceViewerTypeSchema,
+  source_file_available: z.boolean(),
+  status_at: editorSourceStatusTimeSchema.nullable(),
+  index_attempts: z.number().int().min(0).optional(),
+  index_error: z.string().nullable().optional(),
+  index_started_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  index_completed_at: z.iso.datetime({ offset: true }).nullable().optional(),
+})
+
+export const editorSourceDocumentListSchema = z.object({
+  documents: z.array(editorSourceDocumentSchema),
 })
 
 /** Mục 8 — một dòng trong GET /editor/queue. `title` do backend cắt tối đa 120 ký tự. */
@@ -468,6 +521,12 @@ export const editorQueueItemDetailSchema = editorQueueItemSchema
     reject_reason: z.string().nullable(),
     reviewed_at: z.iso.datetime({ offset: true }).nullable(),
     reviewed_by: z.string().nullable(),
+    source_approval_status: editorSourceApprovalStatusSchema.nullable().optional(),
+    source_index_error: z.string().nullable().optional(),
+    indexed_chunk_count: z.number().int().min(0).nullable().optional(),
+    index_attempts: z.number().int().min(0).nullable().optional(),
+    index_started_at: z.iso.datetime({ offset: true }).nullable().optional(),
+    index_completed_at: z.iso.datetime({ offset: true }).nullable().optional(),
   })
   .refine(
     (value) =>
@@ -580,6 +639,12 @@ export type ConversationDetail = z.infer<typeof conversationDetailSchema>
 export type EditorItemStatus = z.infer<typeof editorItemStatusSchema>
 export type EditorItemOrigin = z.infer<typeof editorItemOriginSchema>
 export type EditorDashboard = z.infer<typeof editorDashboardSchema>
+export type EditorSourceOrigin = z.infer<typeof editorSourceOriginSchema>
+export type EditorSourceApprovalStatus = z.infer<typeof editorSourceApprovalStatusSchema>
+export type EditorSourceIndexStatus = z.infer<typeof editorSourceIndexStatusSchema>
+export type EditorSourceViewerType = z.infer<typeof editorSourceViewerTypeSchema>
+export type EditorSourceDocument = z.infer<typeof editorSourceDocumentSchema>
+export type EditorSourceDocumentList = z.infer<typeof editorSourceDocumentListSchema>
 export type EditorQueueItem = z.infer<typeof editorQueueItemSchema>
 export type EditorQueueList = z.infer<typeof editorQueueListSchema>
 export type EditorQueueItemDetail = z.infer<typeof editorQueueItemDetailSchema>
@@ -793,3 +858,22 @@ export const annotationsEventSchema = z.object({
 })
 
 export type AnnotationsEvent = z.infer<typeof annotationsEventSchema>
+
+// ---------------------------------------------------------------------------
+// Voice
+// ---------------------------------------------------------------------------
+
+/** Chữ đã nhận từ một bản ghi ngắn. Âm thanh không đi vào state của frontend. */
+export const voiceTranscriptionSchema = z.object({
+  transcript: z.string().trim().min(1).max(5000),
+  language: z.literal('vi'),
+})
+
+/** Chỉ được yêu cầu đọc lại một message đã tồn tại, không gửi text tuỳ ý. */
+export const voiceSpeechRequestSchema = z.object({
+  patient_id: z.string().min(1),
+  message_id: z.string().min(1),
+})
+
+export type VoiceTranscription = z.infer<typeof voiceTranscriptionSchema>
+export type VoiceSpeechRequest = z.infer<typeof voiceSpeechRequestSchema>
