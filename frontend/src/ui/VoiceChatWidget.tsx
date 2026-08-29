@@ -427,6 +427,7 @@ export function VoiceChatWidget({ onClose, onSubmitAudio, onLoadSpeech }: Props)
           : mode === 'error'
             ? 'Thử lại'
             : 'Bắt đầu'
+  const closeLabel = mode === 'listening' || mode === 'processing' ? 'Hủy' : 'Đóng'
 
   return (
     <section
@@ -437,28 +438,39 @@ export function VoiceChatWidget({ onClose, onSubmitAudio, onLoadSpeech }: Props)
     >
       <h2 id="voice-wave-title" className="sr-only">Trò chuyện bằng giọng nói</h2>
       <div className="voice-wave-card">
-        <canvas ref={waveformRef} className="voice-wave-canvas" aria-hidden="true" />
-        <button
-          type="button"
-          onClick={finishConversation}
-          aria-label="Hủy trò chuyện bằng giọng nói"
-          className="voice-wave-cancel"
-        >
-          Hủy
-        </button>
-        <button
-          ref={primaryActionRef}
-          type="button"
-          onClick={handlePrimaryAction}
-          disabled={mode === 'processing'}
-          className="voice-wave-submit"
-        >
-          {primaryLabel}
-        </button>
+        <div className="voice-wave-summary">
+          <p className="voice-wave-title">Trò chuyện bằng giọng nói</p>
+          <p
+            role={mode === 'error' ? 'alert' : 'status'}
+            aria-live="polite"
+            className="voice-wave-status"
+          >
+            {status}
+          </p>
+        </div>
+        <div className="voice-wave-meter">
+          <canvas ref={waveformRef} className="voice-wave-canvas" aria-hidden="true" />
+        </div>
+        <div className="voice-wave-actions">
+          <button
+            type="button"
+            onClick={finishConversation}
+            aria-label="Đóng trò chuyện bằng giọng nói"
+            className="voice-wave-cancel"
+          >
+            {closeLabel}
+          </button>
+          <button
+            ref={primaryActionRef}
+            type="button"
+            onClick={handlePrimaryAction}
+            disabled={mode === 'processing'}
+            className="voice-wave-submit"
+          >
+            {primaryLabel}
+          </button>
+        </div>
       </div>
-      <p role={mode === 'error' ? 'alert' : 'status'} aria-live="polite" className="voice-wave-status">
-        {status}
-      </p>
       {transcript !== null && <p className="voice-wave-caption">Bạn vừa nói: “{transcript}”</p>}
     </section>
   )

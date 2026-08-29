@@ -8,7 +8,7 @@
 import { useId, useRef, type FormEvent } from 'react'
 
 import { MIN_QUERY_LENGTH } from '../lib/schemas'
-import { SearchIcon, SendIcon } from './icons'
+import { MicrophoneIcon, SearchIcon, SendIcon } from './icons'
 
 export function ChatComposer({
   value,
@@ -70,9 +70,11 @@ export function ChatComposer({
               type="button"
               onClick={onStartVoice}
               disabled={disabled}
-              className="motion-press font-display min-h-touch shrink-0 rounded-pill border-2 border-slate px-snug text-input font-semibold text-body enabled:hover:bg-canvas disabled:text-slate"
+              aria-label="Hỏi bằng giọng nói"
+              title="Hỏi bằng giọng nói"
+              className="motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-full border-2 border-slate text-body enabled:hover:bg-canvas disabled:text-slate"
             >
-              Nói
+              <MicrophoneIcon className="h-6 w-6" />
             </button>
           )}
 
