@@ -482,6 +482,13 @@ export function ChatScreen({
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [turns.length, isStreaming, streamedAnswer])
 
+  // Voice bar nằm trong luồng của cột chat (không còn phủ cố định toàn màn),
+  // nên đưa nó vào khung nhìn ngay khi người dùng mở.
+  useEffect(() => {
+    if (!isVoiceModeOpen) return
+    endRef.current?.scrollIntoView({ block: 'end' })
+  }, [isVoiceModeOpen])
+
   async function playAnswer(messageId: string): Promise<void> {
     if (patientId === null) return
     setVoiceError(null)

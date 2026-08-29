@@ -1165,12 +1165,16 @@
  * người dùng nhận ra nơi tín hiệu sẽ xuất hiện.
  * --------------------------------------------------------------------------- */
 .voice-wave-shell {
-  --voice-wave-color: #e7eeee;
-  bottom: max(1rem, env(safe-area-inset-bottom));
-  left: max(1rem, env(safe-area-inset-left));
-  position: fixed;
-  right: max(1rem, env(safe-area-inset-right));
-  z-index: 45;
+  --voice-wave-color: var(--color-mist);
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  margin-top: var(--spacing-cozy);
+  position: sticky;
+  width: 100%;
+  z-index: 20;
+}
+
+.voice-wave-shell[data-state="listening"] {
+  --voice-wave-color: var(--color-mint);
 }
 
 .voice-wave-shell[data-state="processing"] {
@@ -1187,40 +1191,79 @@
 
 .voice-wave-card {
   align-items: center;
-  background: #202020;
-  border-radius: 2rem;
-  box-shadow: 0 16px 38px rgb(6 26 50 / 30%);
+  background: var(--color-surface);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-card-lg);
+  box-shadow: 0 12px 28px rgb(6 26 50 / 14%);
+  display: grid;
+  gap: var(--spacing-snug);
+  grid-template-areas:
+    "summary actions"
+    "meter actions";
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--spacing-snug);
+}
+
+.voice-wave-summary {
+  grid-area: summary;
+  min-width: 0;
+}
+
+.voice-wave-title {
+  color: var(--color-body);
+  font-family: var(--font-display);
+  font-size: var(--text-question);
+  font-weight: 800;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.voice-wave-meter {
+  align-items: center;
+  background: var(--color-ink);
+  border-radius: var(--radius-chip);
   display: flex;
-  gap: 0.75rem;
-  min-height: 6rem;
-  padding: 0.875rem;
+  grid-area: meter;
+  min-height: 3.5rem;
+  min-width: 0;
+  overflow: hidden;
+  padding-inline: var(--spacing-snug);
 }
 
 .voice-wave-canvas {
-  flex: 1 1 auto;
-  height: 4rem;
+  display: block;
+  height: 3.5rem;
   min-width: 0;
+  width: 100%;
+}
+
+.voice-wave-actions {
+  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-tight);
+  grid-area: actions;
 }
 
 .voice-wave-cancel,
 .voice-wave-submit {
   align-items: center;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   display: flex;
-  flex: 0 0 auto;
   font-family: var(--font-display);
   font-size: var(--text-note);
   font-weight: 800;
   justify-content: center;
-  min-height: 4rem;
-  min-width: 4rem;
-  padding: 0.5rem;
+  min-height: 3rem;
+  min-width: 5.75rem;
+  padding: 0.5rem var(--spacing-snug);
 }
 
 .voice-wave-cancel {
-  background: #343434;
-  color: #fff;
+  background: transparent;
+  border: 2px solid var(--color-slate);
+  color: var(--color-body);
 }
 
 .voice-wave-submit {
@@ -1243,15 +1286,13 @@
 .voice-wave-caption {
   font-family: var(--font-display);
   line-height: 1.5;
-  margin: 0.5rem auto 0;
-  max-width: 48rem;
-  text-align: center;
+  margin: var(--spacing-hair) 0 0;
 }
 
 .voice-wave-status {
-  color: var(--color-body);
-  font-size: var(--text-question);
-  font-weight: 650;
+  color: var(--color-slate);
+  font-size: var(--text-note);
+  font-weight: 600;
 }
 
 .voice-wave-shell[data-state="error"] .voice-wave-status {
@@ -1261,29 +1302,34 @@
 .voice-wave-caption {
   color: var(--color-slate);
   font-size: var(--text-note);
-}
-
-@media (min-width: 64rem) {
-  .voice-wave-shell {
-    left: calc(var(--spacing-rail) + var(--spacing-cozy));
-  }
+  padding-inline: var(--spacing-tight);
 }
 
 @media (max-width: 34rem) {
   .voice-wave-card {
-    gap: 0.5rem;
-    min-height: 5.25rem;
-    padding: 0.625rem;
+    grid-template-areas:
+      "summary"
+      "meter"
+      "actions";
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--spacing-tight);
   }
 
   .voice-wave-canvas {
-    height: 3.5rem;
+    height: 3rem;
+  }
+
+  .voice-wave-meter {
+    min-height: 3rem;
+  }
+
+  .voice-wave-actions {
+    flex-direction: row;
   }
 
   .voice-wave-cancel,
   .voice-wave-submit {
-    font-size: 0.8125rem;
-    min-height: 3.5rem;
-    min-width: 3.5rem;
+    flex: 1 1 0;
+    min-width: 0;
   }
 }

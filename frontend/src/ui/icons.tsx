@@ -207,6 +207,16 @@ export function SendIcon({ className }: IconProps) {
   )
 }
 
+/** Micro: mở chế độ hỏi bằng giọng nói từ thanh soạn câu hỏi. */
+export function MicrophoneIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <rect x="8.5" y="3.5" width="7" height="11" rx="3.5" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5M8.5 20.5h7" />
+    </StrokeIcon>
+  )
+}
+
 /** Đăng xuất: mũi tên đi ra khỏi một khung mở. */
 export function SignOutIcon({ className }: IconProps) {
   return (
