@@ -1,4 +1,4 @@
-# P-128 — Trợ lý Giáo dục Sức khỏe cho người bệnh mãn tính
+# EduHealth AI — Trợ lý Giáo dục Sức khỏe cho người bệnh mãn tính
 
 Đây là một trợ lý hỏi đáp bằng tiếng Việt, giúp người đã được bác sĩ chẩn đoán mắc
 đái tháo đường típ 2 hoặc tăng huyết áp hiểu đúng về bệnh của mình: ăn uống thế nào,
@@ -254,7 +254,7 @@ Dừng toàn bộ bằng `docker compose down`, hoặc `make docker-down`.
 | Trạng thái agent           | `GET http://localhost:8000/api/v1/status`              | `src/api/v1/health.py`                                                |
 | Tài liệu API tự sinh       | `http://localhost:8000/docs`                           | FastAPI mặc định                                                      |
 | PostgreSQL                 | `localhost:5432`, user `medical_user`, db `medical_db` | `docker-compose.yml`                                                  |
-| Live URL công khai         | chưa cập nhật                                          | —                                                                     |
+| Live URL công khai         | https://c3-app-128.up.railway.app/                     | Triển khai trên Railway                                               |
 
 Đổi cổng frontend thì phải sửa cả `frontend/vite.config.ts` và `CORS_ORIGINS` trong
 `.env`, nếu không trình duyệt sẽ chặn request.
