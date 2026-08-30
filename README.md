@@ -50,13 +50,13 @@ Hệ thống có 17 màn hình, chia theo vai trò. Nguồn đối chiếu là b
 
 | Đường dẫn               | Màn hình          | Nội dung                                                                                                         |
 | :---------------------- | :---------------- | :--------------------------------------------------------------------------------------------------------------- |
-| `/profile`              | Hồ sơ bệnh nhân   | Khai tuổi, bệnh chính, bệnh đồng mắc, chiều cao, cân nặng, hỏi với tư cách người bệnh hay người nhà              |
+| `/profile`              | Hồ sơ bệnh nhân   | Khai tuổi, bệnh đã được chẩn đoán, thời điểm chẩn đoán, chiều cao, cân nặng                                      |
 | `/chat`                 | Hỏi đáp           | Đặt câu hỏi mới, xem tiến trình xử lý của agent, trả lời có trích dẫn và chú thích thuật ngữ, hỏi bằng giọng nói |
 | `/chat/:conversationId` | Hỏi đáp, phiên cũ | Mở lại một cuộc hội thoại đã lưu                                                                                 |
 | `/sources/:documentId`  | Tài liệu nguồn    | Xem tài liệu gốc, đoạn được trích dẫn được đánh dấu nổi bật                                                      |
-| `/learning`             | Thư viện bài học  | Lộ trình học theo chủ đề, bài học mỗi ngày, đánh dấu bài đã hoàn thành                                           |
-| `/learning/:articleId`  | Chi tiết bài học  | Đọc một bài và làm câu hỏi kèm bài                                                                               |
-| `/quiz`                 | Trắc nghiệm       | Sinh bộ câu hỏi từ bài học hoặc từ cuộc hội thoại, nộp bài và xem điểm                                           |
+| `/learning`             | Thư viện bài học  | Lộ trình học theo chặng, bài học hôm nay, xem chặng nào đã hoàn thành                                            |
+| `/learning/:articleId`  | Chi tiết bài học  | Đọc một bài và làm khối ôn tập nhanh hai câu soạn từ chính bài đó                                                |
+| `/quiz`                 | Trắc nghiệm       | Sinh bộ câu hỏi từ bài học, cuộc hội thoại, hồ sơ học tập hoặc câu đã sai; nộp bài và xem điểm                   |
 | `/quiz/mistakes`        | Câu đã sai        | Xem lại những câu từng trả lời sai để học lại                                                                    |
 
 ### Dành cho biên tập viên
@@ -66,10 +66,14 @@ Hệ thống có 17 màn hình, chia theo vai trò. Nguồn đối chiếu là b
 | `/editor`                       | Bảng tổng quan            | Số liệu tổng hợp về tài liệu và hàng chờ duyệt                           |
 | `/editor/upload`                | Tải tài liệu              | Nạp tài liệu mới vào hàng chờ                                            |
 | `/editor/documents`             | Danh sách tài liệu nguồn  | Toàn bộ tài liệu đang có trong thư viện, kèm trạng thái                  |
-| `/editor/documents/:documentId` | Xem file tài liệu         | Mở file gốc đã tải lên                                                   |
+| `/editor/documents/:documentId` | Xem file tài liệu         | Mở toàn văn bản gốc, dạng PDF hoặc Markdown, cho cả nguồn hệ thống lẫn nguồn tải lên |
 | `/editor/queue`                 | Hàng chờ duyệt            | Lọc theo trạng thái, xem tài liệu đang chờ xử lý                         |
 | `/editor/queue/:itemId`         | Chi tiết mục chờ duyệt    | Duyệt, từ chối, hoặc chạy lại bước lập chỉ mục khi lỗi                   |
 | `/editor/out-of-scope`          | Câu hỏi chưa trả lời được | Danh sách câu hỏi thư viện chưa đủ tài liệu, tạo bản nháp tài liệu từ đó |
+
+Nguồn nội dung của hai màn thư viện học tập: các bài học và lộ trình được nạp bằng
+`scripts/init_db.py`, hoặc bằng `POST /api/v1/editor/seed-database` gọi lại chính
+script đó. Khu vực biên tập chưa có màn tạo hay sửa bài học.
 
 ## 3. Kiến trúc
 
@@ -202,7 +206,7 @@ pip install -r requirements.txt
 pip install -r requirements-rag.txt   # chỉ cần khi muốn nạp tài liệu mới
 
 docker compose up -d db         # hoặc dùng Postgres đã cài sẵn
-python scripts/init_db.py       # tạo bảng và nạp tài khoản demo
+python scripts/init_db.py       # tạo bảng, nạp tài khoản demo và nội dung học tập
 
 make run
 # Tương đương: uvicorn src.main:app --reload --reload-dir src --host 0.0.0.0 --port 8000
@@ -225,8 +229,9 @@ Dev server của Vite ghim cổng 5180 bằng `strictPort`, và tự chuyển ti
 `/api` sang backend ở cổng 8000, nên khi chạy dev không cần đặt `VITE_API_URL`.
 
 Muốn xem giao diện mà không cần backend thì đặt `VITE_ENABLE_MSW=true` trong
-`frontend/.env.local`. Lưu ý MSW mới mock 15 trong 27 endpoint, các màn thư viện học
-tập, trắc nghiệm, giọng nói và tài liệu của biên tập viên sẽ không chạy ở chế độ này.
+`frontend/.env.local`. Lưu ý MSW mới mock 15 trong 30 endpoint mà frontend gọi, các
+màn thư viện học tập, trắc nghiệm, giọng nói và tài liệu của biên tập viên sẽ không
+chạy ở chế độ này.
 
 ### 5.5. Chạy bằng Docker
 

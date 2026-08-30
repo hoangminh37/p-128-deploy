@@ -2,7 +2,8 @@
 
 Phiên bản: v1 (Gate 2)
 Người soạn: Đức (Frontend)
-Trạng thái: đề xuất, chờ backend xác nhận khi review PR
+Trạng thái: đã đối chiếu với code thật ngày 30/08/2026. Những chỗ còn phải chốt được
+đánh dấu bằng cụm "CẦN CHỐT" ngay tại chỗ.
 
 Tài liệu này định nghĩa hợp đồng giữa Frontend và Backend cho luồng bệnh nhân.
 Frontend dựng mock theo đúng hợp đồng này, nên mọi thay đổi cần thống nhất trước khi sửa.
@@ -21,7 +22,17 @@ Các trường dưới đây ánh xạ trực tiếp sang `AgentState` trong `AR
 
 ### Xác thực
 
-Gate 2 có luồng đăng nhập ở frontend, nhưng backend chưa kiểm tra token.
+Backend kiểm tra JWT ở gần như mọi endpoint. `get_current_user` khai trong
+`src/api/v1/auth.py` là dependency của `patients.py`, `chat.py`, `conversations.py`,
+`source_documents.py`, `voice.py`, `learning.py` và `quiz.py`. Nhóm `/editor` qua thêm
+`get_editor_user`, trả 403 khi vai trò không phải `editor`. Bốn endpoint không cần
+token: `GET /api/v1/health`, `GET /api/v1/status`, `POST /api/v1/auth/login` và
+`POST /api/v1/auth/logout`.
+
+Token là JWT ký bằng HS256, sống 7 ngày, theo `ACCESS_TOKEN_EXPIRE_MINUTES` trong
+`src/api/v1/auth.py`. Không có refresh token và không có endpoint làm mới token, nên
+khi gặp 401 frontend xoá phiên và đưa người dùng về màn đăng nhập.
+
 Frontend gửi header dưới đây với token nhận được từ endpoint đăng nhập ở mục 3:
 
 ```
@@ -46,6 +57,9 @@ Dùng định dạng lỗi mặc định của FastAPI:
 | 500 | Lỗi phía agent hoặc LLM |
 | 503 | LLM provider không phản hồi |
 
+Định dạng trên áp dụng cho lỗi HTTP thường. Event `error` của luồng SSE hiện dùng tên
+trường khác, xem mục 10.
+
 ---
 
 ## 2. Endpoint
@@ -53,18 +67,20 @@ Dùng định dạng lỗi mặc định của FastAPI:
 | Method | Path | Mục đích |
 | :-- | :-- | :-- |
 | POST | `/api/v1/auth/login` | Đăng nhập, trả về token và vai trò của tài khoản |
-| POST | `/api/v1/auth/logout` | Đăng xuất, huỷ token phía máy chủ |
+| POST | `/api/v1/auth/logout` | Trả 204, không có body. Backend hiện không làm gì với token. CẦN CHỐT, xem mục 12 điểm 12 |
 | POST | `/api/v1/patients/profile` | Tạo hoặc cập nhật hồ sơ bệnh nhân |
 | GET | `/api/v1/patients/{patient_id}/profile` | Đọc hồ sơ |
 | GET | `/api/v1/sources/documents/{document_id}?chunk_id={chunk_id}` | Mở tài liệu đã duyệt và đánh dấu đúng đoạn agent đã trích dẫn |
 | POST | `/api/v1/voice/transcriptions` | Chuyển một bản ghi ngắn thành chữ. Form data: `patient_id`, `audio`; âm thanh không được lưu |
 | POST | `/api/v1/voice/chat/stream` | Một lượt chat bằng giọng nói hoàn chỉnh. Form data: `patient_id`, `conversation_id` (tuỳ chọn), `audio`; server tự STT rồi chạy chính luồng Agent/RAG SSE. Event đầu là `transcript`, sau đó là `step`/`token`/`done`/`annotations` như `/chat/stream` |
 | POST | `/api/v1/voice/speech` | Đọc một câu trả lời agent đã lưu thành MP3. JSON: `patient_id`, `message_id` |
-| POST | `/api/v1/chat` | Gửi câu hỏi, nhận câu trả lời |
+| POST | `/api/v1/chat` | Gửi câu hỏi, nhận câu trả lời. Endpoint đồng bộ, giữ làm phương án dự phòng; giao diện hiện dùng `/chat/stream` |
 | POST | `/api/v1/chat/stream` | Cùng câu hỏi, nhận dần bằng SSE. Xem mục 10 |
 | GET | `/api/v1/conversations/{patient_id}` | Danh sách phiên hội thoại |
 | GET | `/api/v1/conversations/{patient_id}/{conversation_id}` | Chi tiết một phiên |
 | GET | `/api/v1/editor/dashboard` | Số liệu tổng quan của biên tập viên |
+| GET | `/api/v1/editor/documents` | Danh sách tài liệu nguồn kèm trạng thái duyệt và trạng thái index. Xem mục 8 |
+| GET | `/api/v1/editor/documents/{document_id}/file` | Tải bản gốc của một tài liệu nguồn. Xem mục 8 |
 | GET | `/api/v1/editor/queue` | Danh sách mục chờ duyệt |
 | GET | `/api/v1/editor/queue/{item_id}` | Chi tiết một mục chờ duyệt |
 | POST | `/api/v1/editor/queue/upload` | Tải tài liệu lên, đưa vào hàng chờ duyệt. **Form data**, không phải JSON |
@@ -73,7 +89,16 @@ Dùng định dạng lỗi mặc định của FastAPI:
 | POST | `/api/v1/editor/queue/{item_id}/reject` | Từ chối, bắt buộc kèm lý do |
 | GET | `/api/v1/editor/out-of-scope` | Câu hỏi thư viện chưa trả lời được |
 | POST | `/api/v1/editor/out-of-scope/{log_id}/draft` | Tạo mục nháp từ một câu hỏi |
-| GET | `/api/v1/status` | Kiểm tra trạng thái agent, đã có sẵn |
+| POST | `/api/v1/editor/seed-database` | Nạp lại dữ liệu mẫu bằng cách gọi `scripts/init_db.py`. Yêu cầu vai trò `editor`. Trả `{status, message}` |
+| GET | `/api/v1/learning/daily-lesson` | Bài học của hôm nay kèm số liệu học tập. Xem mục 14 |
+| GET | `/api/v1/learning/library` | Toàn bộ lộ trình học và danh sách bài đã hoàn thành. Xem mục 14 |
+| POST | `/api/v1/learning/complete-lesson/{article_id}` | Chấm câu hỏi của bài học và cộng điểm. Xem mục 14 |
+| POST | `/api/v1/quiz` | Sinh đề trắc nghiệm. Xem mục 13 |
+| POST | `/api/v1/quiz/{quiz_id}/submit` | Nộp bài trắc nghiệm. Xem mục 13 |
+| GET | `/api/v1/quiz/history` | Lịch sử làm bài. Xem mục 13 |
+| GET | `/api/v1/quiz/mistakes` | Những câu đã trả lời sai. Xem mục 13 |
+| GET | `/api/v1/health` | Kiểm tra sức khoẻ hệ thống. Trả `{status, env, app, model, rag}`. Không cần token |
+| GET | `/api/v1/status` | Kiểm tra trạng thái agent. Trả `{status, agent, nodes, node_count}`. Không cần token |
 
 ---
 
@@ -223,6 +248,12 @@ Request:
 | `query` | string | có | 1 đến 5000 ký tự |
 | `patient_id` | string | có | Backend tự nạp hồ sơ từ DB, client không gửi kèm hồ sơ |
 | `conversation_id` | string hoặc null | có | `null` nghĩa là mở phiên mới, backend sinh id và trả về |
+
+Ràng buộc `min_length: 1` ở trên là ràng buộc của backend. Frontend đặt thêm một sàn
+riêng là 2 ký tự sau khi cắt khoảng trắng, khai ở `MIN_QUERY_LENGTH` trong
+`frontend/src/lib/schemas.ts`, và chặn ngay tại máy khách trước khi gửi request. Hai con
+số khác nhau là có chủ ý, không phải mâu thuẫn: backend nhận rộng hơn để không phụ thuộc
+vào một client cụ thể.
 
 Response 200:
 
@@ -829,7 +860,7 @@ Mục này từng liệt kê hai thứ nằm ngoài hợp đồng v1. **Cả hai
 lại dòng gạch để ai đọc bản cũ không hiểu nhầm:
 
 - ~~Lộ trình học và theo dõi tiến độ~~ → đã implement: `GET /learning/daily-lesson`,
-  `GET /learning/library`, `POST /learning/complete-lesson/{article_id}`
+  `GET /learning/library`, `POST /learning/complete-lesson/{article_id}`. Đặc tả đầy đủ ở mục 14
 - ~~Quiz~~ → đã implement dưới dạng **sinh động bằng LangChain**, đặc tả ở mục 13
 
 ### Ba mục từng nằm ngoài phạm vi, nay đã có
@@ -875,77 +906,93 @@ query param nào.
 Endpoint có kiểm token: thiếu hoặc sai `Authorization` thì trả **401 bình thường**, trước khi
 stream mở. Kiểm `response.status` trước khi bắt đầu đọc body.
 
-### Bốn loại event
+### Năm loại event
+
+`/api/v1/chat/stream` phát năm loại event. `/api/v1/voice/chat/stream` phát thêm
+`transcript` làm event đầu tiên, sau đó giống hệt năm loại dưới đây.
 
 | event | data | Khi nào |
 | :-- | :-- | :-- |
 | `step` | `{ "node": "hybrid_retrieval", "message": "📚 Đang tìm kiếm tài liệu y tế...", "icon": "📚" }` | Mỗi lần một node của LangGraph bắt đầu chạy |
-| `token` | `{ "text": "Người " }` | Một từ của câu trả lời, đã kèm dấu cách ở cuối |
-| `done` | `{ "citations": [...], "support_level": "fully", "intent": "education", "disclaimer": "" }` | Đúng một lần, sau chuỗi `token` |
+| `token` | `{ "text": "..." }` | Một khối 80 ký tự của câu trả lời. Xem ghi chú bên dưới |
+| `done` | Xem bảng trường ngay dưới đây | Đúng một lần, sau chuỗi `token` |
+| `annotations` | `{ "message_id": "m_...", "annotations": [...] }` | Sau `done`, chỉ với câu trả lời có nội dung giáo dục thực sự |
 | `error` | `{ "error": "Không tìm thấy hồ sơ bệnh nhân" }` | Hồ sơ không tồn tại, hoặc bất kỳ exception nào |
 
-Không có `id:`, không có `retry:`, không có event kết thúc kiểu `[DONE]` — stream đóng ngay sau
-`done`.
+Trường của event `done`, đủ mười trường:
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `conversation_id` | string | Phiên hội thoại, mở phiên mới thì đây là id vừa sinh |
+| `message_id` | string | Id của message trả lời |
+| `status` | enum | Một trong năm giá trị ở mục 6 |
+| `answer` | string | Toàn văn câu trả lời |
+| `citations` | array | Như mục 5. Rỗng với `red_flag`, `refused`, `referral` |
+| `support_level` | enum hoặc null | Chỉ khác null khi `status` là `answered` hoặc `partial` |
+| `intent` | string | Ý định do `intent_router` xác định |
+| `disclaimer` | string | Câu miễn trừ bắt buộc |
+| `latency_ms` | int | Tổng thời gian xử lý một lượt |
+| `node_timings_ms` | object | Thời gian của từng node, khoá là tên node |
+
+Phần tử của `annotations` có sáu trường: `term`, `start_offset`, `end_offset`,
+`short_explanation`, `source_chunk_id`, `source_document_id`. Ba trường vị trí và nội
+dung dùng để chèn chú thích thuật ngữ vào đúng chỗ trong `answer`.
+
+Ghi chú về `token`: đây không phải stream token thật của LLM. Toàn bộ graph chạy xong
+rồi backend mới cắt câu trả lời thành khối 80 ký tự và phát lần lượt. Cách này giữ cho
+người dùng không nhìn thấy bản nháp chưa qua bước kiểm chứng.
+
+Không có `id:`, không có `retry:`, không có event kết thúc kiểu `[DONE]` — stream đóng
+sau `annotations` nếu có, còn không thì đóng ngay sau `done`.
+
+CẦN CHỐT — tên trường của event `error`. Hai phương án:
+
+- Giữ `{"error": "..."}` như hiện nay, và ghi nhận đây là ngoại lệ có chủ ý so với
+  định dạng `{"detail": "..."}` ở mục 1
+- Đổi sang `{"detail": "..."}` cho thống nhất với mọi lỗi HTTP khác, và sửa cả phía
+  frontend đang đọc trường `error`
+
+Chưa chọn phương án nào. Hai bên frontend và backend cần thống nhất trước khi sửa, vì
+đổi một phía sẽ làm hỏng phía kia.
 
 ### Node phát ra ở event `step`
 
-Đủ cả 14 node của graph, tên khớp `src/agent/graph.py`:
+Đủ cả 11 node của graph, tên khớp `src/agent/graph.py`:
 
 `intent_router`, `emergency_handler`, `refuse_handler`, `out_of_domain_handler`,
-`coref_resolution`, `query_rewrite`, `hybrid_retrieval`, `crag_evaluator`, `doctor_referral`,
-`llm_generate`, `selfrag_verifier`, `partial_rewrite`, `safety_disclaimer`, `memory_checkpoint`.
+`profile_handler`, `query_preprocessor`, `hybrid_retrieval`, `generate_and_verify`,
+`answer_verifier`, `doctor_referral`, `memory_checkpoint`.
 
-Luôn mở đầu bằng `intent_router` rồi rẽ nhánh. `partial_rewrite` có vòng lặp quay lại
-`hybrid_retrieval` tối đa 2 lần, nên **cùng một node phát `step` nhiều lần là chuyện bình thường**
-— giao diện không được giả định mỗi node xuất hiện đúng một lần.
+Luôn mở đầu bằng `intent_router` rồi rẽ nhánh. Graph không có vòng lặp quay lui: mọi cạnh
+đều đi một chiều tới `END`, nên một node phát `step` nhiều nhất một lần trong một lượt.
+Chi tiết các cạnh rẽ nhánh xem `docs/langgraph-v2.md`.
 
 Event `step` chỉ được phát khi phản ánh node thật đang chạy. Không dựng chuỗi trạng thái giả để
 làm đẹp giao diện. Backend hiện tuân thủ đúng điều này: `step` bắt từ `on_chain_start` thật của
 LangGraph.
 
-### Ba điểm CHƯA KHỚP HỢP ĐỒNG
+### Trạng thái ba điểm từng lệch
 
-Ba điểm dưới đây là việc backend cần sửa, không phải mô tả trạng thái mong muốn.
+**1. Event `done` đủ trường. Đã xong.** Backend gửi đủ mười trường liệt kê ở bảng phía
+trên, gồm cả `conversation_id`, `message_id`, `status` và `answer`. Frontend đọc thẳng
+`status` để chọn một trong năm khối trạng thái ở mục 6, không phải tự dựng lại phép map
+từ `intent`.
 
-**1. Event `done` thiếu bốn trường.** Hiện chỉ có `citations`, `support_level`, `intent`,
-`disclaimer`.
+Ba điểm phụ cùng nhóm cũng đã xong: `citations` trong `done` được đánh số `id` từ 1 và
+marker `[doc_x]` trong `answer` được đổi thành `[n]` tương ứng; `support_level` trả
+`null` khi `status` không phải `answered` hoặc `partial`; `disclaimer` luôn có nội dung,
+kể cả ở các nhánh từ chối.
 
-CẦN ĐẠT: `done` mang **nguyên vẹn body của `POST /chat`** như mục 5 định nghĩa, tức thêm
-`conversation_id`, `message_id`, `status`, `answer`. Backend đã có sẵn toàn bộ đoạn dựng
-`ChatResponse` ở nhánh đồng bộ, dùng lại là đủ.
+**2. Event `token` không phải stream thật. Còn nguyên.** Backend chờ toàn bộ graph chạy
+xong rồi mới cắt câu trả lời thành khối 80 ký tự và phát lần lượt, không có độ trễ chèn
+giữa các khối.
 
-Vì sao bắt buộc, không phải cho gọn:
+Đây là lựa chọn có chủ ý theo cam kết an toàn ở `docs/langgraph-v2.md`: chữ chỉ được
+phát sau khi qua bước kiểm chứng, để người dùng không nhìn thấy bản nháp chưa qua
+routing. Nếu sau này muốn stream thật thì phải giải quyết được yêu cầu đó trước.
 
-- Thiếu `status` thì frontend **không phân biệt được năm trạng thái ở mục 6**. Nó buộc phải tự
-  dựng lại phép map từ `intent` và `support_level`, tức nhân bản logic nghiệp vụ sang client.
-- Tệ hơn, phép map đó vẫn không đủ: nhánh `red_flag` được quyết bởi cờ `is_red_flag` chứ không
-  phải `intent`, mà cờ đó **không có trong `done`**. Nghĩa là nhánh nguy hiểm nhất — cái duy nhất
-  cần banner đỏ và nút gọi 115 — không phát hiện được từ stream.
-- Thiếu `conversation_id` thì client không biết vừa nói chuyện trong phiên nào: không nối được
-  lượt sau, không mở lại được từ lịch sử ở mục 7. Backend có sinh id và có lưu vào DB, chỉ là
-  không gửi ra.
-
-Hai điểm phụ cùng nhóm: `citations` trong `done` là dữ liệu thô của agent, **chưa qua chuẩn hoá**
-như nhánh đồng bộ (đánh số `id` từ 1, cắt `snippet` còn 300 ký tự, đổi marker `[doc_x]` thành
-`[n]`), nên chưa khớp cấu trúc `Citation` ở mục 5. Và `support_level` mặc định về `"fully"` khi
-agent không đặt, khiến ba nhánh không chạy qua Self-RAG bị báo sai — mục 5 quy định `null`. Kéo
-theo `disclaimer` thành chuỗi rỗng ở đúng những nhánh từ chối, trong khi mục 5 ghi disclaimer
-"luôn có, kể cả khi từ chối" theo ràng buộc brief mục 7.5.
-
-**2. Event `token` không phải stream thật.** Backend chờ agent chạy xong hoàn toàn, rồi mới lấy
-câu trả lời cuối cùng, cắt theo dấu cách và phát từng từ cách nhau 25ms. Người dùng vẫn chờ đủ
-thời gian của agent, sau đó còn chờ thêm phần phát lại — một câu trả lời 300 từ tốn thêm khoảng
-7,5 giây sau khi nội dung đã sẵn sàng.
-
-CẦN ĐẠT: `token` phát ra trong lúc LLM đang sinh chữ, tức nối vào `on_chat_model_stream` của
-LangGraph. Chỗ nối đã có sẵn trong mã nhưng đang bỏ trống. Nếu chưa làm được thì thà bỏ hẳn
-`token` và để client hiện câu trả lời một lần ở `done`, còn hơn thêm độ trễ giả rồi gọi nó là
-streaming.
-
-**3. Event `error` dùng sai tên trường.** Backend gửi `{ "error": "..." }`.
-
-CẦN ĐẠT: `{ "detail": "..." }`, khớp định dạng lỗi chung ở mục 1 và khớp mặc định của FastAPI.
-Một tên trường cho mọi lỗi thì client mới có một đường xử lý lỗi duy nhất.
+**3. Event `error` dùng tên trường `error`. Chưa chốt.** Xem mục CẦN CHỐT ở phần bảng
+event phía trên.
 
 Kèm theo: mã HTTP của stream **luôn là 200**, kể cả khi không tìm thấy hồ sơ bệnh nhân — SSE đã mở
 thì không đổi status được nữa, nên lỗi đó tới dưới dạng một event. Và nhánh bắt exception chung
@@ -1123,19 +1170,24 @@ cho khớp `AgentState.query` trong `ARCHITECTURE.md`.
 
 ## 12. Điểm cần backend xác nhận
 
-1. Tên trường request là `query` hay giữ `message`. Hợp đồng này chọn `query` theo `AgentState`
+1. **Đã xong.** Tên trường request là `query`. `src/schemas/chat.py` khai
+   `query: str = Field(..., min_length=1, max_length=5000)`; không còn trường `message` nào
+   trong repo
 2. `patient_id` do client sinh hay backend cấp khi tạo hồ sơ
 3. Nguồn trích dẫn có bao gồm PubMed không. `ARCHITECTURE.md` mục Design Decisions chọn
    Doctor Referral thay cho web search, nhưng ba sơ đồ vẫn vẽ PubMed API. Nếu có nguồn
    nước ngoài thì `Citation.issuer` cần thêm quy ước phân biệt nguồn trong nước và ngoài nước
 4. Có giữ `analysis` trong response không. Hợp đồng này bỏ vì đó là dữ liệu nội bộ,
    không hiển thị cho bệnh nhân
-5. Trường `asking_as` mới thêm ở mục 4. Backend cần dùng nó để đổi cách xưng hô trong câu
-   trả lời: `self` thì xưng với chính người bệnh, `caregiver` thì xưng với người chăm sóc.
-   Cần backend xác nhận việc này có ảnh hưởng gì tới prompt của agent không
-6. Cơ chế xác thực ở mục 3 dùng JWT hay session phía máy chủ. Nếu JWT thì token sống bao lâu,
-   và có refresh token không. Ba câu này quyết định frontend phải làm gì khi token hết hạn:
-   im lặng xin token mới, hay đá người dùng về màn đăng nhập giữa lúc đang đọc câu trả lời
+5. **Đã xong ở backend, nhưng giao diện chưa gửi giá trị thứ hai.** Backend dùng `asking_as`
+   thật: `src/services/quiz/context.py` và `src/agent/prompts/quiz.py` đổi góc nhìn khi giá
+   trị là `caregiver`. Màn hồ sơ hiện luôn gửi `self` bằng một hằng số trong
+   `ProfileScreen.tsx`, vì lựa chọn hỏi giúp người nhà đã bỏ khỏi form. Trường vẫn giữ
+   nguyên trong hợp đồng để ngày nào giao diện mở lại lựa chọn kia thì không phải đổi gì
+6. **Đã xong.** Cơ chế là JWT ký HS256, không dùng session phía máy chủ. Token sống 7 ngày,
+   theo `ACCESS_TOKEN_EXPIRE_MINUTES` trong `src/api/v1/auth.py`. Không có refresh token và
+   không có endpoint làm mới token, nên khi gặp 401 frontend xoá phiên và đưa người dùng về
+   màn đăng nhập kèm thông báo phiên đã hết hạn
 7. **Đã implement:** duyệt một `editor_upload` tạo job nền. Trạng thái thật nằm ở `SourceDoc`
    trong `uploads.json`: `pending_review → indexing → approved` hoặc `index_failed`. Chỉ
    `approved` được `Registry.approved()` trả cho RAG. Người duyệt xem tiến độ/lỗi ở hàng đợi
@@ -1160,13 +1212,35 @@ lệch đã đo được.
     trong `lib/api.ts`; nó sẽ được xoá ngay khi backend sửa. CẦN ĐẠT: gỡ marker khỏi `answer`
     cùng lúc với việc xoá `citations`, để hai trường luôn nhất quán với nhau
 
-11. **Endpoint nào bắt buộc xác thực.** Mục 1 nói 401 khi chưa đăng nhập, mục 3 nói mọi kiểm tra
-    quyền nằm ở backend, nhưng hiện `GET /patients/{patient_id}/profile` không kiểm token — ai
-    cũng đọc được hồ sơ bất kỳ nếu biết `patient_id`. Các endpoint còn lại đều có kiểm. Ngoài ra
-    những endpoint có kiểm token vẫn **không kiểm quyền sở hữu**: `patient_id` lấy thẳng từ path
-    hoặc body mà không đối chiếu với tài khoản đang đăng nhập, nên tài khoản A đọc và ghi đè được
-    hồ sơ lẫn lịch sử hội thoại của tài khoản B. Cần backend chốt danh sách endpoint bắt buộc xác
-    thực, và chốt luôn rằng `patient_id` trong request phải khớp tài khoản trong token
+11. **Endpoint nào bắt buộc xác thực. Đã xong.** `GET /patients/{patient_id}/profile` có kiểm
+    token: `src/api/v1/patients.py` khai `_require_profile_access` và gọi nó ở cả nhánh GET lẫn
+    nhánh POST. Danh sách endpoint không cần token gồm đúng bốn cái, ghi ở mục 1.
+
+    Kiểm quyền sở hữu cũng đã có. Tài khoản vai trò `patient` mà `patient_id` trong request khác
+    `patient_id` trong token thì nhận 403: `patients.py` chặn ở hồ sơ, `chat.py` chặn ở hai
+    endpoint hỏi đáp và lọc thêm theo `Conversation.patient_id` khi nạp lịch sử,
+    `voice.py` chặn bằng `_require_patient_access`.
+
+12. **CẦN CHỐT — hành vi của `POST /auth/logout`.** Backend hiện trả 204 và không làm gì với
+    token; không có danh sách token bị thu hồi ở đâu trong `src/`. Hai phương án:
+
+    - Giữ nguyên: JWT không trạng thái, đăng xuất chỉ là việc của client, token cũ còn hiệu lực
+      tới khi hết hạn. Khi đó sửa mô tả endpoint cho đúng và bỏ chữ "huỷ token phía máy chủ"
+    - Thu hồi thật: thêm danh sách token bị chặn ở phía máy chủ, và mọi endpoint phải tra danh
+      sách đó trước khi chấp nhận token
+
+    Chưa chọn phương án nào. Đây là quyết định thiết kế, không suy ra được từ code hiện có.
+
+13. **CẦN CHỐT — trường `language` trong response phiên âm giọng nói.** Backend khai
+    `language: str = "vi"` trong `src/schemas/voice.py`, tức chấp nhận mọi chuỗi. Frontend khai
+    `language: z.literal('vi')` trong `frontend/src/lib/schemas.ts`, tức chỉ chấp nhận đúng
+    chuỗi `vi` và sẽ báo lỗi parse với mọi giá trị khác. Hai phương án:
+
+    - Chốt sản phẩm chỉ hỗ trợ tiếng Việt: siết backend thành `Literal["vi"]` cho khớp frontend
+    - Để ngỏ khả năng thêm ngôn ngữ: nới frontend thành chuỗi tự do, và bổ sung danh sách giá
+      trị hợp lệ vào hợp đồng
+
+    Chưa chọn phương án nào. Cần biết sản phẩm có định hỗ trợ ngôn ngữ khác hay không.
 
 
 ---
@@ -1443,3 +1517,169 @@ Ngữ cảnh của `source: "profile"` nay gộp cả ba, và prompt được d�
 | **đã học** | Đã đọc qua |
 | **đã hỏi** | Chưa chắc, nên mới hỏi |
 | **đã trả lời sai** | Đã kiểm tra và trượt — bằng chứng mạnh nhất |
+
+---
+
+## 14. Lộ trình học tập
+
+Ba endpoint của thư viện bài học. Kiểu dữ liệu dưới đây lấy từ
+`src/api/v1/learning.py`, `src/schemas/learning.py` và `frontend/src/lib/schemas.ts`.
+
+### Quy tắc chung của mục này
+
+- Cả ba endpoint đều cần `Authorization: Bearer <token>`
+- Không có tham số `patient_id` nào trong path hay body. Backend lấy `patient_id` từ
+  token, nên một tài khoản chỉ đọc và ghi được tiến độ của chính mình
+- Bản ghi tiến độ được tạo tự động ở lần gọi đầu tiên nếu tài khoản chưa có
+
+### Kiểu dùng chung
+
+`GamificationStats` — số liệu học tập của một tài khoản:
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `total_score` | int | Tổng điểm đã tích |
+| `current_streak` | int | Số ngày học liên tiếp |
+| `completed_articles` | string[] | Id các bài đã hoàn thành |
+
+`QuizData` — câu hỏi gắn sẵn của một bài học:
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| :-- | :-- | :-- | :-- |
+| `question` | string | có | |
+| `options` | string[] | có | |
+| `correct_index` | int | có | Chỉ số của phương án đúng |
+| `explanation` | string hoặc null | không | |
+
+`MicroArticle` — một bài học:
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| :-- | :-- | :-- | :-- |
+| `id` | string | có | |
+| `title` | string | có | |
+| `content` | string | có | Bản rút gọn, dùng cho thẻ và banner |
+| `full_content` | string hoặc null | không | Bản đầy đủ, dạng markdown |
+| `category` | string | có | |
+| `quiz_data` | QuizData hoặc null | không | |
+| `origin_source` | string hoặc null | không | Tên file tài liệu gốc đã biên soạn ra bài này |
+
+### GET /api/v1/learning/daily-lesson
+
+Bài học của hôm nay, chọn theo tiến độ của tài khoản.
+
+Không có tham số.
+
+Response 200:
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `lesson` | MicroArticle hoặc null | `null` khi không còn bài nào để giao |
+| `day_number` | int | Số thứ tự chặng của bài học này |
+| `stats` | GamificationStats | |
+
+```json
+{
+  "lesson": {
+    "id": "art_htn_01",
+    "title": "Tăng huyết áp là gì",
+    "content": "Huyết áp là áp lực của máu lên thành động mạch...",
+    "full_content": "## Tăng huyết áp là gì\n\nHuyết áp là...",
+    "category": "hypertension",
+    "quiz_data": {
+      "question": "Huyết áp bao nhiêu thì gọi là cao?",
+      "options": ["Từ 120/80 trở lên", "Từ 140/90 trở lên", "Từ 160/100 trở lên", "Từ 180/110 trở lên"],
+      "correct_index": 1,
+      "explanation": "Ngưỡng chẩn đoán tăng huyết áp là 140/90 mmHg."
+    },
+    "origin_source": "vn-moh-3192-2010-htn.pdf"
+  },
+  "day_number": 3,
+  "stats": { "total_score": 40, "current_streak": 2, "completed_articles": ["art_htn_01"] }
+}
+```
+
+### GET /api/v1/learning/library
+
+Toàn bộ lộ trình học và danh sách bài đã hoàn thành.
+
+Không có tham số.
+
+Response 200:
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `learning_paths` | LearningPathItem[] | Toàn bộ chặng của lộ trình |
+| `completed_articles` | string[] | Id các bài đã hoàn thành |
+
+`LearningPathItem`:
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `day_number` | int | Số thứ tự chặng |
+| `disease_category` | string | Bệnh mà chặng này thuộc về |
+| `article` | MicroArticle | |
+
+```json
+{
+  "learning_paths": [
+    {
+      "day_number": 1,
+      "disease_category": "hypertension",
+      "article": { "id": "art_htn_01", "title": "Tăng huyết áp là gì", "content": "...", "category": "hypertension" }
+    }
+  ],
+  "completed_articles": ["art_htn_01"]
+}
+```
+
+Đây cũng là nguồn dữ liệu của màn chi tiết bài học: giao diện đọc danh sách này rồi tìm
+bài theo id, không có endpoint riêng cho một bài.
+
+### POST /api/v1/learning/complete-lesson/{article_id}
+
+Chấm câu hỏi gắn sẵn của một bài học, và đánh dấu hoàn thành nếu trả lời đúng.
+
+Request:
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+| :-- | :-- | :-- | :-- |
+| `answer_index` | int | có | Chỉ số phương án người học chọn |
+
+```json
+{ "answer_index": 1 }
+```
+
+Response 200:
+
+| Trường | Kiểu | Ghi chú |
+| :-- | :-- | :-- |
+| `is_correct` | bool | |
+| `correct_index` | int | Chỉ số phương án đúng |
+| `explanation` | string | Lời giải thích, trả về cho cả câu đúng lẫn câu sai |
+| `hp_earned` | int | Điểm cộng cho lượt này, bằng 0 khi sai hoặc khi hôm nay đã nhận điểm |
+| `stats` | GamificationStats | Số liệu sau khi cập nhật |
+
+```json
+{
+  "is_correct": false,
+  "correct_index": 1,
+  "explanation": "Ngưỡng chẩn đoán tăng huyết áp là 140/90 mmHg.",
+  "hp_earned": 0,
+  "stats": { "total_score": 40, "current_streak": 2, "completed_articles": ["art_htn_01"] }
+}
+```
+
+Quy tắc mã trả về: trả lời sai vẫn là **200**, không phải 400. Sai thì không đánh dấu
+hoàn thành và không cộng điểm, nhưng người học vẫn nhận được đáp án đúng kèm lời giải
+thích và làm lại được ngay.
+
+Bài không có `quiz_data` thì đọc xong tính là hoàn thành, mọi `answer_index` đều được
+coi là đúng.
+
+Lỗi: 404 khi `article_id` không tồn tại.
+
+### Nguồn dữ liệu của ba endpoint này
+
+Bảng `articles` và `learning_paths` được nạp bằng `scripts/init_db.py`, hoặc bằng
+`POST /api/v1/editor/seed-database` gọi lại chính script đó. Khu vực biên tập không có
+endpoint nào tạo hay sửa bài học.
