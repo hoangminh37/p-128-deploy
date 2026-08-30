@@ -216,12 +216,12 @@ export function EditorUploadScreen() {
 
           <button
             type="button"
-            // Giữ nguyên đích của bản trước, kể cả khi nó không khớp route nào:
-            // `/editor/dashboard` rơi vào nhánh `*` rồi được đưa về `/`, và
-            // `LandingRedirect` mới đẩy tiếp sang `/editor`. Đợt này chỉ đổi lớp
-            // trình bày nên không sửa đường dẫn — nhưng đây là một lỗi thật, đi
-            // vòng hai lần chuyển hướng cho một cú bấm Huỷ.
-            onClick={() => navigate('/editor/dashboard')}
+            // `/editor` là bảng tổng quan của khu vực biên tập, khai trong
+            // `App.tsx`. Đích cũ là `/editor/dashboard` — không khớp route nào,
+            // nên một cú bấm Huỷ phải đi qua nhánh `*` về `/` rồi mới được
+            // `LandingRedirect` đẩy tiếp tới đây. Nay đi thẳng, một lần chuyển
+            // hướng.
+            onClick={() => navigate('/editor')}
             className="motion-press font-display min-h-call rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
           >
             Huỷ
