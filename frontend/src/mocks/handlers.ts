@@ -70,7 +70,7 @@ const profiles = new Map<string, PatientProfileResponse>([
 ])
 
 /**
- * Tài khoản của hai email mẫu.
+ * Tài khoản của các email mẫu.
  *
  * Mật khẩu nằm ở `demoAccounts.ts` để màn đăng nhập đọc được mà không kéo theo
  * cả MSW; phần định danh và vai trò thì ở đây, vì chỉ máy chủ giả mới cần biết.
@@ -90,6 +90,12 @@ const DEMO_USERS: Record<string, UserInfo> = {
     user_id: 'u_01HQZV',
     email: 'bientap@demo.vn',
     role: 'editor',
+    patient_id: null,
+  },
+  'bacsi@demo.vn': {
+    user_id: 'u_01HQZD',
+    email: 'bacsi@demo.vn',
+    role: 'doctor',
     patient_id: null,
   },
 }

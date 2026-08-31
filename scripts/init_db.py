@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from src.core.database import engine
-from src.models.domain import Article, Base, LearningPath, MedicalChunk, Patient, User
+from src.models.domain import Article, Base, DoctorProfile, LearningPath, MedicalChunk, Patient, User
 
 async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -150,6 +150,49 @@ async def seed_medical_chunks(session: AsyncSession, reset: bool = False):
         print(f"  ✅ Đã embed và nạp {len(chunk_models)} chunks vào PostgreSQL!")
 
 
+async def seed_demo_doctor(session: AsyncSession) -> None:
+    """Ensure the login-screen doctor demo also exists in the real database.
+
+    This runs independently of the first-database seed below: existing local
+    databases already have patient/editor users, so putting the doctor inside
+    that branch would leave the newly added demo card unable to log in.
+    Existing accounts are never overwritten.
+    """
+    email = "bacsi@demo.vn"
+    result = await session.execute(select(User).where(User.email == email))
+    user = result.scalars().first()
+
+    if user is None:
+        user = User(id="u_01HQZD", email=email, password="demo1234", role="doctor")
+        session.add(user)
+        await session.flush()
+        print(f"  -> Seeded doctor demo account {email}")
+    elif user.role != "doctor":
+        print(f"  -> Không seed bác sỹ mẫu: {email} đã thuộc vai trò {user.role}")
+        return
+
+    profile_result = await session.execute(select(DoctorProfile).where(DoctorProfile.user_id == user.id))
+    if profile_result.scalars().first() is not None:
+        return
+
+    session.add(
+        DoctorProfile(
+            user_id=user.id,
+            display_name="BS. Minh Anh",
+            specialty="Nội tiết",
+            license_number="DEMO-BS-0001",
+            bio="Bác sỹ tư vấn mẫu dành cho môi trường phát triển.",
+            clinic_name="Phòng khám EduHealth",
+            experience_years=8,
+            consultation_focus="Đái tháo đường type 2 và tăng huyết áp",
+            verification_status="verified",
+            is_active=True,
+            is_available=True,
+        )
+    )
+    print("  -> Seeded doctor demo profile")
+
+
 async def init_db(reset: bool = False):
     print("Initializing database...")
     async with engine.begin() as conn:
@@ -222,6 +265,8 @@ async def init_db(reset: bool = False):
             editor_user = User(id="u_01HQZV", email="bientap@demo.vn", password="demo1234", role="editor")
             session.add(editor_user)
             await session.flush()
+
+        await seed_demo_doctor(session)
 
         res_art = await session.execute(select(Article).limit(1))
         if not res_art.scalars().first() or reset:

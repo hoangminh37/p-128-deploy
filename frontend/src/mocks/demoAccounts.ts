@@ -1,5 +1,5 @@
 /**
- * Hai tài khoản mẫu của bản demo Gate 2.
+ * Các tài khoản mẫu của bản demo.
  *
  * File này CỐ Ý không import gì từ `msw` hay từ `fixtures.ts`: màn đăng nhập
  * cũng đọc nó để hiện khối gợi ý khi chạy dev, mà màn đăng nhập thì nằm trong
@@ -22,4 +22,5 @@ export type DemoAccount = {
 export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
   { label: 'Bệnh nhân', email: 'benhnhan@demo.vn', password: 'demo1234' },
   { label: 'Biên tập viên', email: 'bientap@demo.vn', password: 'demo1234' },
+  { label: 'Bác sỹ', email: 'bacsi@demo.vn', password: 'demo1234' },
 ]
