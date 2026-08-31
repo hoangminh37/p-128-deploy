@@ -376,7 +376,11 @@ class TestDualModeVectorStore:
                     page_end=6,
                     table_structure={"headers": ["A"], "rows": [["1"]]},
                     metadata_json={"disease_type2_diabetes": True},
-                    embedding=[0.05] * 1024,
+                    # SQLite does not have pgvector's bind processor. This
+                    # parity test exercises count/read/delete only, so a JSON
+                    # representation is enough to populate the nullable
+                    # column without pretending SQLite can run vector search.
+                    embedding=json.dumps([0.05] * 1024),
                 )
             )
 
