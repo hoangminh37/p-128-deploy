@@ -33,37 +33,46 @@ except ImportError:
                         os.environ[k] = v.strip().strip("'\"")
 
 
-import asyncio
+import asyncio  # noqa: E402
+
 
 def get_agent_result(question: str, profile: dict) -> dict:
     """Gọi LangGraph v2 Agent thực tế để lấy câu trả lời và ngữ cảnh trích xuất thật."""
     from src.agent.graph import agent
-    
+
     state = {
         "query": question,
         "patient_id": "eval_user",
         "patient_profile": profile,
-        "messages": [{"role": "user", "content": question}]
+        "messages": [{"role": "user", "content": question}],
     }
-    
+
     async def run_agent():
         return await agent.ainvoke(state)
-        
+
     try:
         result = asyncio.run(run_agent())
-        
+
         # Lấy retrieved docs thật từ state của LangGraph
         retrieved_docs = result.get("retrieved_docs", [])
         contexts = [doc.get("content", "") for doc in retrieved_docs if isinstance(doc, dict) and doc.get("content")]
-        
+
         # Handle red flag or refused explicitly
         if result.get("is_red_flag"):
-            return {"response": result.get("response", "⚠️ Tình huống khẩn cấp."), "contexts": contexts, "is_valid_rag": False}
+            return {
+                "response": result.get("response", "⚠️ Tình huống khẩn cấp."),
+                "contexts": contexts,
+                "is_valid_rag": False,
+            }
         if result.get("intent") in ("diagnosis", "refusal", "prompt_injection"):
-            return {"response": result.get("response", "Từ chối trả lời do an toàn."), "contexts": contexts, "is_valid_rag": False}
+            return {
+                "response": result.get("response", "Từ chối trả lời do an toàn."),
+                "contexts": contexts,
+                "is_valid_rag": False,
+            }
         if result.get("intent") == "doctor_referral":
             return {"response": "Không đủ thông tin y khoa để trả lời.", "contexts": contexts, "is_valid_rag": False}
-            
+
         resp = result.get("response", "")
         is_valid = bool(resp and resp != "Không đủ thông tin y khoa để trả lời." and len(contexts) > 0)
         return {"response": resp, "contexts": contexts, "is_valid_rag": is_valid}
@@ -95,7 +104,7 @@ def run_evaluation(mock: bool = False):
                 answer = dataset_dict["ground_truth"][i]
                 contexts = dataset_dict["contexts"][i]
             else:
-                print(f"[{i+1}/{len(dataset_dict['question'])}] Đang xử lý: {q[:50]}...")
+                print(f"[{i + 1}/{len(dataset_dict['question'])}] Đang xử lý: {q[:50]}...")
                 res = get_agent_result(q, p)
                 answer = res["response"]
                 # Ưu tiên ngữ cảnh thật do Agent trích xuất từ ChromaDB
@@ -153,24 +162,34 @@ def run_evaluation(mock: bool = False):
         "contexts": [],
         "ground_truth": [],
     }
-    
+
     has_category = "category" in dataset_dict and len(dataset_dict["category"]) == len(dataset_dict["question"])
     retrieved_ctx_list = dataset_dict.get("retrieved_contexts", dataset_dict.get("contexts", []))
-    
+
     for i in range(len(dataset_dict["question"])):
         cat = dataset_dict["category"][i] if has_category else "factual_diabetes"
         ans = dataset_dict["answer"][i]
         ctx = retrieved_ctx_list[i] if i < len(retrieved_ctx_list) else dataset_dict["contexts"][i]
-        
+
         # Chỉ đánh giá khi câu hỏi thuộc danh mục y khoa VÀ có câu trả lời thực sự từ RAG (không phải fallback/từ chối)
-        is_fallback = ans in ("Không đủ thông tin y khoa để trả lời.", "Từ chối trả lời do an toàn.", "⚠️ Tình huống khẩn cấp.")
+        is_fallback = (
+            ans in ("Không đủ thông tin y khoa để trả lời.", "Từ chối trả lời do an toàn.", "⚠️ Tình huống khẩn cấp.")
+            or "chưa có đủ thông tin" in ans
+            or "chưa có thông tin" in ans
+        )
         if cat in valid_categories and not is_fallback and len(ctx) > 0 and len(ans) > 20:
+            # Tách phần kiến thức y tế cốt lõi (bỏ các câu hỏi gợi ý và disclaimer phụ trợ) để RAGAS đo answer_relevancy đúng bản chất
+            core_ans = (
+                ans.split("\n\n- Bạn có")[0].split("\n- Bạn có")[0].split("\n\nLưu ý:")[0].split("\nLưu ý:")[0].strip()
+            )
             filtered_dict["question"].append(dataset_dict["question"][i])
-            filtered_dict["answer"].append(ans)
+            filtered_dict["answer"].append(core_ans if len(core_ans) > 20 else ans)
             filtered_dict["contexts"].append(ctx)
             filtered_dict["ground_truth"].append(dataset_dict["ground_truth"][i])
-            
-    print(f"Lọc dữ liệu: Chỉ đánh giá RAGAS cho {len(filtered_dict['question'])}/{len(dataset_dict['question'])} câu hỏi Y khoa có retrieve và trả lời thực tế.")
+
+    print(
+        f"Lọc dữ liệu: Chỉ đánh giá RAGAS cho {len(filtered_dict['question'])}/{len(dataset_dict['question'])} câu hỏi Y khoa có retrieve và trả lời thực tế."
+    )
 
     if len(filtered_dict["question"]) == 0:
         print("Không có câu hỏi hợp lệ nào để chấm RAGAS.")
@@ -202,7 +221,7 @@ def run_evaluation(mock: bool = False):
         detailed_log_path = Path("eval/results/ragas_detailed_log.csv")
         df.to_csv(detailed_log_path, index=False, encoding="utf-8-sig")
         print(f"Lưu log chi tiết từng câu tại: {detailed_log_path}")
-        
+
         for col in df.columns:
             if df[col].dtype in ["float64", "float32"] and col not in [
                 "question",

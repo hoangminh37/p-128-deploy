@@ -6,15 +6,15 @@ Báo cáo này tập trung đánh giá việc tuân thủ các quy tắc an toà
 
 | Metric | Score | Target | Status |
 |--------|-------|--------|--------|
-| Intent Routing / Safety Pass | 41.51% | > 95% | ❌ FAIL |
+| Intent Routing / Safety Pass | 84.91% | > 95% | ❌ FAIL |
 
 ## 3. Business Formatting & Tone Metrics
 
 | Metric | Score | Target | Status |
 |--------|-------|--------|--------|
-| Citation Compliance | 81.13% | 100% | ❌ FAIL |
-| Next-best Questions | 81.13% | > 80% | ✅ PASS |
-| Disclaimer | 81.13% | 100% | ❌ FAIL |
-| Tone & Empathy | 2.74/5.0 | > 4.5 | ❌ FAIL |
+| Citation Compliance | 94.34% | 100% | ❌ FAIL |
+| Next-best Questions | 94.34% | > 80% | ✅ PASS |
+| Disclaimer | 94.34% | 100% | ❌ FAIL |
+| Tone & Empathy | 4.38/5.0 | > 4.5 | ❌ FAIL |
 
 *(Báo cáo được tạo tự động bởi eval/run_custom_eval.py)*

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -13,9 +12,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 try:
-    from src.services.llm.factory import get_llm
+    from langchain_core.messages import HumanMessage, SystemMessage
+
     from src.rag.store import VectorStore
-    from langchain_core.messages import SystemMessage, HumanMessage
+    from src.services.llm.factory import get_llm
 except ImportError:
     print("❌ Lỗi import. Hãy chắc chắn bạn đang chạy script này từ thư mục gốc của project.")
     sys.exit(1)
@@ -28,16 +28,13 @@ def run_baseline_1(query: str, patient_profile: dict) -> str:
     profile_text = ""
     if patient_profile:
         profile_text = f"Thông tin bệnh nhân: {patient_profile}"
-    
+
     prompt = f"""Bạn là trợ lý tư vấn sức khoẻ.
 {profile_text}
 Hãy trả lời câu hỏi sau của người dùng.
 Câu hỏi: {query}"""
-    
-    messages = [
-        SystemMessage(content="Bạn là một trợ lý ảo về sức khỏe."),
-        HumanMessage(content=prompt)
-    ]
+
+    messages = [SystemMessage(content="Bạn là một trợ lý ảo về sức khỏe."), HumanMessage(content=prompt)]
     response = llm.invoke(messages)
     return str(response.content)
 
@@ -46,16 +43,16 @@ def run_baseline_2(query: str, patient_profile: dict) -> str:
     """Baseline 2: Naive RAG - Tìm kiếm vector thuần túy, đưa vào context cho LLM."""
     llm = get_llm()
     store = VectorStore()
-    
+
     # 1. Tìm kiếm tài liệu
     disease_filter = None
     if patient_profile and isinstance(patient_profile.get("diseases"), list):
         disease_filter = patient_profile["diseases"]
 
     hits = store.search(query=query, disease=disease_filter, top_k=5)
-    
-    context = "\n\n".join([f"Tài liệu {i+1}: {hit.text}" for i, hit in enumerate(hits)])
-    
+
+    context = "\n\n".join([f"Tài liệu {i + 1}: {hit.text}" for i, hit in enumerate(hits)])
+
     profile_text = ""
     if patient_profile:
         profile_text = f"Thông tin bệnh nhân: {patient_profile}"
@@ -71,7 +68,7 @@ Câu hỏi: {query}"""
 
     messages = [
         SystemMessage(content="Bạn là trợ lý y khoa. Chỉ trả lời dựa vào ngữ cảnh được cung cấp."),
-        HumanMessage(content=prompt)
+        HumanMessage(content=prompt),
     ]
     response = llm.invoke(messages)
     return str(response.content)
@@ -99,7 +96,7 @@ def main(mock: bool = False):
     ans_baseline2 = []
 
     for i, (q, p) in enumerate(zip(questions, profiles)):
-        print(f"[{i+1}/{len(questions)}] Đang xử lý: {q[:50]}...")
+        print(f"[{i + 1}/{len(questions)}] Đang xử lý: {q[:50]}...")
         try:
             b1 = run_baseline_1(q, p)
             ans_baseline1.append(b1)
