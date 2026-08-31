@@ -76,9 +76,7 @@ def _add_missing_doctor_profile_columns(connection: Connection) -> None:
             "WHERE verification_status IS NULL OR verification_status = ''"
         )
     )
-    connection.execute(
-        text("UPDATE doctor_profiles SET verified_at = created_at WHERE verified_at IS NULL")
-    )
+    connection.execute(text("UPDATE doctor_profiles SET verified_at = created_at WHERE verified_at IS NULL"))
 
 
 async def ensure_patient_profile_schema() -> None:

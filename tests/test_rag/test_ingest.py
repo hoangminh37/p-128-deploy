@@ -121,7 +121,7 @@ class TestStageUpload:
 
     def test_bao_cach_them_benh_moi_khi_bao_loi(self, settings):
         bad = {**VALID, "diseases": ["copd"]}
-        with pytest.raises(IngestError, match="registry.yaml"):
+        with pytest.raises(IngestError, match="khu vực biên tập"):
             stage_upload("a.pdf", b"%PDF", settings=settings, **bad)
 
     def test_tu_choi_khi_khong_khai_benh(self, settings):

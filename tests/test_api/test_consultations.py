@@ -76,7 +76,9 @@ async def consultation_client(tmp_path) -> AsyncIterator[tuple[AsyncClient, dict
 
     actors = {
         "patient": UserInfo(user_id="u_patient", email="patient@example.com", role="patient", patient_id="p_patient"),
-        "patient_2": UserInfo(user_id="u_patient_2", email="patient-2@example.com", role="patient", patient_id="p_patient_2"),
+        "patient_2": UserInfo(
+            user_id="u_patient_2", email="patient-2@example.com", role="patient", patient_id="p_patient_2"
+        ),
         "doctor": UserInfo(user_id="u_doctor", email="doctor@example.com", role="doctor", patient_id=None),
         "doctor_2": UserInfo(user_id="u_doctor_2", email="doctor-2@example.com", role="doctor", patient_id=None),
         "editor": UserInfo(user_id="u_editor", email="editor@example.com", role="editor", patient_id=None),
@@ -161,11 +163,15 @@ async def test_patient_doctor_chat_and_video_signal_are_gated(consultation_clien
         "diagnosed_at": "2024-08",
     }
 
-    reply = await client.post(f"/api/v1/consultations/{consultation_id}/messages", json={"content": "Chào bạn, tôi đã xem yêu cầu."})
+    reply = await client.post(
+        f"/api/v1/consultations/{consultation_id}/messages", json={"content": "Chào bạn, tôi đã xem yêu cầu."}
+    )
     assert reply.status_code == 201
     assert reply.json()["sender_role"] == "doctor"
 
-    current["actor"] = UserInfo(user_id="u_patient", email="patient@example.com", role="patient", patient_id="p_patient")
+    current["actor"] = UserInfo(
+        user_id="u_patient", email="patient@example.com", role="patient", patient_id="p_patient"
+    )
     patient_message = await client.post(
         f"/api/v1/consultations/{consultation_id}/messages",
         json={"content": "Tôi vừa đo đường huyết tại nhà."},
@@ -201,18 +207,27 @@ async def test_patient_doctor_chat_and_video_signal_are_gated(consultation_clien
     received_offer = await client.get(f"/api/v1/consultations/{consultation_id}/calls/{call_id}/signals?after_id=0")
     assert received_offer.status_code == 200
     assert received_offer.json()["signals"] == [
-        {"signal_id": 1, "kind": "offer", "payload": {"type": "offer", "sdp": "test-offer"}, "created_at": received_offer.json()["signals"][0]["created_at"]}
+        {
+            "signal_id": 1,
+            "kind": "offer",
+            "payload": {"type": "offer", "sdp": "test-offer"},
+            "created_at": received_offer.json()["signals"][0]["created_at"],
+        }
     ]
 
     # One doctor can separately receive and manage requests from many patients.
-    current["actor"] = UserInfo(user_id="u_patient_2", email="patient-2@example.com", role="patient", patient_id="p_patient_2")
+    current["actor"] = UserInfo(
+        user_id="u_patient_2", email="patient-2@example.com", role="patient", patient_id="p_patient_2"
+    )
     second_patient_request = await client.post(
         "/api/v1/consultations",
         json={"doctor_id": "u_doctor", "initial_message": "Tôi cần tư vấn về việc theo dõi chỉ số."},
     )
     assert second_patient_request.status_code == 201
 
-    current["actor"] = UserInfo(user_id="u_patient", email="patient@example.com", role="patient", patient_id="p_patient")
+    current["actor"] = UserInfo(
+        user_id="u_patient", email="patient@example.com", role="patient", patient_id="p_patient"
+    )
     ended = await client.post(f"/api/v1/consultations/{consultation_id}/end")
     assert ended.status_code == 200
     assert ended.json()["status"] == "ended"
@@ -433,9 +448,7 @@ async def test_rag_referral_automatically_creates_editorial_patient_request(
 
     pending = await client.get("/api/v1/editor/patient-questions?status=pending")
     assert pending.status_code == 200
-    assert [item["question"] for item in pending.json()["requests"]] == [
-        "Tôi cần chuẩn bị gì trước khi đi khám?"
-    ]
+    assert [item["question"] for item in pending.json()["requests"]] == ["Tôi cần chuẩn bị gì trước khi đi khám?"]
 
 
 @pytest.mark.asyncio

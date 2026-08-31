@@ -156,10 +156,7 @@ async def list_notifications(
     )
     notification_rows = result.all()
     return PatientNotificationList(
-        notifications=[
-            _notification_schema(notification, question)
-            for notification, question in notification_rows
-        ],
+        notifications=[_notification_schema(notification, question) for notification, question in notification_rows],
         unread_count=sum(notification.read_at is None for notification, _question in notification_rows),
     )
 

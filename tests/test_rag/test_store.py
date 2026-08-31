@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.rag.config import RagSettings
-from src.rag.store import CohereEmbedder, Hit, VectorStore, _TokenBudget, make_embedder
+from src.rag.store import ChromaStore, CohereEmbedder, Hit, VectorStore, _TokenBudget, make_embedder
 
 
 class FakeEmbedder:
@@ -62,7 +62,7 @@ class FakeCollection:
 @pytest.fixture
 def store(tmp_path, monkeypatch):
     settings = RagSettings(vectorstore_dir=tmp_path / "vs", recency_weight=0.2, min_similarity=0.3, top_k=3)
-    s = VectorStore.__new__(VectorStore)  # bỏ qua __init__ để khỏi cần chromadb thật
+    s = ChromaStore.__new__(ChromaStore)  # bỏ qua __init__ để khỏi cần chromadb thật
     s.settings = settings
     s.collection = FakeCollection()
     s._embedder = FakeEmbedder()
@@ -329,7 +329,7 @@ class TestStats:
 class TestDualModeVectorStore:
     def test_tu_dong_chuyen_backend_theo_database_url(self, monkeypatch):
         from src.core.config import get_settings
-        from src.rag.store import ChromaStore, PgVectorStore, VectorStore
+        from src.rag.store import ChromaStore, PgVectorStore
 
         # Khi database_url là postgresql
         monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/db")

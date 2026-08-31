@@ -306,10 +306,7 @@ async def list_admin_doctors(
     db: AsyncSession = Depends(get_db), current_user: UserInfo = Depends(get_editor_user)
 ) -> AdminDoctorList:
     result = await db.execute(select(DoctorProfile, User).join(User, User.id == DoctorProfile.user_id))
-    doctors = [
-        _admin_doctor(profile, user)
-        for profile, user in result.all()
-    ]
+    doctors = [_admin_doctor(profile, user) for profile, user in result.all()]
     doctors.sort(key=lambda doctor: doctor.display_name.casefold())
     return AdminDoctorList(doctors=doctors)
 
@@ -379,19 +376,25 @@ async def update_admin_doctor(
     if "display_name" in payload.model_fields_set:
         display_name = (payload.display_name or "").strip()
         if len(display_name) < 2:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Tên hiển thị cần có ít nhất 2 ký tự")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Tên hiển thị cần có ít nhất 2 ký tự"
+            )
         profile.display_name = display_name
 
     if "specialty" in payload.model_fields_set:
         specialty = (payload.specialty or "").strip()
         if len(specialty) < 2:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Chuyên khoa cần có ít nhất 2 ký tự")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Chuyên khoa cần có ít nhất 2 ký tự"
+            )
         profile.specialty = specialty
 
     if "license_number" in payload.model_fields_set:
         license_number = (payload.license_number or "").strip()
         if len(license_number) < 3:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Số giấy phép hành nghề không hợp lệ")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Số giấy phép hành nghề không hợp lệ"
+            )
         existing_license = await db.execute(
             select(DoctorProfile).where(
                 DoctorProfile.license_number == license_number,
@@ -405,11 +408,17 @@ async def update_admin_doctor(
     if "bio" in payload.model_fields_set:
         profile.bio = payload.bio.strip() if payload.bio and payload.bio.strip() else None
     if "clinic_name" in payload.model_fields_set:
-        profile.clinic_name = payload.clinic_name.strip() if payload.clinic_name and payload.clinic_name.strip() else None
+        profile.clinic_name = (
+            payload.clinic_name.strip() if payload.clinic_name and payload.clinic_name.strip() else None
+        )
     if "experience_years" in payload.model_fields_set:
         profile.experience_years = payload.experience_years
     if "consultation_focus" in payload.model_fields_set:
-        profile.consultation_focus = payload.consultation_focus.strip() if payload.consultation_focus and payload.consultation_focus.strip() else None
+        profile.consultation_focus = (
+            payload.consultation_focus.strip()
+            if payload.consultation_focus and payload.consultation_focus.strip()
+            else None
+        )
     if payload.is_active is not None:
         profile.is_active = payload.is_active
     if payload.is_available is not None:
@@ -478,16 +487,24 @@ async def update_own_doctor_profile(
     if "display_name" in payload.model_fields_set:
         display_name = (payload.display_name or "").strip()
         if len(display_name) < 2:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Tên hiển thị cần có ít nhất 2 ký tự")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Tên hiển thị cần có ít nhất 2 ký tự"
+            )
         profile.display_name = display_name
     if "bio" in payload.model_fields_set:
         profile.bio = payload.bio.strip() if payload.bio and payload.bio.strip() else None
     if "clinic_name" in payload.model_fields_set:
-        profile.clinic_name = payload.clinic_name.strip() if payload.clinic_name and payload.clinic_name.strip() else None
+        profile.clinic_name = (
+            payload.clinic_name.strip() if payload.clinic_name and payload.clinic_name.strip() else None
+        )
     if "experience_years" in payload.model_fields_set:
         profile.experience_years = payload.experience_years
     if "consultation_focus" in payload.model_fields_set:
-        profile.consultation_focus = payload.consultation_focus.strip() if payload.consultation_focus and payload.consultation_focus.strip() else None
+        profile.consultation_focus = (
+            payload.consultation_focus.strip()
+            if payload.consultation_focus and payload.consultation_focus.strip()
+            else None
+        )
     if "is_available" in payload.model_fields_set:
         profile.is_available = payload.is_available
 
@@ -529,8 +546,7 @@ async def get_doctor_dashboard(
         .limit(5)
     )
     recent_consultations = [
-        await _consultation_summary(db, consultation)
-        for consultation in recent_result.scalars().all()
+        await _consultation_summary(db, consultation) for consultation in recent_result.scalars().all()
     ]
     return DoctorDashboard(
         pending_consultation_count=consultation_counts.get("requested", 0),
@@ -694,7 +710,9 @@ async def end_consultation(
     return await _consultation_detail(db, consultation, current_user)
 
 
-@router.post("/{consultation_id}/messages", response_model=ConsultationMessageSchema, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{consultation_id}/messages", response_model=ConsultationMessageSchema, status_code=status.HTTP_201_CREATED
+)
 async def send_consultation_message(
     consultation_id: str,
     payload: SendConsultationMessageRequest,
@@ -795,7 +813,9 @@ async def join_video_call(
     return VideoCallStartResponse(**_video_summary(call).model_dump(), ice_servers=_ice_servers())
 
 
-@router.post("/{consultation_id}/calls/{call_id}/signals", response_model=VideoSignal, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{consultation_id}/calls/{call_id}/signals", response_model=VideoSignal, status_code=status.HTTP_201_CREATED
+)
 async def post_video_signal(
     consultation_id: str,
     call_id: str,

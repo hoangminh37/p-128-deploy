@@ -817,9 +817,7 @@ async def list_patient_editorial_questions(
     if request_status is not None:
         statement = statement.filter(PatientEditorialQuestion.status == request_status)
     result = await db.execute(statement)
-    return PatientEditorialQuestionList(
-        requests=[_patient_question_schema(item) for item in result.scalars().all()]
-    )
+    return PatientEditorialQuestionList(requests=[_patient_question_schema(item) for item in result.scalars().all()])
 
 
 @router.post("/patient-questions/{request_id}/answer", response_model=PatientEditorialQuestionSchema)
@@ -835,9 +833,7 @@ async def answer_patient_editorial_question(
     indexed or fed back into RAG; an approved source document still follows the
     normal review and indexing lifecycle.
     """
-    result = await db.execute(
-        select(PatientEditorialQuestion).where(PatientEditorialQuestion.id == request_id)
-    )
+    result = await db.execute(select(PatientEditorialQuestion).where(PatientEditorialQuestion.id == request_id))
     item = result.scalars().first()
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy yêu cầu phản hồi")
@@ -846,7 +842,9 @@ async def answer_patient_editorial_question(
 
     answer = payload.answer.strip()
     if answer == "":
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Nội dung phản hồi không được để trống")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Nội dung phản hồi không được để trống"
+        )
 
     item.status = "answered"
     item.answer = answer

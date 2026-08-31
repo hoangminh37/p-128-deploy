@@ -27,9 +27,7 @@ async def record_unanswered_patient_question(
     normalized_question = " ".join(question.split())
     now = datetime.utcnow()
 
-    log_result = await db.execute(
-        select(OutOfScopeLog).where(OutOfScopeLog.question == normalized_question)
-    )
+    log_result = await db.execute(select(OutOfScopeLog).where(OutOfScopeLog.question == normalized_question))
     log = log_result.scalars().first()
     if log is None:
         db.add(

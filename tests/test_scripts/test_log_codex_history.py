@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
-
 
 SCRIPT_PATH = Path(__file__).parents[2] / "scripts" / "log_codex_history.py"
 SPEC = importlib.util.spec_from_file_location("log_codex_history", SCRIPT_PATH)
 assert SPEC and SPEC.loader
 history = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = history
 SPEC.loader.exec_module(history)
 
 
