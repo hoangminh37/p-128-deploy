@@ -1030,3 +1030,69 @@
     min-width: 0;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Phòng gọi video
+ *
+ * Cuộc gọi là một tác vụ cần nhìn liên tục, nên không dùng hộp thoại nhỏ ở
+ * giữa màn hình. Khối này chiếm toàn bộ khung nhìn, đồng thời chừa phần tai
+ * thỏ/thanh điều hướng của điện thoại. Các phần header và điều khiển co lại
+ * khi máy đặt ngang để vùng video luôn là phần lớn nhất của màn hình.
+ * --------------------------------------------------------------------------- */
+.video-call-screen {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+}
+
+.video-call-header {
+  padding-bottom: var(--spacing-snug);
+}
+
+.video-call-stage {
+  border-radius: var(--radius-card-lg);
+  margin-top: var(--spacing-snug);
+}
+
+.video-call-local {
+  bottom: var(--spacing-snug);
+  right: var(--spacing-snug);
+  width: clamp(7.5rem, 30vw, 18rem);
+}
+
+.video-call-controls {
+  padding-top: var(--spacing-snug);
+}
+
+.video-call-actions {
+  margin-top: var(--spacing-snug);
+}
+
+@media (max-height: 34rem) and (orientation: landscape) {
+  .video-call-screen {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  .video-call-header,
+  .video-call-controls {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .video-call-stage,
+  .video-call-actions {
+    margin-top: var(--spacing-tight);
+  }
+
+  .video-call-network-note {
+    display: none;
+  }
+
+  .video-call-local {
+    bottom: var(--spacing-tight);
+    right: var(--spacing-tight);
+    width: clamp(6.5rem, 22vw, 14rem);
+  }
+}

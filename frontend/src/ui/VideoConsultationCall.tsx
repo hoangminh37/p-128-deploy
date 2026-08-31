@@ -15,6 +15,7 @@ import {
 } from '../lib/api'
 import type { VideoCallStart } from '../lib/schemas'
 import { ErrorNotice } from './ErrorNotice'
+import { CameraIcon, CameraSwitchIcon, CloseIcon, MicrophoneIcon, PhoneIcon } from './icons'
 
 type Props = {
   consultationId: string
@@ -70,6 +71,14 @@ function mediaErrorMessage(error: unknown): string {
   return 'Không thể khởi động camera và micro cho cuộc gọi. Bạn hãy thử lại.'
 }
 
+/** `getCapabilities` chưa có ở một số trình duyệt cũ, nên phải kiểm tra trước khi dùng. */
+function supportedFacingModes(track: MediaStreamTrack): string[] {
+  const capabilityTrack = track as MediaStreamTrack & {
+    getCapabilities?: () => { facingMode?: string[] }
+  }
+  return capabilityTrack.getCapabilities?.().facingMode ?? []
+}
+
 export function VideoConsultationCall({ consultationId, call, isInitiator, onEnded }: Props) {
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
@@ -78,12 +87,43 @@ export function VideoConsultationCall({ consultationId, call, isInitiator, onEnd
   const latestSignalRef = useRef(0)
   const queuedCandidatesRef = useRef<RTCIceCandidateInit[]>([])
   const stoppingRef = useRef(false)
+  const cameraDeviceIdsRef = useRef<string[]>([])
+  const cameraOffRef = useRef(false)
   const [isMuted, setMuted] = useState(false)
   const [isCameraOff, setCameraOff] = useState(false)
+  const [canSwitchCamera, setCanSwitchCamera] = useState(false)
+  const [isSwitchingCamera, setSwitchingCamera] = useState(false)
+  const [cameraMessage, setCameraMessage] = useState<string | null>(null)
   const [hasRemoteStream, setHasRemoteStream] = useState(false)
   const [connectionLabel, setConnectionLabel] = useState('Đang kết nối bảo mật…')
   const [error, setError] = useState<ApiError | Error | null>(null)
   const hasIceInfrastructure = validIceServers(call.ice_servers).length > 0
+
+  /**
+   * Nhận biết camera có thể đổi sau khi quyền đã được cấp. `enumerateDevices`
+   * nhìn được mọi camera trên máy; `facingMode` xử lý các điện thoại chỉ lộ ra
+   * một camera logic nhưng vẫn đổi được trước/sau qua driver.
+   */
+  const updateCameraSwitchAvailability = useCallback(async (track: MediaStreamTrack): Promise<void> => {
+    const facingModes = new Set(
+      supportedFacingModes(track).filter((mode) => mode === 'user' || mode === 'environment'),
+    )
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const videoDeviceIds = [...new Set(
+        devices
+          .filter((device) => device.kind === 'videoinput' && device.deviceId !== '')
+          .map((device) => device.deviceId),
+      )]
+      cameraDeviceIdsRef.current = videoDeviceIds
+      setCanSwitchCamera(videoDeviceIds.length > 1 || facingModes.size > 1)
+    } catch {
+      // Không mở được danh sách thiết bị vẫn có thể đổi camera nếu driver báo
+      // hai hướng nhìn. Không biến lỗi phụ này thành lỗi làm rớt cuộc gọi.
+      setCanSwitchCamera(facingModes.size > 1)
+    }
+  }, [])
 
   const stopLocalMedia = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop())
@@ -184,13 +224,21 @@ export function VideoConsultationCall({ consultationId, call, isInitiator, onEnd
         return
       }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'user' } },
+          audio: true,
+        })
         if (disposed) {
           stream.getTracks().forEach((track) => track.stop())
           return
         }
         streamRef.current = stream
+        stream.getVideoTracks().forEach((track) => {
+          track.enabled = !cameraOffRef.current
+        })
         if (localVideoRef.current !== null) localVideoRef.current.srcObject = stream
+        const localVideoTrack = stream.getVideoTracks()[0]
+        if (localVideoTrack !== undefined) void updateCameraSwitchAvailability(localVideoTrack)
 
         const peer = new RTCPeerConnection({ iceServers: validIceServers(call.ice_servers) })
         peerRef.current = peer
@@ -255,7 +303,7 @@ export function VideoConsultationCall({ consultationId, call, isInitiator, onEnd
       if (pollTimer !== null) window.clearInterval(pollTimer)
       stopLocalMedia()
     }
-  }, [call.call_id, call.ice_servers, consultationId, finish, isInitiator, stopLocalMedia])
+  }, [call.call_id, call.ice_servers, consultationId, finish, isInitiator, stopLocalMedia, updateCameraSwitchAvailability])
 
   function toggleMute(): void {
     const next = !isMuted
@@ -266,58 +314,125 @@ export function VideoConsultationCall({ consultationId, call, isInitiator, onEnd
   }
 
   function toggleCamera(): void {
-    const next = !isCameraOff
+    const next = !cameraOffRef.current
     streamRef.current?.getVideoTracks().forEach((track) => {
       track.enabled = !next
     })
+    cameraOffRef.current = next
     setCameraOff(next)
   }
 
+  async function switchCamera(): Promise<void> {
+    const stream = streamRef.current
+    const currentTrack = stream?.getVideoTracks()[0]
+    const peer = peerRef.current
+    if (stream === null || stream === undefined || currentTrack === undefined || peer === null || isSwitchingCamera) return
+
+    setSwitchingCamera(true)
+    setCameraMessage(null)
+    let replacementStream: MediaStream | null = null
+
+    try {
+      const currentDeviceId = currentTrack.getSettings().deviceId
+      const deviceIds = cameraDeviceIdsRef.current
+      const currentIndex = currentDeviceId === undefined ? -1 : deviceIds.indexOf(currentDeviceId)
+      const nextDeviceId = deviceIds.length > 1
+        ? deviceIds[(currentIndex + 1 + deviceIds.length) % deviceIds.length]
+        : undefined
+      const currentFacingMode = currentTrack.getSettings().facingMode
+      const nextFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment'
+      replacementStream = await navigator.mediaDevices.getUserMedia({
+        video: nextDeviceId === undefined
+          ? { facingMode: { ideal: nextFacingMode } }
+          : { deviceId: { exact: nextDeviceId } },
+        audio: false,
+      })
+      const replacementTrack = replacementStream.getVideoTracks()[0]
+      if (replacementTrack === undefined) {
+        replacementStream.getTracks().forEach((track) => track.stop())
+        replacementStream = null
+        throw new Error('Không tìm thấy camera thay thế.')
+      }
+
+      const videoSender = peer.getSenders().find((sender) => sender.track?.kind === 'video')
+      if (videoSender === undefined) {
+        replacementStream.getTracks().forEach((track) => track.stop())
+        replacementStream = null
+        throw new Error('Không thể cập nhật luồng camera.')
+      }
+
+      replacementTrack.enabled = !cameraOffRef.current
+      await videoSender.replaceTrack(replacementTrack)
+      stream.removeTrack(currentTrack)
+      stream.addTrack(replacementTrack)
+      currentTrack.stop()
+      if (localVideoRef.current !== null) localVideoRef.current.srcObject = stream
+      // `replacementTrack` đã được gắn vào stream chính; không dừng nó trong
+      // `catch` bên dưới khi phần còn lại của thao tác thành công.
+      replacementStream = null
+      await updateCameraSwitchAvailability(replacementTrack)
+    } catch (cause) {
+      replacementStream?.getTracks().forEach((track) => track.stop())
+      console.error('Không thể đổi camera', cause)
+      setCameraMessage('Không thể đổi camera trên thiết bị này. Bạn hãy thử lại.')
+    } finally {
+      setSwitchingCamera(false)
+    }
+  }
+
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-ink/35 backdrop-blur-[1px]" aria-hidden="true" />
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="consultation-call-title"
-        className="fixed inset-x-snug top-snug z-50 mx-auto w-auto max-w-3xl overflow-hidden rounded-card-lg border border-white/10 bg-ink p-snug text-white shadow-card sm:top-block sm:p-cozy"
-      >
-        <div className="flex items-start justify-between gap-snug">
-          <div>
-            <p id="consultation-call-title" className="text-heading font-semibold text-white">Cuộc gọi tư vấn</p>
-            <p aria-live="polite" className="font-display mt-hair text-question text-mist">{connectionLabel}</p>
-          </div>
-          <button type="button" onClick={() => void finish(true)} className="motion-press font-display min-h-touch rounded-pill border-2 border-mist px-snug text-question font-semibold text-white hover:bg-white/10">
-            Đóng
-          </button>
+    <section
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="consultation-call-title"
+      className="video-call-screen fixed inset-0 z-50 flex h-dvh min-h-dvh w-full flex-col overflow-hidden bg-ink text-white shadow-card"
+    >
+      <header className="video-call-header flex shrink-0 items-center justify-between gap-snug border-b border-white/10">
+        <div className="min-w-0">
+          <p id="consultation-call-title" className="truncate text-heading font-semibold text-white">Cuộc gọi tư vấn</p>
+          <p aria-live="polite" className="font-display mt-hair truncate text-question text-mist">{connectionLabel}</p>
+        </div>
+        <button type="button" onClick={() => void finish(true)} className="motion-press grid min-h-touch min-w-touch shrink-0 place-items-center rounded-pill border-2 border-mist text-white hover:bg-white/10" aria-label="Đóng cuộc gọi">
+          <CloseIcon className="h-6 w-6" />
+        </button>
+      </header>
+
+      <div className="video-call-stage relative min-h-0 flex-1 overflow-hidden bg-black">
+        <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-contain" />
+        {!hasRemoteStream && <p className="absolute inset-0 flex items-center justify-center px-cozy text-center text-input text-mist">{connectionLabel}</p>}
+
+        <div className="video-call-local absolute aspect-video overflow-hidden rounded-card border-2 border-white/70 bg-slate/30 shadow-card">
+          <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+          {isCameraOff && <p className="font-display absolute inset-0 grid place-items-center bg-ink/80 px-tight text-center text-note text-white">Camera đang tắt</p>}
+          <p className="font-display absolute bottom-1 left-1 rounded-pill bg-ink/80 px-tight py-px text-note text-white">Bạn</p>
         </div>
 
-        <div className="relative mt-snug aspect-video overflow-hidden rounded-card bg-slate/30">
-          <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
-          {!hasRemoteStream && <p className="absolute inset-0 flex items-center justify-center px-cozy text-center text-input text-mist">{connectionLabel}</p>}
+        {error !== null && <div className="absolute inset-x-snug bottom-snug z-10"><ErrorNotice error={error} retryLabel="Đóng cuộc gọi" onRetry={() => void finish(true)} /></div>}
+      </div>
 
-          <div className="absolute bottom-tight right-tight h-[30%] min-h-20 w-[30%] min-w-28 overflow-hidden rounded-card border-2 border-white/70 bg-slate/30 shadow-card">
-            <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
-            <p className="font-display absolute bottom-1 left-1 rounded-pill bg-ink/80 px-tight py-px text-note text-white">Bạn</p>
-          </div>
+      <footer className="video-call-controls shrink-0 border-t border-white/10">
+        {!hasIceInfrastructure && <p className="video-call-network-note font-display rounded-card bg-white/10 px-snug py-tight text-question text-mist">Đang thử kết nối trực tiếp giữa hai thiết bị. Để gọi ổn định khi hai bên ở khác mạng, hệ thống cần máy chủ TURN do đội vận hành cấu hình.</p>}
+        {cameraMessage !== null && <p aria-live="polite" className="font-display mt-tight text-center text-question text-coral">{cameraMessage}</p>}
+
+        <div className={`video-call-actions grid gap-tight ${canSwitchCamera ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}>
+          <button type="button" onClick={toggleMute} className="motion-press font-display flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill border-2 border-mist px-snug text-input font-semibold text-white hover:bg-white/10" aria-label={isMuted ? 'Bật micro' : 'Tắt micro'}>
+            <MicrophoneIcon className="h-5 w-5 shrink-0" />
+            <span>{isMuted ? 'Bật micro' : 'Tắt micro'}</span>
+          </button>
+          <button type="button" onClick={toggleCamera} className="motion-press font-display flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill border-2 border-mist px-snug text-input font-semibold text-white hover:bg-white/10" aria-label={isCameraOff ? 'Bật camera' : 'Tắt camera'}>
+            <CameraIcon className="h-5 w-5 shrink-0" />
+            <span>{isCameraOff ? 'Bật camera' : 'Tắt camera'}</span>
+          </button>
+          {canSwitchCamera && <button type="button" disabled={isSwitchingCamera} onClick={() => void switchCamera()} className="motion-press font-display flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill border-2 border-mist px-snug text-input font-semibold text-white enabled:hover:bg-white/10 disabled:cursor-wait disabled:text-mist" aria-label="Đổi camera">
+            <CameraSwitchIcon className="h-5 w-5 shrink-0" />
+            <span>{isSwitchingCamera ? 'Đang đổi…' : 'Đổi camera'}</span>
+          </button>}
+          <button type="button" onClick={() => void finish(true)} className="motion-press font-display col-span-2 flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill bg-coral px-snug text-input font-bold text-ink hover:brightness-105 sm:col-span-1">
+            <PhoneIcon className="h-5 w-5 shrink-0" />
+            <span>Kết thúc cuộc gọi</span>
+          </button>
         </div>
-
-        {!hasIceInfrastructure && <p className="font-display mt-tight rounded-card bg-white/10 px-snug py-tight text-question text-mist">Đang thử kết nối trực tiếp giữa hai thiết bị. Để gọi ổn định khi hai bên ở khác mạng, hệ thống cần máy chủ TURN do đội vận hành cấu hình.</p>}
-
-        {error !== null && <div className="mt-snug"><ErrorNotice error={error} retryLabel="Đóng cuộc gọi" onRetry={() => void finish(true)} /></div>}
-
-        <div className="mt-snug flex flex-wrap justify-center gap-tight">
-          <button type="button" onClick={toggleMute} className="motion-press font-display min-h-touch rounded-pill border-2 border-mist px-cozy text-input font-semibold text-white hover:bg-white/10" aria-label={isMuted ? 'Bật micro' : 'Tắt micro'}>
-            {isMuted ? 'Bật micro' : 'Tắt micro'}
-          </button>
-          <button type="button" onClick={toggleCamera} className="motion-press font-display min-h-touch rounded-pill border-2 border-mist px-cozy text-input font-semibold text-white hover:bg-white/10" aria-label={isCameraOff ? 'Bật camera' : 'Tắt camera'}>
-            {isCameraOff ? 'Bật camera' : 'Tắt camera'}
-          </button>
-          <button type="button" onClick={() => void finish(true)} className="motion-press font-display min-h-touch rounded-pill bg-coral px-cozy text-input font-bold text-ink hover:brightness-105">
-            Kết thúc cuộc gọi
-          </button>
-        </div>
-      </section>
-    </>
+      </footer>
+    </section>
   )
 }

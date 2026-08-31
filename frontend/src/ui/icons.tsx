@@ -237,6 +237,27 @@ export function MicrophoneIcon({ className }: IconProps) {
   )
 }
 
+/** Camera video: dùng cho các thao tác trong phòng tư vấn trực tuyến. */
+export function CameraIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <rect x="3.5" y="6.5" width="12.5" height="11" rx="2" />
+      <path d="m16 10 4.5-2.7v9.4L16 14" />
+    </StrokeIcon>
+  )
+}
+
+/** Đổi giữa camera trước/sau hoặc các camera đang có trên thiết bị. */
+export function CameraSwitchIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <rect x="4" y="7" width="12" height="10" rx="2" />
+      <path d="m16 10 4-2.5v9L16 14" />
+      <path d="M7.5 4.5A7.5 7.5 0 0 1 18 7.2M16.5 4.5v3.3h-3.3M16.5 19.5A7.5 7.5 0 0 1 6 16.8M7.5 19.5v-3.3h3.3" />
+    </StrokeIcon>
+  )
+}
+
 /** Đăng xuất: mũi tên đi ra khỏi một khung mở. */
 export function SignOutIcon({ className }: IconProps) {
   return (
