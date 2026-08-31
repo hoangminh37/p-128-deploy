@@ -10,7 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.router import router
 from src.core.config import get_settings
-from src.core.database import ensure_patient_profile_schema, ensure_routine_memory_schema
+from src.core.database import (
+    ensure_consultation_schema,
+    ensure_editorial_response_schema,
+    ensure_patient_profile_schema,
+    ensure_routine_memory_schema,
+)
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -48,6 +53,8 @@ async def lifespan(app: FastAPI):
     logger.info("LLM provider: %s | model: %s", settings.llm_provider, settings.model_name)
     await ensure_routine_memory_schema()
     await ensure_patient_profile_schema()
+    await ensure_consultation_schema()
+    await ensure_editorial_response_schema()
 
     # BackgroundTasks không sống qua restart. Đừng để một dòng "đang index"
     # cũ trông như job còn chạy: đánh dấu bền vững để BTV nhìn thấy lỗi và chủ

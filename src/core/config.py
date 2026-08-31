@@ -175,6 +175,12 @@ class Settings(BaseSettings):
     # one request. This bound protects cost and avoids an unbounded TTS job.
     voice_tts_max_chars: int = Field(default=6_000, ge=200, le=10_000)
 
+    # JSON array supplied by deployment, for example a TURN server record:
+    # [{"urls":"turn:turn.example.com:3478","username":"...","credential":"..."}]
+    # No public STUN server is hardcoded: local development can connect directly
+    # while production must use infrastructure the team owns and can audit.
+    webrtc_ice_servers: str = ""
+
     # ── LangSmith Tracing ───────────────────────────────────────────────────
     langchain_api_key: str = ""
     langchain_tracing_v2: bool = True

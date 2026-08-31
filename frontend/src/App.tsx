@@ -40,6 +40,7 @@ import { ThemeProvider } from './ui/ThemeProvider'
 import { LandingScreen } from './screens/LandingScreen'
 import { ChatScreen } from './screens/ChatScreen'
 import { EditorDashboardScreen } from './screens/EditorDashboardScreen'
+import { EditorConditionsScreen } from './screens/EditorConditionsScreen'
 import { EditorDocumentViewerScreen } from './screens/EditorDocumentViewerScreen'
 import { EditorDocumentsScreen } from './screens/EditorDocumentsScreen'
 import { EditorItemScreen } from './screens/EditorItemScreen'
@@ -53,6 +54,15 @@ import { LearningLibraryScreen } from './screens/LearningLibraryScreen'
 import { ArticleDetailScreen } from './screens/ArticleDetailScreen'
 import { QuizScreen } from './screens/QuizScreen'
 import { MistakesScreen } from './screens/MistakesScreen'
+import { ConsultationsScreen } from './screens/ConsultationsScreen'
+import { ConsultationRoomScreen } from './screens/ConsultationRoomScreen'
+import { DoctorConsultationsScreen } from './screens/DoctorConsultationsScreen'
+import { DoctorDashboardScreen } from './screens/DoctorDashboardScreen'
+import { DoctorNotificationsScreen } from './screens/DoctorNotificationsScreen'
+import { DoctorProfileScreen } from './screens/DoctorProfileScreen'
+import { DoctorPublicProfileScreen } from './screens/DoctorPublicProfileScreen'
+import { EditorDoctorsScreen } from './screens/EditorDoctorsScreen'
+import { EditorPatientQuestionsScreen } from './screens/EditorPatientQuestionsScreen'
 
 /**
  * Hai đường dẫn cùng dẫn tới màn hỏi đáp:
@@ -98,6 +108,12 @@ function SourceDocumentRoute() {
   const chunkId = searchParams.get('chunk') ?? ''
 
   return <SourceDocumentScreen key={`${documentId ?? ''}:${chunkId}`} />
+}
+
+/** One authenticated route component shared by the patient and doctor paths. */
+function ConsultationRoomRoute() {
+  const { consultationId } = useParams()
+  return <ConsultationRoomScreen consultationId={consultationId ?? ''} />
 }
 
 /**
@@ -183,6 +199,30 @@ function App() {
                     }
                   />
                   <Route
+                    path="consultations"
+                    element={
+                      <RequireRole role="patient">
+                        <ConsultationsScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="consultations/:consultationId"
+                    element={
+                      <RequireRole role="patient">
+                        <ConsultationRoomRoute />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="consultations/doctors/:doctorId"
+                    element={
+                      <RequireRole role="patient">
+                        <DoctorPublicProfileScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
                     path="sources/:documentId"
                     element={
                       <RequireRole role="patient">
@@ -242,6 +282,14 @@ function App() {
                     }
                   />
                   <Route
+                    path="editor/conditions"
+                    element={
+                      <RequireRole role="editor">
+                        <EditorConditionsScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
                     path="editor/documents"
                     element={
                       <RequireRole role="editor">
@@ -278,6 +326,62 @@ function App() {
                     element={
                       <RequireRole role="editor">
                         <OutOfScopeScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="editor/doctors"
+                    element={
+                      <RequireRole role="editor">
+                        <EditorDoctorsScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="editor/patient-questions"
+                    element={
+                      <RequireRole role="editor">
+                        <EditorPatientQuestionsScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="doctor"
+                    element={
+                      <RequireRole role="doctor">
+                        <DoctorDashboardScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="doctor/notifications"
+                    element={
+                      <RequireRole role="doctor">
+                        <DoctorNotificationsScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="doctor/consultations"
+                    element={
+                      <RequireRole role="doctor">
+                        <DoctorConsultationsScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="doctor/profile"
+                    element={
+                      <RequireRole role="doctor">
+                        <DoctorProfileScreen />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="doctor/consultations/:consultationId"
+                    element={
+                      <RequireRole role="doctor">
+                        <ConsultationRoomRoute />
                       </RequireRole>
                     }
                   />

@@ -41,6 +41,7 @@ from src.rag.registry import (
     QuarantinedDoc,
     Registry,
     SourceDoc,
+    activate_runtime_diseases_with_sources,
     load_registry,
     save_uploads,
     uploaded_docs,
@@ -185,7 +186,7 @@ def stage_upload(
         raise IngestError(
             f"Bệnh không có trong phạm vi: {', '.join(unknown)}. "
             f"Đang hỗ trợ: {', '.join(registry.catalog.ids)}. "
-            "Muốn thêm bệnh mới thì bổ sung mục `diseases` trong data/registry.yaml."
+            "Hãy thêm bệnh trong khu vực biên tập trước khi tải tài liệu."
         )
     if not diseases:
         raise IngestError("Phải khai báo tài liệu này thuộc bệnh nào")
@@ -252,8 +253,7 @@ def start_indexing(
         raise IngestError(f"Tài liệu {doc_id} đang được index")
     if doc.status not in {"pending_review", "index_failed"}:
         raise IngestError(
-            f"Chỉ có thể index tài liệu đang chờ duyệt hoặc index thất bại, "
-            f"{doc_id} đang là {doc.status}"
+            f"Chỉ có thể index tài liệu đang chờ duyệt hoặc index thất bại, {doc_id} đang là {doc.status}"
         )
 
     doc.status = "indexing"
@@ -409,6 +409,7 @@ def approve(
     doc.index_error = None
     doc.indexed_chunks = len(chunks)
     _persist(doc, settings)
+    activate_runtime_diseases_with_sources(doc.diseases, settings)
 
     logger.info("duyệt %s: %d chunk vào store", doc_id, len(chunks))
     return IngestResult(

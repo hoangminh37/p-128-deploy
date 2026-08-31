@@ -120,6 +120,16 @@ export function SaveIcon({ className }: IconProps) {
   )
 }
 
+/** Chuông thông báo: phản hồi đang chờ người bệnh mở đọc. */
+export function BellIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+      <path d="M10 21h4" />
+    </StrokeIcon>
+  )
+}
+
 /** Dấu hiệu cấp cứu: tam giác cảnh báo. */
 export function AlertIcon({ className }: IconProps) {
   return (
@@ -136,6 +146,16 @@ export function PhoneIcon({ className }: IconProps) {
   return (
     <StrokeIcon className={className}>
       <path d="M6.6 3.5h2.9l1.5 3.9-2 1.5a12.2 12.2 0 0 0 6.1 6.1l1.5-2 3.9 1.5v2.9a2 2 0 0 1-2.2 2A16.6 16.6 0 0 1 4.6 5.7a2 2 0 0 1 2-2.2Z" />
+    </StrokeIcon>
+  )
+}
+
+/** Tư vấn y khoa: cuộc hội thoại có dấu thập chăm sóc sức khỏe. */
+export function ConsultationIcon({ className }: IconProps) {
+  return (
+    <StrokeIcon className={className}>
+      <path d="M5.5 5.5h13a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7L7 20v-3.5h-1.5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z" />
+      <path d="M12 8.5v5M9.5 11h5" />
     </StrokeIcon>
   )
 }

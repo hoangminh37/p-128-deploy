@@ -67,6 +67,10 @@ data/quarantine/*
 # Không commit: nó thuộc về máy đang chạy, không thuộc về mã nguồn. Bộ tài liệu
 # nền được duyệt qua Pull Request thì nằm ở data/registry.yaml và VẪN được commit.
 data/uploads.json
+# Danh mục bệnh BTV thêm lúc chạy; phải nằm trên persistent volume khi deploy,
+# không commit vào repository như registry nền.
+data/registry_runtime.yaml
+data/registry_runtime.yaml.lock
 *.db
 *.sqlite3
 !data/vectorstore/chroma.sqlite3
@@ -92,6 +96,7 @@ node_modules/
 .next/
 out/
 .nuxt/
+frontend/.local-certs/
 
 # Build
 *.pyc

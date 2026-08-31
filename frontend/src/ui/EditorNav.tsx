@@ -26,8 +26,11 @@ export function EditorNav({ onNavigate }: { onNavigate?: () => void }) {
 
   const items: NavItem[] = [
     { to: '/editor', label: 'Tổng quan', end: true },
+    { to: '/editor/conditions', label: 'Danh mục bệnh' },
+    { to: '/editor/doctors', label: 'Quản lý bác sỹ' },
     { to: '/editor/documents', label: 'Tài liệu nguồn' },
     { to: '/editor/queue', label: 'Hàng đợi duyệt', count: data?.pending_count },
+    { to: '/editor/patient-questions', label: 'Yêu cầu phản hồi', count: data?.patient_question_count },
     {
       to: '/editor/out-of-scope',
       label: 'Câu hỏi chưa trả lời được',

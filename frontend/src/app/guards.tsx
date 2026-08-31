@@ -83,6 +83,9 @@ export function LandingRedirect() {
   if (user.role === 'editor') {
     return <Navigate to="/editor" replace />
   }
+  if (user.role === 'doctor') {
+    return <Navigate to="/doctor" replace />
+  }
 
   if (profileState === 'loading') {
     // Màn này đứng NGOÀI khung ứng dụng (xem `RootRoute` ở `App.tsx`), nên nó

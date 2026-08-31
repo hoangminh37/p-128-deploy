@@ -26,14 +26,15 @@
 import { Link, useLocation } from 'react-router-dom'
 
 import { APP_NAME } from '../lib/appName'
-import { CONDITION_LABEL } from '../lib/conditions'
+import { conditionLabel } from '../lib/conditions'
 import { usePatient } from '../patient/context'
 import { useSession } from '../session/context'
 import { ConversationNav } from './ConversationNav'
 import { EditorNav } from './EditorNav'
-import { AppMark, CloseIcon, LibraryIcon, PlusIcon, QuizIcon, UserIcon } from './icons'
+import { AppMark, CloseIcon, ConsultationIcon, LibraryIcon, PlusIcon, QuizIcon, UserIcon } from './icons'
 import { SignOutButton } from './SignOutButton'
 import { useDailyLesson } from '../app/learning'
+import { useDoctorNotifications } from '../app/consultations'
 
 export function Sidebar({
   activeConversationId,
@@ -49,19 +50,22 @@ export function Sidebar({
   const { profile } = usePatient()
   const { user } = useSession()
   const { pathname } = useLocation()
+  const isPatient = user?.role === 'patient'
 
   // Lấy dữ liệu điểm số từ hook
-  const { data: lessonData } = useDailyLesson()
+  const { data: lessonData } = useDailyLesson(isPatient)
+  const notificationsQuery = useDoctorNotifications(user?.role === 'doctor')
+  const unreadNotifications = notificationsQuery.data?.unread_count ?? 0
 
   const isProfileOpen = pathname === '/profile'
   const isLearningOpen = pathname.startsWith('/learning')
+  const isConsultationsOpen = pathname.startsWith('/consultations')
   // startsWith chứ không phải ===, để /quiz/mistakes cũng sáng mục Trắc nghiệm.
   const isQuizOpen = pathname.startsWith('/quiz')
-  const isPatient = user?.role === 'patient'
 
   const profileSubline =
     profile !== null
-      ? `${CONDITION_LABEL[profile.primary_condition]} · ${profile.age} tuổi`
+      ? `${conditionLabel(profile.primary_condition, profile.primary_condition_label)} · ${profile.age} tuổi`
       : 'Chưa khai hồ sơ'
 
   return (
@@ -126,6 +130,19 @@ export function Sidebar({
             <QuizIcon className="h-5 w-5 shrink-0" />
             Test kiến thức
           </Link>
+
+          <Link
+            to="/consultations"
+            onClick={onNavigate}
+            aria-current={isConsultationsOpen ? 'page' : undefined}
+            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-pill px-cozy text-input font-semibold no-underline ${isConsultationsOpen
+                ? 'bg-white/10 text-white hover:bg-white/15'
+                : 'border-2 border-mist text-mist hover:bg-white/10 hover:text-white'
+              }`}
+          >
+            <ConsultationIcon className="h-5 w-5 shrink-0" />
+            Tư vấn với bác sỹ
+          </Link>
         </div>
       )}
 
@@ -135,8 +152,44 @@ export function Sidebar({
           activeConversationId={activeConversationId}
           onNavigate={onNavigate}
         />
-      ) : (
+      ) : user?.role === 'editor' ? (
         <EditorNav onNavigate={onNavigate} />
+      ) : (
+        <nav aria-label="Khu vực bác sỹ" className="min-h-0 flex-1 overflow-y-auto px-tight pt-snug">
+          <Link
+            to="/doctor"
+            onClick={onNavigate}
+            aria-current={pathname === '/doctor' ? 'page' : undefined}
+            className={`font-display flex min-h-touch items-center rounded-icon px-snug py-tight text-question no-underline ${pathname === '/doctor' ? 'bg-white/10 font-semibold text-white hover:bg-white/15' : 'text-mist hover:bg-white/10 hover:text-white'}`}
+          >
+            Tổng quan
+          </Link>
+          <Link
+            to="/doctor/notifications"
+            onClick={onNavigate}
+            aria-current={pathname.startsWith('/doctor/notifications') ? 'page' : undefined}
+            className={`font-display flex min-h-touch items-center rounded-icon px-snug py-tight text-question no-underline ${pathname.startsWith('/doctor/notifications') ? 'bg-white/10 font-semibold text-white hover:bg-white/15' : 'text-mist hover:bg-white/10 hover:text-white'}`}
+          >
+            <span className="min-w-0 flex-1">Thông báo</span>
+            {unreadNotifications > 0 && <span className="font-mono rounded-pill bg-mint px-snug py-hair text-question font-bold text-ink">{unreadNotifications}</span>}
+          </Link>
+          <Link
+            to="/doctor/consultations"
+            onClick={onNavigate}
+            aria-current={pathname.startsWith('/doctor/consultations') ? 'page' : undefined}
+            className={`font-display flex min-h-touch items-center rounded-icon px-snug py-tight text-question no-underline ${pathname.startsWith('/doctor/consultations') ? 'bg-white/10 font-semibold text-white hover:bg-white/15' : 'text-mist hover:bg-white/10 hover:text-white'}`}
+          >
+            Các phiên tư vấn
+          </Link>
+          <Link
+            to="/doctor/profile"
+            onClick={onNavigate}
+            aria-current={pathname.startsWith('/doctor/profile') ? 'page' : undefined}
+            className={`font-display flex min-h-touch items-center rounded-icon px-snug py-tight text-question no-underline ${pathname.startsWith('/doctor/profile') ? 'bg-white/10 font-semibold text-white hover:bg-white/15' : 'text-mist hover:bg-white/10 hover:text-white'}`}
+          >
+            Hồ sơ của tôi
+          </Link>
+        </nav>
       )}
 
       {/* ---- Khối hồ sơ và đăng xuất, ghim ở đáy ---- */}
@@ -178,7 +231,7 @@ export function Sidebar({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-question font-semibold text-white">
-                Biên tập viên y khoa
+                {user?.role === 'doctor' ? 'Bác sỹ tư vấn' : 'Biên tập viên y khoa'}
               </span>
               <span className="mt-hair block line-clamp-2 text-note text-mist">
                 {user?.email ?? ''}

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
 
 _DIAGNOSED_AT_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
@@ -16,7 +16,7 @@ class UserInfo(BaseModel):
 
     user_id: str
     email: EmailStr
-    role: Literal["patient", "editor"]
+    role: Literal["patient", "editor", "doctor"]
     # Chỉ có giá trị khi role là "patient". Với editor thì luôn None.
     patient_id: str | None = None
 
@@ -41,8 +41,11 @@ class PatientProfile(BaseModel):
 
     patient_id: str
     age: int = Field(..., ge=18, le=120)
-    primary_condition: Literal["type2_diabetes", "hypertension"]
-    comorbidities: list[Literal["type2_diabetes", "hypertension"]] = Field(default_factory=list)
+    # Condition IDs are validated against the active runtime registry by the
+    # patient endpoint. A Literal here would force a backend deploy whenever a
+    # BTV adds a disease through the editorial workflow.
+    primary_condition: str = Field(pattern=r"^[a-z][a-z0-9_]{1,63}$")
+    comorbidities: list[str] = Field(default_factory=list)
     diagnosed_at: str | None = None
     height_cm: int | None = Field(default=None, ge=100, le=250)
     weight_kg: float | None = Field(default=None, ge=25, le=300)
@@ -68,3 +71,34 @@ class PatientProfileResponse(PatientProfile):
     """Dùng cho response 200 của POST /patients/profile và GET /patients/{patient_id}/profile."""
 
     updated_at: str
+    # Nhãn là projection từ registry runtime, không ghi đè dữ liệu hồ sơ. Nhờ
+    # vậy frontend không phải giữ một bảng tên bệnh hardcode chỉ để render UI.
+    primary_condition_label: str | None = None
+    comorbidity_labels: dict[str, str] = Field(default_factory=dict)
+
+
+class PatientNotificationSchema(BaseModel):
+    notification_id: str
+    kind: Literal["editor_response"]
+    title: str
+    # The original question is part of the notification context, not a
+    # client-side lookup. It lets the patient safely identify what an editor
+    # response is addressing when several questions are waiting at once.
+    question: str | None = None
+    body: str
+    created_at: datetime
+    read_at: datetime | None = None
+
+    @field_serializer("created_at", "read_at", when_used="json")
+    def serialize_notification_datetime_as_utc(self, value: datetime | None) -> str | None:
+        """Keep the patient inbox contract timezone-aware for old SQLite rows."""
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+class PatientNotificationList(BaseModel):
+    notifications: list[PatientNotificationSchema] = Field(default_factory=list)
+    unread_count: int = Field(ge=0)

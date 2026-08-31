@@ -12,8 +12,8 @@ import { z } from 'zod'
 // Enum dùng chung
 // ---------------------------------------------------------------------------
 
-/** Mục 4: tập giá trị của `primary_condition` và `comorbidities`. */
-export const primaryConditionSchema = z.enum(['type2_diabetes', 'hypertension'])
+/** Condition IDs come from the active registry catalog, never a frontend enum. */
+export const primaryConditionSchema = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/)
 
 /** Mục 6: năm trạng thái quyết định cách frontend render câu trả lời. */
 export const chatStatusSchema = z.enum([
@@ -66,7 +66,7 @@ export const askingAsSchema = z.enum(['self', 'caregiver'])
  * chọn vai trò cũ đã bị bỏ hẳn: hỏi "bạn là ai" rồi tin luôn câu trả lời thì
  * bất kỳ ai cũng tự nhận là biên tập viên y khoa được.
  */
-export const userRoleSchema = z.enum(['patient', 'editor'])
+export const userRoleSchema = z.enum(['patient', 'editor', 'doctor'])
 
 /** Mục 3 — payload gửi lên POST /auth/login. */
 export const loginRequestSchema = z.object({
@@ -90,8 +90,8 @@ export const userInfoSchema = z
     role: userRoleSchema,
     patient_id: z.string().nullable(),
   })
-  .refine((value) => value.role !== 'editor' || value.patient_id === null, {
-    error: 'Tài khoản vai trò editor không được kèm patient_id.',
+  .refine((value) => value.role === 'patient' || value.patient_id === null, {
+    error: 'Tài khoản không phải bệnh nhân không được kèm patient_id.',
     path: ['patient_id'],
   })
   .refine((value) => value.role !== 'patient' || value.patient_id !== null, {
@@ -150,6 +150,183 @@ export const patientProfileSchema = z.object({
  */
 export const patientProfileResponseSchema = patientProfileSchema.extend({
   updated_at: z.iso.datetime({ offset: true }),
+  // Nhãn là dữ liệu đã resolve từ registry runtime. Optional để lịch sử cache
+  // từ phiên bản API cũ vẫn mở được trong lúc client đang nâng cấp.
+  primary_condition_label: z.string().nullable().optional(),
+  comorbidity_labels: z.record(z.string(), z.string()).optional(),
+})
+
+/** Inbox items belong to the logged-in patient; no patient ID travels in UI. */
+export const patientNotificationKindSchema = z.enum(['editor_response'])
+export const patientNotificationSchema = z.object({
+  notification_id: z.string(),
+  kind: patientNotificationKindSchema,
+  title: z.string(),
+  question: z.string().nullable(),
+  body: z.string(),
+  created_at: z.iso.datetime({ offset: true }),
+  read_at: z.iso.datetime({ offset: true }).nullable(),
+})
+export const patientNotificationListSchema = z.object({
+  notifications: z.array(patientNotificationSchema),
+  unread_count: z.number().int().min(0),
+})
+
+/** Bệnh đang có nguồn đã duyệt; dùng cho form hồ sơ bệnh nhân. */
+export const availableConditionSchema = z.object({
+  condition_id: primaryConditionSchema,
+  label_vi: z.string().min(2),
+  label_en: z.string().nullable(),
+})
+export const availableConditionListSchema = z.object({
+  conditions: z.array(availableConditionSchema),
+})
+
+// ---------------------------------------------------------------------------
+// Tư vấn bác sỹ
+// ---------------------------------------------------------------------------
+
+export const consultationStatusSchema = z.enum(['requested', 'active', 'ended'])
+export const videoCallStatusSchema = z.enum(['ringing', 'active', 'ended'])
+export const videoSignalKindSchema = z.enum(['offer', 'answer', 'candidate', 'hangup'])
+
+export const doctorSummarySchema = z.object({
+  doctor_id: z.string(),
+  display_name: z.string(),
+  specialty: z.string(),
+  bio: z.string().nullable(),
+  is_available: z.boolean(),
+})
+export const doctorPublicProfileSchema = doctorSummarySchema.extend({
+  license_number: z.string(),
+  clinic_name: z.string().nullable(),
+  experience_years: z.number().int().nullable(),
+  consultation_focus: z.string().nullable(),
+  is_verified: z.boolean(),
+  verified_at: z.string().nullable(),
+})
+export const doctorListSchema = z.object({ doctors: z.array(doctorPublicProfileSchema) })
+export const doctorOwnProfileSchema = doctorPublicProfileSchema.extend({
+  email: z.string(),
+  is_active: z.boolean(),
+})
+export const adminDoctorSchema = doctorPublicProfileSchema.extend({
+  email: z.string(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+export const adminDoctorListSchema = z.object({ doctors: z.array(adminDoctorSchema) })
+export const createDoctorRequestSchema = z.object({
+  email: z.email(),
+  temporary_password: z.string().min(8).max(256),
+  display_name: z.string().trim().min(2).max(120),
+  specialty: z.string().trim().min(2).max(120),
+  license_number: z.string().trim().min(3).max(80),
+  bio: z.string().trim().max(1000).nullable(),
+  clinic_name: z.string().trim().max(160).nullable(),
+  experience_years: z.number().int().min(0).max(80).nullable(),
+  consultation_focus: z.string().trim().max(1000).nullable(),
+  is_available: z.boolean(),
+})
+export const updateAdminDoctorRequestSchema = z.object({
+  email: z.email().optional(),
+  display_name: z.string().trim().min(2).max(120).optional(),
+  specialty: z.string().trim().min(2).max(120).optional(),
+  license_number: z.string().trim().min(3).max(80).optional(),
+  bio: z.string().trim().max(1000).nullable().optional(),
+  clinic_name: z.string().trim().max(160).nullable().optional(),
+  experience_years: z.number().int().min(0).max(80).nullable().optional(),
+  consultation_focus: z.string().trim().max(1000).nullable().optional(),
+  is_active: z.boolean().optional(),
+  is_available: z.boolean().optional(),
+})
+export const updateDoctorOwnProfileRequestSchema = z.object({
+  display_name: z.string().trim().min(2).max(120).optional(),
+  bio: z.string().trim().max(1000).nullable().optional(),
+  clinic_name: z.string().trim().max(160).nullable().optional(),
+  experience_years: z.number().int().min(0).max(80).nullable().optional(),
+  consultation_focus: z.string().trim().max(1000).nullable().optional(),
+  is_available: z.boolean().optional(),
+})
+export const consultationMessageSchema = z.object({
+  message_id: z.string(),
+  sender_role: z.enum(['patient', 'doctor']),
+  content: z.string(),
+  created_at: z.string(),
+})
+export const patientClinicalSummarySchema = z.object({
+  age: z.number().int(),
+  conditions: z.array(z.string()),
+  diagnosed_at: z.string().nullable(),
+})
+export const videoCallSummarySchema = z.object({
+  call_id: z.string(),
+  status: videoCallStatusSchema,
+  initiated_by_user_id: z.string(),
+  created_at: z.string(),
+})
+export const consultationSummarySchema = z.object({
+  consultation_id: z.string(),
+  status: consultationStatusSchema,
+  doctor: doctorSummarySchema,
+  requested_at: z.string(),
+  accepted_at: z.string().nullable(),
+  ended_at: z.string().nullable(),
+  last_message_at: z.string().nullable(),
+  last_message_preview: z.string().nullable(),
+})
+export const consultationListSchema = z.object({ consultations: z.array(consultationSummarySchema) })
+export const doctorDashboardSchema = z.object({
+  pending_consultation_count: z.number().int().nonnegative(),
+  active_consultation_count: z.number().int().nonnegative(),
+  unread_system_notification_count: z.number().int().nonnegative(),
+  unread_patient_message_count: z.number().int().nonnegative(),
+  is_active: z.boolean(),
+  is_available: z.boolean(),
+  recent_consultations: z.array(consultationSummarySchema),
+})
+export const consultationDetailSchema = consultationSummarySchema.extend({
+  patient_id: z.string(),
+  patient_context: patientClinicalSummarySchema.nullable(),
+  messages: z.array(consultationMessageSchema),
+  active_video_call: videoCallSummarySchema.nullable(),
+})
+export const createConsultationRequestSchema = z.object({
+  doctor_id: z.string().min(1).max(128),
+  // A doctor selection opens the protected room first. The patient can write
+  // the first message inside it, so an opening message is optional here.
+  initial_message: z.string().trim().max(4000).optional(),
+})
+export const sendConsultationMessageRequestSchema = z.object({
+  content: z.string().trim().min(1).max(4000),
+})
+export const videoCallStartSchema = videoCallSummarySchema.extend({
+  ice_servers: z.array(z.record(z.string(), z.unknown())),
+})
+export const videoSignalRequestSchema = z.object({
+  kind: videoSignalKindSchema,
+  payload: z.record(z.string(), z.unknown()),
+})
+export const videoSignalSchema = z.object({
+  signal_id: z.number().int().nonnegative(),
+  kind: videoSignalKindSchema,
+  payload: z.record(z.string(), z.unknown()),
+  created_at: z.string(),
+})
+export const videoSignalListSchema = z.object({ signals: z.array(videoSignalSchema) })
+export const doctorNotificationKindSchema = z.enum(['request', 'patient_message', 'video_call'])
+export const doctorNotificationSchema = z.object({
+  notification_id: z.string(),
+  consultation_id: z.string(),
+  kind: doctorNotificationKindSchema,
+  content_preview: z.string().nullable(),
+  created_at: z.string(),
+  read_at: z.string().nullable(),
+})
+export const doctorNotificationListSchema = z.object({
+  notifications: z.array(doctorNotificationSchema),
+  unread_count: z.number().int().nonnegative(),
 })
 
 // ---------------------------------------------------------------------------
@@ -418,6 +595,39 @@ export const editorItemOriginSchema = z.enum(['question_log', 'editor_upload'])
 export const editorDashboardSchema = z.object({
   pending_count: z.number().int().min(0),
   out_of_scope_count: z.number().int().min(0),
+  patient_question_count: z.number().int().min(0),
+})
+
+/** Danh mục bệnh runtime của BTV; không còn là danh sách hard-code ở frontend. */
+export const editorConditionOriginSchema = z.enum(['system', 'editor_runtime'])
+export const editorConditionStatusSchema = z.enum([
+  'waiting_for_sources',
+  'active',
+  'inactive',
+])
+export const editorConditionSchema = z.object({
+  condition_id: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/),
+  label_vi: z.string().min(2),
+  label_en: z.string().nullable(),
+  aliases: z.array(z.string()),
+  origin: editorConditionOriginSchema,
+  status: editorConditionStatusSchema,
+  source_document_count: z.number().int().min(0),
+  approved_source_count: z.number().int().min(0),
+  created_at: z.iso.datetime({ offset: true }).nullable(),
+  updated_at: z.iso.datetime({ offset: true }).nullable(),
+})
+export const editorConditionListSchema = z.object({
+  conditions: z.array(editorConditionSchema),
+})
+export const editorCreateConditionRequestSchema = z.object({
+  condition_id: z.string().min(2).max(64),
+  label_vi: z.string().min(2).max(120),
+  label_en: z.string().max(120).nullable().optional(),
+  aliases: z.array(z.string()).max(20).default([]),
+})
+export const editorConditionStatusRequestSchema = z.object({
+  status: z.enum(['active', 'inactive']),
 })
 
 /** Nguồn thật trong registry RAG, không phải một mục công việc ở editor queue. */
@@ -516,7 +726,7 @@ export const editorQueueItemDetailSchema = editorQueueItemSchema
     source_url: z.string().nullable(),
     issuer: z.string().nullable(),
     doc_code: z.string().nullable(),
-    conditions: z.array(primaryConditionSchema),
+    conditions: z.array(z.string()),
     review_note: z.string().nullable(),
     reject_reason: z.string().nullable(),
     reviewed_at: z.iso.datetime({ offset: true }).nullable(),
@@ -546,6 +756,17 @@ export const editorApproveRequestSchema = z.object({
   content: z.string().nullish(),
   /** Ghi chú của người duyệt. */
   note: z.string().nullish(),
+})
+
+/** Bản nháp từ câu hỏi thiếu tài liệu được lưu nguyên trạng, chưa đổi trạng thái. */
+export const editorDraftUpdateRequestSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  content: z.string(),
+  topics: z.array(z.string().trim().min(1).max(120)).max(20),
+  conditions: z.array(z.string().trim().min(1).max(64)).max(20),
+  source_url: z.string().trim().max(2000).nullable(),
+  issuer: z.string().trim().max(240).nullable(),
+  doc_code: z.string().trim().max(120).nullable(),
 })
 
 /**
@@ -605,6 +826,23 @@ export const outOfScopeListSchema = z.object({
   logs: z.array(outOfScopeLogSchema),
 })
 
+/** One patient request produced by a verified-RAG referral, for BTV only. */
+export const patientEditorialQuestionStatusSchema = z.enum(['pending', 'answered'])
+export const patientEditorialQuestionSchema = z.object({
+  request_id: z.string(),
+  question: z.string(),
+  status: patientEditorialQuestionStatusSchema,
+  created_at: z.iso.datetime({ offset: true }),
+  answer: z.string().nullable(),
+  answered_at: z.iso.datetime({ offset: true }).nullable(),
+})
+export const patientEditorialQuestionListSchema = z.object({
+  requests: z.array(patientEditorialQuestionSchema),
+})
+export const answerPatientEditorialQuestionRequestSchema = z.object({
+  answer: z.string().trim().min(1).max(4000),
+})
+
 // ---------------------------------------------------------------------------
 // Kiểu suy ra — component dùng những tên này, không cần biết tới Zod
 // ---------------------------------------------------------------------------
@@ -621,6 +859,38 @@ export type UserInfo = z.infer<typeof userInfoSchema>
 
 export type PatientProfile = z.infer<typeof patientProfileSchema>
 export type PatientProfileResponse = z.infer<typeof patientProfileResponseSchema>
+export type PatientNotification = z.infer<typeof patientNotificationSchema>
+export type PatientNotificationList = z.infer<typeof patientNotificationListSchema>
+export type AvailableCondition = z.infer<typeof availableConditionSchema>
+export type AvailableConditionList = z.infer<typeof availableConditionListSchema>
+export type ConsultationStatus = z.infer<typeof consultationStatusSchema>
+export type VideoCallStatus = z.infer<typeof videoCallStatusSchema>
+export type VideoSignalKind = z.infer<typeof videoSignalKindSchema>
+export type DoctorSummary = z.infer<typeof doctorSummarySchema>
+export type DoctorPublicProfile = z.infer<typeof doctorPublicProfileSchema>
+export type DoctorList = z.infer<typeof doctorListSchema>
+export type DoctorOwnProfile = z.infer<typeof doctorOwnProfileSchema>
+export type AdminDoctor = z.infer<typeof adminDoctorSchema>
+export type AdminDoctorList = z.infer<typeof adminDoctorListSchema>
+export type CreateDoctorRequest = z.infer<typeof createDoctorRequestSchema>
+export type UpdateAdminDoctorRequest = z.infer<typeof updateAdminDoctorRequestSchema>
+export type UpdateDoctorOwnProfileRequest = z.infer<typeof updateDoctorOwnProfileRequestSchema>
+export type ConsultationMessage = z.infer<typeof consultationMessageSchema>
+export type PatientClinicalSummary = z.infer<typeof patientClinicalSummarySchema>
+export type VideoCallSummary = z.infer<typeof videoCallSummarySchema>
+export type ConsultationSummary = z.infer<typeof consultationSummarySchema>
+export type ConsultationList = z.infer<typeof consultationListSchema>
+export type DoctorDashboard = z.infer<typeof doctorDashboardSchema>
+export type ConsultationDetail = z.infer<typeof consultationDetailSchema>
+export type CreateConsultationRequest = z.infer<typeof createConsultationRequestSchema>
+export type SendConsultationMessageRequest = z.infer<typeof sendConsultationMessageRequestSchema>
+export type VideoCallStart = z.infer<typeof videoCallStartSchema>
+export type VideoSignalRequest = z.infer<typeof videoSignalRequestSchema>
+export type VideoSignal = z.infer<typeof videoSignalSchema>
+export type VideoSignalList = z.infer<typeof videoSignalListSchema>
+export type DoctorNotificationKind = z.infer<typeof doctorNotificationKindSchema>
+export type DoctorNotification = z.infer<typeof doctorNotificationSchema>
+export type DoctorNotificationList = z.infer<typeof doctorNotificationListSchema>
 export type Citation = z.infer<typeof citationSchema>
 export type SourceDocument = z.infer<typeof sourceDocumentSchema>
 export type SourceDocumentChunk = z.infer<typeof sourceDocumentChunkSchema>
@@ -639,6 +909,12 @@ export type ConversationDetail = z.infer<typeof conversationDetailSchema>
 export type EditorItemStatus = z.infer<typeof editorItemStatusSchema>
 export type EditorItemOrigin = z.infer<typeof editorItemOriginSchema>
 export type EditorDashboard = z.infer<typeof editorDashboardSchema>
+export type EditorConditionOrigin = z.infer<typeof editorConditionOriginSchema>
+export type EditorConditionStatus = z.infer<typeof editorConditionStatusSchema>
+export type EditorCondition = z.infer<typeof editorConditionSchema>
+export type EditorConditionList = z.infer<typeof editorConditionListSchema>
+export type EditorCreateConditionRequest = z.infer<typeof editorCreateConditionRequestSchema>
+export type EditorConditionStatusRequest = z.infer<typeof editorConditionStatusRequestSchema>
 export type EditorSourceOrigin = z.infer<typeof editorSourceOriginSchema>
 export type EditorSourceApprovalStatus = z.infer<typeof editorSourceApprovalStatusSchema>
 export type EditorSourceIndexStatus = z.infer<typeof editorSourceIndexStatusSchema>
@@ -651,8 +927,13 @@ export type EditorQueueItemDetail = z.infer<typeof editorQueueItemDetailSchema>
 export type EditorApproveRequest = z.infer<typeof editorApproveRequestSchema>
 export type EditorRejectRequest = z.infer<typeof editorRejectRequestSchema>
 export type CreateDraftRequest = z.infer<typeof createDraftRequestSchema>
+export type EditorDraftUpdateRequest = z.infer<typeof editorDraftUpdateRequestSchema>
 export type OutOfScopeLog = z.infer<typeof outOfScopeLogSchema>
 export type OutOfScopeList = z.infer<typeof outOfScopeListSchema>
+export type PatientEditorialQuestion = z.infer<typeof patientEditorialQuestionSchema>
+export type PatientEditorialQuestionList = z.infer<typeof patientEditorialQuestionListSchema>
+export type PatientEditorialQuestionStatus = z.infer<typeof patientEditorialQuestionStatusSchema>
+export type AnswerPatientEditorialQuestionRequest = z.infer<typeof answerPatientEditorialQuestionRequestSchema>
 
 // ---------------------------------------------------------------------------
 // Gamification & Learning

@@ -7,10 +7,11 @@ export const learningKeys = {
   library: () => [...learningKeys.all, 'library'] as const,
 }
 
-export function useDailyLesson() {
+export function useDailyLesson(enabled = true) {
   return useQuery<DailyLessonResponse, Error>({
     queryKey: learningKeys.dailyLesson(),
     queryFn: getDailyLesson,
+    enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
