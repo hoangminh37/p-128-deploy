@@ -17,6 +17,7 @@ from src.core.logging import get_logger
 from src.models.domain import Conversation, Message, Patient
 from src.schemas.chat import ChatRequest, ChatResponse
 from src.schemas.patient import UserInfo
+from src.services.editorial_questions import record_unanswered_patient_question
 from src.services.routine_memory import load_routine_memory, record_routine_updates
 
 router = APIRouter()
@@ -67,6 +68,46 @@ async def _load_conversation_history(
     )
     messages = list(reversed(messages_result.scalars().all()))
     return [{"role": message.role, "content": message.content} for message in messages]
+
+
+async def _queue_editorial_follow_up_if_needed(
+    db: AsyncSession,
+    *,
+    current_user: UserInfo,
+    patient_id: str,
+    conversation_id: str,
+    query: str,
+    agent_state: dict,
+) -> None:
+    """Create BTV work only for a patient's verified-RAG referral.
+
+    Safety refusals, emergencies, greetings, and generic off-topic requests do
+    not become editorial work. A referral caused by an infrastructure failure
+    is also *not* editorial work: the editor cannot fix a retrieval timeout by
+    writing a patient response. Only a completed retrieval (``status=ok``)
+    may indicate a genuine gap in the approved library.
+    """
+    if current_user.role != "patient" or current_user.patient_id != patient_id:
+        return
+    if agent_state.get("intent") != "doctor_referral":
+        return
+
+    metadata = agent_state.get("metadata")
+    retrieval_context = metadata.get("retrieval_context") if isinstance(metadata, dict) else None
+    retrieval_status = retrieval_context.get("status") if isinstance(retrieval_context, dict) else None
+    if retrieval_status != "ok":
+        logger.info(
+            "[editorial_follow_up] skipping non-content referral | retrieval_status=%s",
+            retrieval_status or "missing",
+        )
+        return
+
+    await record_unanswered_patient_question(
+        db,
+        patient_id=patient_id,
+        conversation_id=conversation_id,
+        question=query,
+    )
 
 
 # ── POST /chat — synchronous (dùng để test, không streaming) ─────────────────
@@ -262,6 +303,15 @@ async def chat(
             meta_data=result.get("metadata", {}),
         )
         db.add(assistant_msg)
+
+        await _queue_editorial_follow_up_if_needed(
+            db,
+            current_user=current_user,
+            patient_id=request.patient_id,
+            conversation_id=conversation_id,
+            query=request.query,
+            agent_state=result,
+        )
 
         await db.commit()
 
@@ -498,6 +548,15 @@ async def chat_stream(
                 patient_id=request.patient_id,
                 raw_updates=final_state.get("routine_updates", []),
                 source_text=request.query,
+            )
+
+            await _queue_editorial_follow_up_if_needed(
+                db,
+                current_user=current_user,
+                patient_id=request.patient_id,
+                conversation_id=conversation_id,
+                query=request.query,
+                agent_state=final_state,
             )
 
             await db.commit()

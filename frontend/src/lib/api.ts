@@ -11,41 +11,81 @@ import { z } from 'zod'
 import {
   chatRequestSchema,
   chatResponseSchema,
+  consultationDetailSchema,
+  consultationListSchema,
+  consultationMessageSchema,
   conversationDetailSchema,
   conversationListSchema,
   editorApproveRequestSchema,
+  editorDraftUpdateRequestSchema,
+  editorConditionListSchema,
+  editorConditionSchema,
+  editorConditionStatusRequestSchema,
+  editorCreateConditionRequestSchema,
   editorDashboardSchema,
   editorSourceDocumentListSchema,
   editorQueueItemDetailSchema,
   editorQueueListSchema,
   editorRejectRequestSchema,
+  patientEditorialQuestionListSchema,
+  patientEditorialQuestionSchema,
+  answerPatientEditorialQuestionRequestSchema,
   loginRequestSchema,
   loginResponseSchema,
   outOfScopeListSchema,
   patientProfileResponseSchema,
   patientProfileSchema,
+  patientNotificationListSchema,
+  patientNotificationSchema,
   dailyLessonResponseSchema,
   completeLessonResponseSchema,
+  createConsultationRequestSchema,
+  createDoctorRequestSchema,
   annotationsEventSchema,
+  availableConditionListSchema,
+  adminDoctorListSchema,
+  adminDoctorSchema,
+  doctorListSchema,
+  doctorDashboardSchema,
+  doctorNotificationListSchema,
+  doctorNotificationSchema,
+  doctorOwnProfileSchema,
+  doctorPublicProfileSchema,
   type ChatRequest,
   type ChatResponse,
+  type ConsultationDetail,
+  type ConsultationList,
+  type ConsultationMessage,
   type ConversationDetail,
   type ConversationList,
   type EditorApproveRequest,
+  type EditorDraftUpdateRequest,
+  type EditorCondition,
+  type EditorConditionList,
+  type EditorConditionStatusRequest,
+  type EditorCreateConditionRequest,
   type EditorDashboard,
   type EditorItemStatus,
   type EditorQueueItemDetail,
   type EditorQueueList,
   type EditorRejectRequest,
   type EditorSourceDocumentList,
+  type PatientEditorialQuestionList,
+  type PatientEditorialQuestion,
+  type PatientEditorialQuestionStatus,
+  type AnswerPatientEditorialQuestionRequest,
   type LoginRequest,
   type LoginResponse,
   type OutOfScopeList,
   type PatientProfileResponse,
+  type PatientNotification,
+  type PatientNotificationList,
   type DailyLessonResponse,
   type LearningLibraryResponse,
   type CompleteLessonRequest,
   type CompleteLessonResponse,
+  type CreateConsultationRequest,
+  type CreateDoctorRequest,
   learningLibraryResponseSchema,
   quizResponseSchema,
   quizSubmitResponseSchema,
@@ -53,6 +93,15 @@ import {
   quizMistakesResponseSchema,
   sourceDocumentSchema,
   type AnnotationsEvent,
+  type AvailableConditionList,
+  type AdminDoctor,
+  type AdminDoctorList,
+  type DoctorList,
+  type DoctorDashboard,
+  type DoctorNotification,
+  type DoctorNotificationList,
+  type DoctorOwnProfile,
+  type DoctorPublicProfile,
   type QuizMistakesResponse,
   type QuizRequest as QuizRequestPayload,
   type QuizResponse,
@@ -60,6 +109,20 @@ import {
   type QuizSubmitResponse,
   type QuizHistoryResponse,
   type SourceDocument,
+  type SendConsultationMessageRequest,
+  type UpdateAdminDoctorRequest,
+  type UpdateDoctorOwnProfileRequest,
+  type VideoCallStart,
+  type VideoSignal,
+  type VideoSignalList,
+  type VideoSignalRequest,
+  sendConsultationMessageRequestSchema,
+  updateAdminDoctorRequestSchema,
+  updateDoctorOwnProfileRequestSchema,
+  videoCallStartSchema,
+  videoSignalSchema,
+  videoSignalListSchema,
+  videoSignalRequestSchema,
   voiceSpeechRequestSchema,
   voiceTranscriptionSchema,
   type VoiceSpeechRequest,
@@ -247,7 +310,7 @@ async function readErrorDetail(response: Response): Promise<string | undefined> 
  */
 async function sendRequest(options: {
   path: string
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'PATCH'
   body?: unknown
   /**
    * Bỏ qua việc xử lý 401 dùng chung.
@@ -319,7 +382,7 @@ async function sendRequest(options: {
  */
 async function request<S extends z.ZodType>(options: {
   path: string
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'PATCH'
   schema: S
   body?: unknown
   skipUnauthorizedHandler?: boolean
@@ -370,7 +433,7 @@ async function request<S extends z.ZodType>(options: {
 /** Gọi một endpoint không trả body, ví dụ 204 của `/auth/logout`. */
 async function requestNoContent(options: {
   path: string
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'PATCH'
   body?: unknown
 }): Promise<void> {
   await sendRequest(options)
@@ -775,6 +838,23 @@ export function getPatientProfile(patientId: string): Promise<PatientProfileResp
   })
 }
 
+/** Private notification inbox of the authenticated patient. */
+export function listPatientNotifications(): Promise<PatientNotificationList> {
+  return request({
+    path: '/patients/notifications',
+    method: 'GET',
+    schema: patientNotificationListSchema,
+  })
+}
+
+export function markPatientNotificationRead(notificationId: string): Promise<PatientNotification> {
+  return request({
+    path: `/patients/notifications/${encodeURIComponent(notificationId)}/read`,
+    method: 'POST',
+    schema: patientNotificationSchema,
+  })
+}
+
 /** Mở tài liệu đã duyệt và đánh dấu đúng chunk được citation trỏ tới. */
 export function getSourceDocument(documentId: string, chunkId: string): Promise<SourceDocument> {
   const params = new URLSearchParams({ chunk_id: chunkId })
@@ -803,6 +883,218 @@ export function getConversationDetail(
     path: `/conversations/${encodeURIComponent(patientId)}/${encodeURIComponent(conversationId)}`,
     method: 'GET',
     schema: conversationDetailSchema,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Tư vấn bác sỹ
+// ---------------------------------------------------------------------------
+
+/** Danh sách bác sỹ đang được BTV bật nhận tư vấn. */
+export function listAvailableDoctors(): Promise<DoctorList> {
+  return request({ path: '/consultations/doctors', method: 'GET', schema: doctorListSchema })
+}
+
+/** Full verified professional profile before a patient selects a doctor. */
+export function getDoctorPublicProfile(doctorId: string): Promise<DoctorPublicProfile> {
+  return request({
+    path: `/consultations/doctors/${encodeURIComponent(doctorId)}`,
+    method: 'GET',
+    schema: doctorPublicProfileSchema,
+  })
+}
+
+/** Danh sách phiên tư vấn của đúng tài khoản đang đăng nhập. */
+export function listConsultations(): Promise<ConsultationList> {
+  return request({ path: '/consultations', method: 'GET', schema: consultationListSchema })
+}
+
+/** Nội dung chat và trạng thái video của một phiên được xác thực. */
+export function getConsultation(consultationId: string): Promise<ConsultationDetail> {
+  return request({
+    path: `/consultations/${encodeURIComponent(consultationId)}`,
+    method: 'GET',
+    schema: consultationDetailSchema,
+  })
+}
+
+export async function createConsultation(
+  payload: CreateConsultationRequest,
+): Promise<ConsultationDetail> {
+  assertValidRequestBody(createConsultationRequestSchema, payload, 'POST /consultations')
+  return request({ path: '/consultations', method: 'POST', schema: consultationDetailSchema, body: payload })
+}
+
+export function acceptConsultation(consultationId: string): Promise<ConsultationDetail> {
+  return request({
+    path: `/consultations/${encodeURIComponent(consultationId)}/accept`,
+    method: 'POST',
+    schema: consultationDetailSchema,
+  })
+}
+
+export function endConsultation(consultationId: string): Promise<ConsultationDetail> {
+  return request({
+    path: `/consultations/${encodeURIComponent(consultationId)}/end`,
+    method: 'POST',
+    schema: consultationDetailSchema,
+  })
+}
+
+export async function sendConsultationMessage(
+  consultationId: string,
+  payload: SendConsultationMessageRequest,
+): Promise<ConsultationMessage> {
+  assertValidRequestBody(
+    sendConsultationMessageRequestSchema,
+    payload,
+    `POST /consultations/${consultationId}/messages`,
+  )
+  return request({
+    path: `/consultations/${encodeURIComponent(consultationId)}/messages`,
+    method: 'POST',
+    schema: consultationMessageSchema,
+    body: payload,
+  })
+}
+
+export function startVideoCall(consultationId: string): Promise<VideoCallStart> {
+  return request({
+    path: `/consultations/${encodeURIComponent(consultationId)}/calls`,
+    method: 'POST',
+    schema: videoCallStartSchema,
+  })
+}
+
+export function joinVideoCall(
+  consultationId: string,
+  callId: string,
+): Promise<VideoCallStart> {
+  return request({
+    path: `/consultations/${encodeURIComponent(consultationId)}/calls/${encodeURIComponent(callId)}/join`,
+    method: 'POST',
+    schema: videoCallStartSchema,
+  })
+}
+
+export async function postVideoSignal(
+  consultationId: string,
+  callId: string,
+  payload: VideoSignalRequest,
+): Promise<VideoSignal> {
+  assertValidRequestBody(
+    videoSignalRequestSchema,
+    payload,
+    `POST /consultations/${consultationId}/calls/${callId}/signals`,
+  )
+  return request({
+    path: `/consultations/${encodeURIComponent(consultationId)}/calls/${encodeURIComponent(callId)}/signals`,
+    method: 'POST',
+    schema: videoSignalSchema,
+    body: payload,
+  })
+}
+
+export function getVideoSignals(
+  consultationId: string,
+  callId: string,
+  afterId: number,
+): Promise<VideoSignalList> {
+  return request({
+    path: `/consultations/${encodeURIComponent(consultationId)}/calls/${encodeURIComponent(callId)}/signals?after_id=${afterId}`,
+    method: 'GET',
+    schema: videoSignalListSchema,
+  })
+}
+
+export function endVideoCall(consultationId: string, callId: string): Promise<void> {
+  return requestNoContent({
+    path: `/consultations/${encodeURIComponent(consultationId)}/calls/${encodeURIComponent(callId)}/end`,
+    method: 'POST',
+  })
+}
+
+/** BTV quản lý tài khoản và khả năng nhận tư vấn của bác sỹ. */
+export function listAdminDoctors(): Promise<AdminDoctorList> {
+  return request({ path: '/consultations/admin/doctors', method: 'GET', schema: adminDoctorListSchema })
+}
+
+/** In-app alerts emitted by actions from the doctor's own patients. */
+export function listDoctorNotifications(): Promise<DoctorNotificationList> {
+  return request({
+    path: '/consultations/notifications',
+    method: 'GET',
+    schema: doctorNotificationListSchema,
+  })
+}
+
+/** The signed-in doctor's profile, including only their own account state. */
+export function getOwnDoctorProfile(): Promise<DoctorOwnProfile> {
+  return request({
+    path: '/consultations/me/profile',
+    method: 'GET',
+    schema: doctorOwnProfileSchema,
+  })
+}
+
+/** Aggregated operational counts for the signed-in doctor's home screen. */
+export function getDoctorDashboard(): Promise<DoctorDashboard> {
+  return request({
+    path: '/consultations/dashboard',
+    method: 'GET',
+    schema: doctorDashboardSchema,
+  })
+}
+
+/** Update patient-facing profile information without changing BTV-verified data. */
+export async function updateOwnDoctorProfile(
+  payload: UpdateDoctorOwnProfileRequest,
+): Promise<DoctorOwnProfile> {
+  assertValidRequestBody(
+    updateDoctorOwnProfileRequestSchema,
+    payload,
+    'PATCH /consultations/me/profile',
+  )
+  return request({
+    path: '/consultations/me/profile',
+    method: 'PATCH',
+    schema: doctorOwnProfileSchema,
+    body: payload,
+  })
+}
+
+export function markDoctorNotificationRead(notificationId: string): Promise<DoctorNotification> {
+  return request({
+    path: `/consultations/notifications/${encodeURIComponent(notificationId)}/read`,
+    method: 'POST',
+    schema: doctorNotificationSchema,
+  })
+}
+
+export async function createDoctor(payload: CreateDoctorRequest): Promise<AdminDoctor> {
+  assertValidRequestBody(createDoctorRequestSchema, payload, 'POST /consultations/admin/doctors')
+  return request({
+    path: '/consultations/admin/doctors',
+    method: 'POST',
+    schema: adminDoctorSchema,
+    body: payload,
+  })
+}
+
+export async function updateAdminDoctor(
+  doctorId: string,
+  payload: UpdateAdminDoctorRequest,
+): Promise<AdminDoctor> {
+  assertValidRequestBody(
+    updateAdminDoctorRequestSchema,
+    payload,
+    `PATCH /consultations/admin/doctors/${doctorId}`,
+  )
+  return request({
+    path: `/consultations/admin/doctors/${encodeURIComponent(doctorId)}`,
+    method: 'PATCH',
+    schema: adminDoctorSchema,
+    body: payload,
   })
 }
 
@@ -922,6 +1214,46 @@ export function getEditorDashboard(): Promise<EditorDashboard> {
   })
 }
 
+/** Danh mục bệnh thật do registry nền và runtime YAML hợp thành. */
+export function listEditorConditions(): Promise<EditorConditionList> {
+  return request({
+    path: '/editor/conditions',
+    method: 'GET',
+    schema: editorConditionListSchema,
+  })
+}
+
+/** Tạo một bệnh ở trạng thái chờ nguồn; thao tác này không tự đưa gì vào RAG. */
+export async function createEditorCondition(
+  payload: EditorCreateConditionRequest,
+): Promise<EditorCondition> {
+  assertValidRequestBody(editorCreateConditionRequestSchema, payload, 'POST /editor/conditions')
+  return request({
+    path: '/editor/conditions',
+    method: 'POST',
+    schema: editorConditionSchema,
+    body: payload,
+  })
+}
+
+/** Tạm ngừng hoặc bật lại một bệnh runtime đã có nguồn index thành công. */
+export async function updateEditorConditionStatus(
+  conditionId: string,
+  payload: EditorConditionStatusRequest,
+): Promise<EditorCondition> {
+  assertValidRequestBody(
+    editorConditionStatusRequestSchema,
+    payload,
+    `POST /editor/conditions/${conditionId}/status`,
+  )
+  return request({
+    path: `/editor/conditions/${encodeURIComponent(conditionId)}/status`,
+    method: 'POST',
+    schema: editorConditionSchema,
+    body: payload,
+  })
+}
+
 /** Danh sách nguồn thật trong registry RAG, kèm trạng thái duyệt và index. */
 export function listEditorSourceDocuments(): Promise<EditorSourceDocumentList> {
   return request({
@@ -1004,6 +1336,24 @@ export async function approveEditorQueueItem(
   })
 }
 
+/** Lưu bản nháp đang soạn, không đổi nó sang trạng thái duyệt. */
+export async function updateEditorQueueDraft(
+  itemId: string,
+  payload: EditorDraftUpdateRequest,
+): Promise<EditorQueueItemDetail> {
+  assertValidRequestBody(
+    editorDraftUpdateRequestSchema,
+    payload,
+    `PATCH /editor/queue/${itemId}/draft`,
+  )
+  return request({
+    path: `/editor/queue/${encodeURIComponent(itemId)}/draft`,
+    method: 'PATCH',
+    schema: editorQueueItemDetailSchema,
+    body: payload,
+  })
+}
+
 /**
  * Mục 8 — từ chối một mục. `reason` bắt buộc, schema chặn cả chuỗi toàn khoảng
  * trắng ngay tại client nên không tốn một vòng request để nhận về 422.
@@ -1058,6 +1408,35 @@ export function createDraftFromLog(logId: string): Promise<EditorQueueItemDetail
   })
 }
 
+/** Individual RAG-referral requests that need a BTV response. */
+export function listPatientEditorialQuestions(
+  status?: PatientEditorialQuestionStatus,
+): Promise<PatientEditorialQuestionList> {
+  const query = status === undefined ? '' : `?status=${encodeURIComponent(status)}`
+  return request({
+    path: `/editor/patient-questions${query}`,
+    method: 'GET',
+    schema: patientEditorialQuestionListSchema,
+  })
+}
+
+export async function answerPatientEditorialQuestion(
+  requestId: string,
+  payload: AnswerPatientEditorialQuestionRequest,
+): Promise<PatientEditorialQuestion> {
+  assertValidRequestBody(
+    answerPatientEditorialQuestionRequestSchema,
+    payload,
+    `POST /editor/patient-questions/${requestId}/answer`,
+  )
+  return request({
+    path: `/editor/patient-questions/${encodeURIComponent(requestId)}/answer`,
+    method: 'POST',
+    schema: patientEditorialQuestionSchema,
+    body: payload,
+  })
+}
+
 /**
  * Mục 8 — Upload PDF tài liệu y khoa.
  * Do UploadFile dùng FormData nên chúng ta gửi qua một hàm fetch riêng, không dùng request()
@@ -1104,6 +1483,15 @@ export async function uploadDocument(formData: FormData): Promise<EditorQueueIte
 // ---------------------------------------------------------------------------
 // Gamification & Learning (Bệnh nhân)
 // ---------------------------------------------------------------------------
+
+/** Danh mục bệnh active có nguồn đã duyệt, dùng để khai hồ sơ. */
+export function listAvailableConditions(): Promise<AvailableConditionList> {
+  return request({
+    path: '/conditions',
+    method: 'GET',
+    schema: availableConditionListSchema,
+  })
+}
 
 export function getDailyLesson(): Promise<DailyLessonResponse> {
   return request({

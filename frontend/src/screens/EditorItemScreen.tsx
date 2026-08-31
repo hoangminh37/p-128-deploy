@@ -16,9 +16,9 @@ import { useEffect, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
-import { useEditorQueueItem, useInvalidateEditorData } from '../app/editor'
-import { approveEditorQueueItem, rejectEditorQueueItem, retryEditorSourceIndex } from '../lib/api'
-import { CONDITION_LABEL } from '../lib/conditions'
+import { useEditorConditions, useEditorQueueItem, useInvalidateEditorData } from '../app/editor'
+import { approveEditorQueueItem, rejectEditorQueueItem, retryEditorSourceIndex, updateEditorQueueDraft } from '../lib/api'
+import { conditionLabel } from '../lib/conditions'
 import { formatDateTime } from '../lib/datetime'
 import { STATUS_LABEL } from '../lib/editorLabels'
 import type { EditorQueueItemDetail } from '../lib/schemas'
@@ -31,6 +31,27 @@ const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-body
  * 1.4.11 — `line` KHÔNG dùng được ở đây, xem cảnh báo trong `index.css`. */
 const FIELD_TEXTAREA_CLASS =
   'font-body mt-snug w-full rounded-card border-2 border-slate bg-surface p-snug text-body'
+
+const FIELD_INPUT_CLASS =
+  'font-body mt-snug w-full rounded-card border-2 border-slate bg-surface px-snug py-tight text-input text-body'
+
+function normalizedTopics(value: string): string[] {
+  const topics: string[] = []
+  for (const rawTopic of value.split(',')) {
+    const topic = rawTopic.trim()
+    if (topic !== '' && !topics.includes(topic)) topics.push(topic)
+  }
+  return topics
+}
+
+function optionalValue(value: string): string | null {
+  const normalized = value.trim()
+  return normalized === '' ? null : normalized
+}
+
+function sameValues(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
 
 /** Một dòng siêu dữ liệu. Nhãn và giá trị xếp dọc để không vỡ trên màn hẹp. */
 function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -45,13 +66,21 @@ function MetaRow({ label, children }: { label: string; children: React.ReactNode
 function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged: () => void }) {
   const navigate = useNavigate()
   const invalidateEditorData = useInvalidateEditorData()
+  const conditionsQuery = useEditorConditions()
 
+  const [title, setTitle] = useState(item.title)
   const [content, setContent] = useState(item.content)
+  const [topicsInput, setTopicsInput] = useState(item.topics.join(', '))
+  const [conditions, setConditions] = useState(item.conditions)
+  const [sourceUrl, setSourceUrl] = useState(item.source_url ?? '')
+  const [issuer, setIssuer] = useState(item.issuer ?? '')
+  const [docCode, setDocCode] = useState(item.doc_code ?? '')
   const [note, setNote] = useState('')
   const [isRejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
 
   const isSourceUpload = item.origin === 'editor_upload'
+  const isDraft = item.status === 'draft'
   const isIndexing = item.status === 'indexing'
   const isFailed = item.status === 'failed'
 
@@ -84,10 +113,51 @@ function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged:
     onSuccess: refreshSourceJob,
   })
 
+  const saveDraft = useMutation({
+    mutationFn: () => updateEditorQueueDraft(item.item_id, {
+      title,
+      content,
+      topics: normalizedTopics(topicsInput),
+      conditions,
+      source_url: optionalValue(sourceUrl),
+      issuer: optionalValue(issuer),
+      doc_code: optionalValue(docCode),
+    }),
+    onSuccess: (updated) => {
+      // The API trims/deduplicates these fields. Adopt its canonical result so
+      // the form immediately knows this working copy has been saved.
+      setTitle(updated.title)
+      setContent(updated.content)
+      setTopicsInput(updated.topics.join(', '))
+      setConditions(updated.conditions)
+      setSourceUrl(updated.source_url ?? '')
+      setIssuer(updated.issuer ?? '')
+      setDocCode(updated.doc_code ?? '')
+      onChanged()
+    },
+  })
+
   const isSettled = item.status === 'approved' || item.status === 'rejected'
-  const hasConditions = item.conditions.length > 0
-  const isBusy = approve.isPending || reject.isPending || retryIndex.isPending
-  const canApprove = hasConditions && !isBusy && !isIndexing && !isFailed
+  const hasConditions = conditions.length > 0
+  const availableConditions = (conditionsQuery.data?.conditions ?? []).filter(
+    (condition) => condition.status === 'active' || conditions.includes(condition.condition_id),
+  )
+  const draftHasUnsavedChanges = isDraft && (
+    title.trim() !== item.title ||
+    content !== item.content ||
+    !sameValues(normalizedTopics(topicsInput), item.topics) ||
+    !sameValues(conditions, item.conditions) ||
+    optionalValue(sourceUrl) !== item.source_url ||
+    optionalValue(issuer) !== item.issuer ||
+    optionalValue(docCode) !== item.doc_code
+  )
+  const isBusy = approve.isPending || reject.isPending || retryIndex.isPending || saveDraft.isPending
+  const canApprove = hasConditions &&
+    (item.origin !== 'question_log' || content.trim() !== '') &&
+    !draftHasUnsavedChanges &&
+    !isBusy &&
+    !isIndexing &&
+    !isFailed
   const canSendRejection = reason.trim() !== '' && !isBusy
 
   return (
@@ -99,7 +169,9 @@ function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged:
         Về hàng đợi
       </Link>
 
-      <h1 className="mt-snug text-ask font-semibold text-body">{item.title}</h1>
+      <h1 className="mt-snug text-ask font-semibold text-body">
+        {isDraft ? 'Soạn bản nháp' : item.title}
+      </h1>
 
       <div className="mt-snug flex flex-wrap items-center gap-tight">
         <OriginBadge origin={item.origin} />
@@ -108,23 +180,33 @@ function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged:
             một dòng chữ mono lọt thỏm trong bảng siêu dữ liệu bên dưới. Đây là
             thứ người duyệt đối chiếu với bản gốc, nên nó phải nằm trong tầm mắt
             cùng lúc với tên mục. */}
-        {item.doc_code !== null && (
+        {(isDraft ? optionalValue(docCode) : item.doc_code) !== null && (
           <span className="font-mono rounded-pill bg-canvas px-snug py-hair text-question text-body">
-            {item.doc_code}
+            {isDraft ? optionalValue(docCode) : item.doc_code}
           </span>
         )}
       </div>
 
-      {item.topics.length > 0 && (
+      {(isDraft ? normalizedTopics(topicsInput) : item.topics).length > 0 && (
         <div className="mt-snug">
-          <TopicTags topics={item.topics} />
+          <TopicTags topics={isDraft ? normalizedTopics(topicsInput) : item.topics} />
         </div>
       )}
 
       {/* ---- Siêu dữ liệu ---- */}
       <dl className="mt-block space-y-snug">
         <MetaRow label="Tài liệu nguồn">
-          {item.source_url !== null ? (
+          {isDraft ? (
+            <input
+              type="url"
+              value={sourceUrl}
+              onChange={(event) => setSourceUrl(event.target.value)}
+              placeholder="Dán liên kết tài liệu nguồn"
+              aria-label="Tài liệu nguồn"
+              maxLength={2_000}
+              className={FIELD_INPUT_CLASS}
+            />
+          ) : item.source_url !== null ? (
             <a
               href={item.source_url}
               target="_blank"
@@ -139,11 +221,29 @@ function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged:
         </MetaRow>
 
         <MetaRow label="Cơ quan ban hành">
-          {item.issuer ?? <span className="text-slate">Chưa có</span>}
+          {isDraft ? (
+            <input
+              value={issuer}
+              onChange={(event) => setIssuer(event.target.value)}
+              placeholder="Ví dụ: Bộ Y tế"
+              aria-label="Cơ quan ban hành"
+              maxLength={240}
+              className={FIELD_INPUT_CLASS}
+            />
+          ) : item.issuer ?? <span className="text-slate">Chưa có</span>}
         </MetaRow>
 
         <MetaRow label="Số hiệu văn bản">
-          {item.doc_code !== null ? (
+          {isDraft ? (
+            <input
+              value={docCode}
+              onChange={(event) => setDocCode(event.target.value)}
+              placeholder="Ví dụ: 5481/QĐ-BYT"
+              aria-label="Số hiệu văn bản"
+              maxLength={120}
+              className={`${FIELD_INPUT_CLASS} font-mono`}
+            />
+          ) : item.doc_code !== null ? (
             <span className="font-mono">{item.doc_code}</span>
           ) : (
             <span className="text-slate">Chưa có</span>
@@ -151,7 +251,18 @@ function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged:
         </MetaRow>
 
         <MetaRow label="Thẻ chủ đề">
-          {item.topics.length > 0 ? (
+          {isDraft ? (
+            <>
+              <input
+                value={topicsInput}
+                onChange={(event) => setTopicsInput(event.target.value)}
+                placeholder="Ví dụ: huyết áp, tự theo dõi"
+                aria-label="Thẻ chủ đề"
+                className={FIELD_INPUT_CLASS}
+              />
+              <p className="font-display mt-hair text-question text-slate">Ngăn cách các thẻ bằng dấu phẩy.</p>
+            </>
+          ) : item.topics.length > 0 ? (
             <TopicTags topics={item.topics} />
           ) : (
             <span className="text-slate">Chưa gắn thẻ nào</span>
@@ -159,8 +270,40 @@ function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged:
         </MetaRow>
 
         <MetaRow label="Bệnh áp dụng">
-          {hasConditions ? (
-            item.conditions.map((condition) => CONDITION_LABEL[condition]).join(' · ')
+          {isDraft ? (
+            <fieldset>
+              <legend className="sr-only">Bệnh áp dụng</legend>
+              <p className="font-display text-question text-slate">
+                Chọn ít nhất một bệnh trước khi duyệt.
+              </p>
+              {conditionsQuery.isPending && <p role="status" className="font-display mt-snug text-question text-slate">Đang đọc danh mục bệnh…</p>}
+              {conditionsQuery.isError && <div className="mt-snug"><ErrorNotice error={conditionsQuery.error} retryLabel="Đọc lại danh mục bệnh" onRetry={() => void conditionsQuery.refetch()} /></div>}
+              {!conditionsQuery.isPending && !conditionsQuery.isError && availableConditions.length === 0 && (
+                <p className="font-display mt-snug text-question text-alert">Danh mục hiện chưa có bệnh đang hoạt động để gắn vào bản nháp.</p>
+              )}
+              {availableConditions.length > 0 && (
+                <div className="mt-snug grid gap-tight sm:grid-cols-2">
+                  {availableConditions.map((condition) => {
+                    const checked = conditions.includes(condition.condition_id)
+                    return (
+                      <label key={condition.condition_id} className="font-display flex min-h-touch cursor-pointer items-center gap-tight rounded-card border-2 border-slate bg-surface px-snug py-tight text-question text-body has-[:checked]:border-mint has-[:checked]:bg-mint/15">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setConditions((current) => checked
+                            ? current.filter((conditionId) => conditionId !== condition.condition_id)
+                            : [...current, condition.condition_id])}
+                          className="h-5 w-5 shrink-0 accent-ink"
+                        />
+                        <span>{condition.label_vi}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
+            </fieldset>
+          ) : hasConditions ? (
+            conditions.map((condition) => conditionLabel(condition)).join(' · ')
           ) : (
             <span className="text-alert">Chưa gắn bệnh nào</span>
           )}
@@ -294,15 +437,16 @@ function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged:
             </p>
           )}
 
-          {(approve.isError || reject.isError || retryIndex.isError) && (
+          {(approve.isError || reject.isError || retryIndex.isError || saveDraft.isError) && (
             <div className="mt-block">
               <ErrorNotice
-                error={approve.error ?? reject.error ?? retryIndex.error}
+                error={approve.error ?? reject.error ?? retryIndex.error ?? saveDraft.error}
                 retryLabel="Thử lại"
                 onRetry={() => {
                   if (approve.isError) approve.mutate()
                   else if (reject.isError) reject.mutate()
-                  else retryIndex.mutate()
+                  else if (retryIndex.isError) retryIndex.mutate()
+                  else saveDraft.mutate()
                 }}
               />
             </div>
@@ -313,6 +457,16 @@ function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged:
               nút `disabled` bị bàn phím bỏ qua hoàn toàn, nên người dùng bàn phím
               sẽ không bao giờ nghe được dòng giải thích vì sao nó chưa bấm được. */}
           <div className="mt-block flex flex-wrap gap-snug">
+            {isDraft && (
+              <button
+                type="button"
+                disabled={!draftHasUnsavedChanges || isBusy || title.trim() === ''}
+                onClick={() => saveDraft.mutate()}
+                className="motion-press font-display min-h-call flex-1 rounded-pill bg-ink px-cozy text-input font-bold text-white enabled:hover:bg-ink-press disabled:bg-canvas disabled:font-normal disabled:text-slate"
+              >
+                {saveDraft.isPending ? 'Đang lưu bản nháp…' : 'Lưu bản nháp'}
+              </button>
+            )}
             {isFailed && isSourceUpload ? (
               <button
                 type="button"

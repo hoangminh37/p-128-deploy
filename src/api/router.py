@@ -6,6 +6,8 @@ from fastapi import APIRouter
 
 from src.api.v1.auth import router as auth_router
 from src.api.v1.chat import router as chat_router
+from src.api.v1.conditions import router as conditions_router
+from src.api.v1.consultations import router as consultations_router
 from src.api.v1.conversations import router as conversations_router
 from src.api.v1.editor import router as editor_router
 from src.api.v1.health import router as health_router
@@ -19,6 +21,8 @@ router = APIRouter(prefix="/v1")
 
 router.include_router(health_router, tags=["health"])
 router.include_router(auth_router, tags=["auth"])
+router.include_router(conditions_router, tags=["conditions"])
+router.include_router(consultations_router, tags=["consultations"])
 router.include_router(patients_router, tags=["patients"])
 router.include_router(source_documents_router, tags=["sources"])
 router.include_router(chat_router, tags=["chat"])

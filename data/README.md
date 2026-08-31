@@ -1,8 +1,8 @@
 # Thư mục data
 
 File PDF/PPTX **không nằm trong git** (dung lượng lớn, và một số tài liệu có
-ràng buộc bản quyền). Chỉ hai file được commit: `registry.yaml` và
-`processed/manifest.json`.
+ràng buộc bản quyền). `registry.yaml` và `processed/manifest.json` được commit.
+Các trạng thái phát sinh khi vận hành do máy chủ quản lý, không đưa vào Git.
 
 ## Các thư mục
 
@@ -15,7 +15,8 @@ ràng buộc bản quyền). Chỉ hai file được commit: `registry.yaml` và
 | `processed/manifest.json` | Số liệu của mỗi lần build: bao nhiêu chunk, bỏ bao nhiêu khối vì lý do gì | **Có** |
 | `vectorstore/` | Chroma persist | Không |
 | `quarantine/` | Tài liệu đã xem xét và loại, lý do ghi trong `registry.yaml` | Không |
-| `registry.yaml` | Danh mục bệnh + tài liệu nền đã duyệt — nguồn sự thật duy nhất | **Có** |
+| `registry.yaml` | Danh mục bệnh + tài liệu nền đã duyệt được biên soạn cùng mã nguồn | **Có** |
+| `registry_runtime.yaml` | Bệnh do BTV thêm trong giao diện; được merge khi RAG khởi động/đọc dữ liệu | Không |
 | `uploads.json` | Tài liệu do biên tập viên tải lên lúc chạy, do máy ghi | Không |
 
 ## Embedding
@@ -39,8 +40,23 @@ mới chỉ là viết một class có đúng một phương thức `embed()`.
 
 ## Thêm bệnh mới
 
-Sửa mục `diseases` trong `registry.yaml` rồi chạy lại `make rag-all`. Không có
-dòng code Python nào viết cứng tên bệnh, nên không phải sửa gì thêm.
+Trong vận hành, BTV mở **Danh mục bệnh**, thêm mã bệnh, tên tiếng Việt và các
+tên gọi khác. Hệ thống ghi nguyên tử vào `registry_runtime.yaml`, rồi merge với
+`registry.yaml` mỗi khi đọc registry; không cần sửa code, sửa YAML nền hay deploy
+lại. Bệnh mới ở trạng thái **Chờ tài liệu nguồn**, có thể chọn ngay khi tải tài
+liệu nhưng chưa xuất hiện trong hồ sơ bệnh nhân và RAG.
+
+Sau khi một tài liệu cho bệnh đó được duyệt, parse → chunk → embedding → index
+thành công, bệnh tự chuyển sang **Đang dùng**. Từ thời điểm đó nó có trong danh
+mục hồ sơ bệnh nhân và được retrieval cho phép dùng. Tạm ngừng bệnh sẽ loại toàn
+bộ tài liệu của bệnh đó khỏi retrieval nhưng không xoá vector; có thể bật lại khi
+vẫn còn ít nhất một tài liệu đã duyệt.
+
+`registry_runtime.yaml` và `uploads.json` phải nằm trên persistent volume khi
+deploy. Có thể đặt đường dẫn khác bằng `RAG_RUNTIME_REGISTRY_PATH`; nếu không,
+mỗi lần thay container mà không có volume thì dữ liệu BTV thêm sẽ mất. Muốn đưa
+một bệnh thành danh mục nền được review cùng source code thì vẫn sửa
+`registry.yaml` qua Pull Request.
 
 ## Luồng biên tập viên tải tài liệu lên
 
@@ -90,5 +106,7 @@ make rag-index    # embed và nạp vào Chroma, cần OPENAI_API_KEY
 make rag-stats    # xem đang có gì trong store
 ```
 
-Thêm hoặc bỏ tài liệu thì sửa `registry.yaml` rồi mở Pull Request — đây là bước
-duyệt nội dung, cần một người thứ hai đọc lại chứ không tự merge.
+Với tài liệu nền, thêm hoặc bỏ tài liệu thì sửa `registry.yaml` rồi mở Pull
+Request — đây là bước duyệt nội dung, cần một người thứ hai đọc lại chứ không tự
+merge. Tài liệu BTV tải trong giao diện đi theo hàng đợi duyệt, không sửa file
+nền.

@@ -136,6 +136,39 @@ Hai điểm cần nhớ:
 - Nếu bạn đặt `VITE_API_URL`, đường dẫn thành tuyệt đối và proxy bị bỏ qua hoàn
   toàn, kể cả khi đang chạy dev.
 
+### Gọi video từ thiết bị cùng mạng LAN
+
+`localhost` được trình duyệt xem là địa chỉ an toàn, nhưng
+`http://<IP-LAN>:5180` thì không. Vì vậy điện thoại hoặc máy khác cùng Wi-Fi sẽ
+bị chặn camera/micro nếu mở frontend qua HTTP, dù API chat và signaling vẫn trả
+lời bình thường.
+
+Muốn kiểm thử video qua LAN, dùng một certificate **được thiết bị tin cậy** và
+đặt các đường dẫn certificate trong `frontend/.env.local`:
+
+```env
+VITE_ENABLE_MSW=false
+VITE_DEV_HOST=0.0.0.0
+VITE_DEV_HTTPS_KEY=.local-certs/lan-key.pem
+VITE_DEV_HTTPS_CERT=.local-certs/lan-cert.pem
+```
+
+Với `mkcert`, sau khi đã cài công cụ và tin cậy local CA trên máy/devices thử
+nghiệm, tạo certificate có SAN cho IP LAN hiện tại:
+
+```bash
+mkdir -p .local-certs
+mkcert -key-file .local-certs/lan-key.pem -cert-file .local-certs/lan-cert.pem localhost <IP-LAN-CUA-MAY>
+```
+
+Certificate nằm trong `.local-certs/`, đã bị git bỏ qua. Khởi động lại Vite rồi
+mở `https://<IP-LAN-CUA-MAY>:5180` trên cả hai thiết bị và cấp quyền camera,
+micro. Không đặt `VITE_API_URL` trong tình huống này: proxy HTTPS của Vite sẽ
+chuyển tiếp `/api` vào FastAPI local ở cổng 8000.
+
+Nếu hai bên ở khác mạng (Wi-Fi và 4G chẳng hạn), HTTPS LAN là chưa đủ; cần
+`WEBRTC_ICE_SERVERS` trỏ tới TURN server thật ở `.env` gốc repo.
+
 ## 5. Lớp mock
 
 Đây là phần quan trọng nhất của tài liệu này. Hãy đọc kỹ trước khi sửa bất cứ thứ

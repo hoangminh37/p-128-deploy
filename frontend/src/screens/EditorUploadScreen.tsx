@@ -11,6 +11,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { useEditorConditions } from '../app/editor'
 import { uploadDocument, ApiError } from '../lib/api'
 
 /** Nhãn của một trường. Tối thiểu 17px theo sàn cỡ chữ nội dung. */
@@ -29,8 +30,10 @@ function Required() {
 
 export function EditorUploadScreen() {
   const navigate = useNavigate()
+  const conditionsQuery = useEditorConditions()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -41,14 +44,14 @@ export function EditorUploadScreen() {
     const formData = new FormData(form)
 
     // Đảm bảo diseases (bệnh) không rỗng
-    const diseases = formData.get('diseases')
-    if (!diseases) {
+    if (selectedConditions.length === 0) {
       setError(
-        'Bạn hãy nhập ít nhất một loại bệnh, ví dụ hypertension hoặc type2_diabetes.',
+        'Bạn hãy chọn ít nhất một bệnh áp dụng.',
       )
       setIsSubmitting(false)
       return
     }
+    formData.set('diseases', selectedConditions.join(','))
 
     try {
       await uploadDocument(formData)
@@ -152,18 +155,33 @@ export function EditorUploadScreen() {
         </>
 
         <div className="sm:col-span-2">
-          <label htmlFor="diseases" className={LABEL_CLASS}>
-            Chỉ định bệnh, cách nhau bằng dấu phẩy
+          <p className={LABEL_CLASS}>
+            Bệnh áp dụng
             <Required />
-          </label>
-          <input
-            type="text"
-            id="diseases"
-            name="diseases"
-            required
-            className={INPUT_CLASS}
-            placeholder="hypertension, type2_diabetes"
-          />
+          </p>
+          {conditionsQuery.isPending && <p role="status" className="font-display mt-tight text-question text-slate">Đang đọc danh mục bệnh…</p>}
+          {conditionsQuery.isError && <p role="alert" className="font-display mt-tight text-question text-alert">Không đọc được danh mục bệnh. Hãy tải lại trang trước khi tải tài liệu.</p>}
+          {conditionsQuery.data !== undefined && (
+            <div className="mt-tight space-y-tight" role="group" aria-label="Bệnh áp dụng">
+              {conditionsQuery.data.conditions.filter((condition) => condition.status !== 'inactive').map((condition) => {
+                const checked = selectedConditions.includes(condition.condition_id)
+                return (
+                  <label key={condition.condition_id} className="flex min-h-touch items-center gap-snug rounded-card border-2 border-line bg-canvas px-snug py-tight text-input text-body">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) => setSelectedConditions((current) => event.target.checked
+                        ? [...current, condition.condition_id]
+                        : current.filter((item) => item !== condition.condition_id))}
+                    />
+                    <span>{condition.label_vi}</span>
+                    <span className="font-mono text-question text-slate">{condition.condition_id}</span>
+                    {condition.status === 'waiting_for_sources' && <span className="font-display ml-auto text-question text-sand-deep">Chờ tài liệu nguồn</span>}
+                  </label>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <div>
@@ -208,7 +226,7 @@ export function EditorUploadScreen() {
         <div className="flex flex-wrap gap-snug border-t border-line pt-cozy sm:col-span-2">
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || conditionsQuery.isPending || conditionsQuery.isError}
             className="motion-press font-display min-h-call flex-1 rounded-pill bg-mint px-cozy text-input font-bold text-mint-deep enabled:hover:bg-mint-press disabled:bg-canvas disabled:font-normal disabled:text-slate"
           >
             {isSubmitting ? 'Đang tải lên…' : 'Tải lên tài liệu'}

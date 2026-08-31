@@ -9,8 +9,8 @@
  *   3. Đường kẻ ngang      — hết phần đề mục, bắt đầu phần trả lời.
  *   4. Nhãn số tài liệu    — trả lời dựa trên mấy tài liệu, biết TRƯỚC KHI đọc.
  *   5. Câu trả lời         — kèm thẻ nguồn của từng đoạn.
- *   6. Sao chép và lưu     — chỉ ở bản hẹp; bản rộng đã có hai nút trên thanh
- *                            tiêu đề, bày lại lần nữa là thừa.
+ *   6. Nghe, sao chép, tải — ba thao tác gắn với CHÍNH câu trả lời này, nên
+ *                            luôn nằm ngay sau phần người dùng vừa đọc xong.
  *   7. Dòng miễn trừ       — chữ nhỏ nhất của trang, sau một nét kẻ mảnh.
  *
  * Không còn bong bóng lệch phải, không nền xám, không avatar. Câu hỏi của người
@@ -194,16 +194,19 @@ function ActionButton({
   label,
   onClick,
   children,
+  disabled = false,
 }: {
   label: string
   onClick: () => void
-  children: ReactNode
+  children?: ReactNode
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="motion-press font-display flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
+      disabled={disabled}
+      className="motion-press font-display flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas disabled:text-slate"
     >
       {children}
       {label}
@@ -212,15 +215,22 @@ function ActionButton({
 }
 
 /**
- * Sao chép và lưu, CHỈ ở bản hẹp.
+ * Thao tác của một câu trả lời.
  *
- * Ở bản hẹp thanh tiêu đề không đủ chỗ cho hai nút biểu tượng, mà biểu tượng
- * trơ cũng không nói được gì với người chưa quen dùng ứng dụng — nên ở đây là
- * hai nút có chữ, đặt ngay cuối câu trả lời, đúng chỗ người dùng vừa đọc xong
- * và nảy ra ý muốn giữ lại. Từ 1024px thì hai nút biểu tượng trên thanh tiêu đề
- * đã làm việc này, nên khối này biến mất.
+ * Sao chép/tải xuống là hành động trên MỘT lượt cụ thể, vì vậy chúng đặt cạnh
+ * nút nghe ngay cuối lượt ở mọi bề ngang. Chúng không còn sống trên thanh tiêu
+ * đề chung — nơi người dùng không biết hai biểu tượng đang áp dụng cho câu trả
+ * lời nào nếu lịch sử có nhiều lượt.
  */
-function TurnActions({ turn }: { turn: Turn }) {
+function TurnActions({
+  turn,
+  onListen,
+  isListening,
+}: {
+  turn: Turn
+  onListen?: () => void
+  isListening: boolean
+}) {
   const [notice, showNotice] = useTransientNotice()
 
   async function handleCopy(): Promise<void> {
@@ -232,17 +242,25 @@ function TurnActions({ turn }: { turn: Turn }) {
 
   function handleSave(): void {
     downloadText(turnToText(turn))
-    showNotice('Đã lưu câu trả lời về máy.')
+    showNotice('Đã tải câu trả lời về máy.')
   }
 
   return (
-    <div className="mt-block max-w-answer lg:hidden">
+    <div className="mt-snug max-w-answer">
       <div className="flex flex-wrap gap-snug">
+        {onListen !== undefined && (
+          <ActionButton
+            label={isListening ? 'Đang đọc câu trả lời…' : 'Nghe câu trả lời'}
+            onClick={onListen}
+            disabled={isListening}
+          />
+        )}
+
         <ActionButton label="Sao chép" onClick={() => void handleCopy()}>
           <CopyIcon className="h-6 w-6 shrink-0" />
         </ActionButton>
 
-        <ActionButton label="Lưu về máy" onClick={handleSave}>
+        <ActionButton label="Tải xuống" onClick={handleSave}>
           <SaveIcon className="h-6 w-6 shrink-0" />
         </ActionButton>
       </div>
@@ -299,20 +317,9 @@ export function AnswerTurn({
         <ResponseBody turn={turn} />
       </div>
 
-      {!isRedFlag && onListen !== undefined && (
-        <button
-          type="button"
-          onClick={onListen}
-          disabled={isListening}
-          className="motion-press font-display mt-snug min-h-touch rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas disabled:text-slate"
-        >
-          {isListening ? 'Đang đọc câu trả lời…' : 'Nghe câu trả lời'}
-        </button>
-      )}
-
       {/* Không mời sao chép hay lưu ở `red_flag`. Việc cần làm bây giờ là gọi
           115, không phải sắp xếp giấy tờ. */}
-      {!isRedFlag && <TurnActions turn={turn} />}
+      {!isRedFlag && <TurnActions turn={turn} onListen={onListen} isListening={isListening} />}
 
       {turn.disclaimer !== null && <Disclaimer text={turn.disclaimer} />}
     </article>

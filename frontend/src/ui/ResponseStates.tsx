@@ -38,6 +38,7 @@
  * ĐỪNG đặt `slate` lên `sand`: cặp đó chỉ đạt 4.00:1.
  */
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 import { splitParagraphs } from '../lib/paragraphs'
 import { AlertIcon, NoteIcon, PhoneIcon } from './icons'
@@ -300,6 +301,13 @@ export function ReferralBlock({ answer }: { answer: string }) {
       <div className="mt-cozy text-body">
         <AnswerText answer={answer} />
       </div>
+
+      <Link
+        to="/consultations"
+        className="motion-press font-display mt-snug inline-flex min-h-touch items-center rounded-pill bg-mint px-cozy text-input font-bold text-mint-deep no-underline hover:bg-mint-press"
+      >
+        Chọn tư vấn với bác sỹ
+      </Link>
 
       <p className="font-display mt-block border-t border-line pt-snug text-question text-slate">
         Câu hỏi của bạn đã được ghi nhận. Đội ngũ biên tập y khoa sẽ xem xét bổ

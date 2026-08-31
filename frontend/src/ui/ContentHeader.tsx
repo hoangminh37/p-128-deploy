@@ -1,23 +1,25 @@
 /**
  * Thanh tiêu đề của vùng nội dung. Hai bố cục khác hẳn nhau theo bề ngang.
  *
- * Từ 1024px: tên hội thoại đang mở ở trái, hai nút biểu tượng sao chép và lưu ở
- * phải. Thanh bên đã thường trực nên ở đây không cần nút menu.
+ * Từ 1024px: tên màn đang mở ở trái, các điều khiển chung ở phải. Thanh bên đã
+ * thường trực nên ở đây không cần nút menu.
  *
  * Dưới 1024px: nút menu ở trái, tên bệnh chính ở giữa, nút thêm câu hỏi ở phải.
  * Ba thứ, mỗi thứ một góc — thanh hẹp không đủ chỗ cho tên hội thoại lẫn hai nút
  * hành động, mà thứ người dùng cần biết nhất khi màn hình bé là câu trả lời đang
  * được đặt trong ngữ cảnh bệnh nào.
  *
- * SAO CHÉP và LƯU đọc thẳng chữ đang hiện trong vùng nội dung, không dựng lại
- * bản ghi từ dữ liệu API. Lý do: một hội thoại vừa mở còn chưa được lưu ở máy
- * chủ, mà người dùng vẫn phải sao chép được câu trả lời để đưa bác sĩ xem.
+ * Ở màn hỏi đáp, sao chép/tải xuống nằm dưới từng câu trả lời để người dùng
+ * biết chính xác thao tác áp dụng cho lượt nào. Các màn khác vẫn giữ thao tác
+ * toàn trang ở đây.
  */
 import type { ReactNode, RefObject } from 'react'
 import { Link } from 'react-router-dom'
 
 import { copyTextToClipboard, downloadText } from '../lib/transcript'
+import { useSession } from '../session/context'
 import { CopyIcon, MenuIcon, PlusIcon, SaveIcon } from './icons'
+import { PatientNotificationBell } from './PatientNotificationBell'
 import { ThemeToggle } from './ThemeToggle'
 import { useTransientNotice } from './shellHooks'
 
@@ -100,6 +102,7 @@ export function ContentHeader({
   isDrawerOpen,
   onOpenMenu,
   contentRef,
+  showTranscriptActions = true,
 }: {
   isDesktop: boolean
   /** Vùng nội dung đang dùng nền navy hay nền canvas. Xem `RootLayout`. */
@@ -112,8 +115,12 @@ export function ContentHeader({
   onOpenMenu: () => void
   /** Vùng nội dung mà hai nút sao chép và lưu đọc chữ từ đó. */
   contentRef: RefObject<HTMLElement | null>
+  /** Màn chat tự đặt thao tác vào dưới từng câu trả lời. */
+  showTranscriptActions?: boolean
 }) {
   const [notice, showNotice] = useTransientNotice()
+  const { user } = useSession()
+  const isPatient = user?.role === 'patient'
 
   async function handleCopy(): Promise<void> {
     const text = readTranscript(contentRef.current)
@@ -164,33 +171,39 @@ export function ContentHeader({
             </p>
 
             <div className="flex min-w-0 items-center gap-tight">
-              {/* Luôn có mặt trong DOM để `aria-live` báo được thay đổi. */}
-              <p
-                role="status"
-                className={`font-display min-w-0 truncate text-note ${
-                  isDark ? 'text-mist' : 'text-slate'
-                }`}
-              >
-                {notice}
-              </p>
+              {showTranscriptActions && <>
+                {/* Luôn có mặt trong DOM để `aria-live` báo được thay đổi. */}
+                <p
+                  role="status"
+                  className={`font-display min-w-0 truncate text-note ${
+                    isDark ? 'text-mist' : 'text-slate'
+                  }`}
+                >
+                  {notice}
+                </p>
+              </>}
 
               <ThemeToggle tone={isDark ? 'shell' : 'surface'} />
 
-              <IconButton
-                label="Sao chép nội dung"
-                isDark={isDark}
-                onClick={() => void handleCopy()}
-              >
-                <CopyIcon className="h-6 w-6" />
-              </IconButton>
+              {isPatient && <PatientNotificationBell isDark={isDark} />}
 
-              <IconButton
-                label="Lưu nội dung về máy"
-                isDark={isDark}
-                onClick={handleSave}
-              >
-                <SaveIcon className="h-6 w-6" />
-              </IconButton>
+              {showTranscriptActions && <>
+                <IconButton
+                  label="Sao chép nội dung"
+                  isDark={isDark}
+                  onClick={() => void handleCopy()}
+                >
+                  <CopyIcon className="h-6 w-6" />
+                </IconButton>
+
+                <IconButton
+                  label="Lưu nội dung về máy"
+                  isDark={isDark}
+                  onClick={handleSave}
+                >
+                  <SaveIcon className="h-6 w-6" />
+                </IconButton>
+              </>}
             </div>
           </>
         ) : (
@@ -220,6 +233,8 @@ export function ContentHeader({
 
             <div className="flex shrink-0 items-center gap-tight">
               <ThemeToggle tone={isDark ? 'shell' : 'surface'} />
+
+              {isPatient && <PatientNotificationBell isDark={isDark} />}
 
               <Link
                 to="/chat"

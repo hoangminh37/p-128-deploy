@@ -21,19 +21,18 @@
  * điện thoại là một hộp cuộn nhỏ, ngón tay run bấm rất dễ trượt, và người dùng
  * không nhìn thấy hết lựa chọn cùng lúc.
  */
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useForm, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
-import { upsertPatientProfile } from '../lib/api'
+import { listAvailableConditions, upsertPatientProfile } from '../lib/api'
 import {
   patientProfileSchema,
   primaryConditionSchema,
   type PatientProfileResponse,
-  type PrimaryCondition,
 } from '../lib/schemas'
 import { patientProfileQueryKey, usePatient } from '../patient/context'
 import { useDailyLesson } from '../app/learning'
@@ -41,24 +40,6 @@ import { ErrorNotice } from '../ui/ErrorNotice'
 import { CheckIcon } from '../ui/icons'
 import { ProfileIntro } from '../ui/ProfileIntro'
 import { StepProgress } from '../ui/StepProgress'
-
-// ---------------------------------------------------------------------------
-// Nhãn tiếng Việt
-// ---------------------------------------------------------------------------
-
-/**
- * Tên bệnh kèm tên dân gian trong ngoặc.
- *
- * "Đái tháo đường" là tên trong văn bản Bộ Y tế, nhưng phần lớn người bệnh gọi
- * là "tiểu đường". Ghi cả hai để không ai phải đoán mình thuộc nhóm nào.
- */
-const CONDITION_LABEL: Record<PrimaryCondition, string> = {
-  type2_diabetes: 'Đái tháo đường típ 2 (tiểu đường)',
-  hypertension: 'Tăng huyết áp (cao huyết áp)',
-}
-
-/** Lấy thẳng từ schema hợp đồng, không gõ lại danh sách giá trị. */
-const CONDITIONS = primaryConditionSchema.options
 
 const DIAGNOSIS_MONTHS = [
   { value: '01', label: 'Tháng 1' },
@@ -135,8 +116,8 @@ const MUTATION_ASKING_AS = 'self' as const
  *   1. Hồ sơ cũ đã có `primary_condition` và bệnh đó VẪN đang được chọn thì giữ
  *      nguyên nó làm bệnh chính. Người dùng vào sửa mỗi cân nặng mà hồ sơ âm
  *      thầm đổi bệnh chính là một thay đổi dữ liệu không ai yêu cầu.
- *   2. Còn lại thì lấy bệnh đứng trước trong `primaryConditionSchema.options`,
- *      tức đái tháo đường típ 2 trước tăng huyết áp. Đây là một thứ tự CỐ ĐỊNH
+ *   2. Còn lại thì lấy bệnh đứng trước trong danh mục bệnh đang hoạt động.
+ *      Đây là một thứ tự CỐ ĐỊNH
  *      chứ không phải xếp hạng y khoa: nếu lấy theo thứ tự người dùng bấm thì
  *      cùng một cặp bệnh lại ra hai payload khác nhau tuỳ ai bấm ô nào trước.
  *
@@ -144,15 +125,23 @@ const MUTATION_ASKING_AS = 'self' as const
  * nhau — đúng ràng buộc mà form cũ phải tự canh bằng `.refine()`.
  */
 function splitConditions(
-  selected: readonly PrimaryCondition[],
-  previousPrimary: PrimaryCondition | null,
-): { primary: PrimaryCondition; comorbidities: PrimaryCondition[] } {
-  const ordered = CONDITIONS.filter((condition) => selected.includes(condition))
+  selected: readonly string[],
+  previousPrimary: string | null,
+  availableConditionIds: readonly string[],
+): { primary: string; comorbidities: string[] } {
+  const ordered = availableConditionIds.filter((condition) => selected.includes(condition))
 
   const primary =
     previousPrimary !== null && ordered.includes(previousPrimary)
       ? previousPrimary
       : ordered[0]
+
+  // `conditions` được form kiểm tra phải có ít nhất một phần tử. Chốt này vẫn
+  // cần thiết vì catalog có thể vừa đổi ở một tab khác: không được gửi một
+  // payload không có bệnh chính chỉ vì dữ liệu UI đã cũ.
+  if (primary === undefined) {
+    throw new Error('Danh mục bệnh đã thay đổi. Hãy chọn lại bệnh trước khi lưu.')
+  }
 
   return {
     primary,
@@ -469,6 +458,15 @@ export function ProfileScreen() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: lessonData } = useDailyLesson()
+  const conditionCatalog = useQuery({
+    queryKey: ['conditions', 'active'],
+    queryFn: listAvailableConditions,
+  })
+  const availableConditions = conditionCatalog.data?.conditions
+  const availableConditionIds = useMemo(
+    () => availableConditions?.map((condition) => condition.condition_id) ?? [],
+    [availableConditions],
+  )
 
   const [step, setStep] = useState(0)
   const [diagnosisMonth, setDiagnosisMonth] = useState('')
@@ -516,7 +514,8 @@ export function ProfileScreen() {
   // Hồ sơ tới sau lần render đầu (đang gọi API), nên phải nạp lại vào form khi có.
   //
   // Đây là chiều ngược của `splitConditions`: hợp đồng giữ hai trường, form giữ
-  // một danh sách, nên nạp lại là gộp chúng về một. Lọc qua `CONDITIONS` để thứ
+  // một danh sách, nên nạp lại là gộp chúng về một. Lọc qua danh mục đang hoạt
+  // động để thứ
   // tự luôn cố định, và để một hồ sơ cũ lỡ có bệnh kèm trùng bệnh chính cũng
   // chỉ làm sáng lên một ô chứ không sinh mục trùng.
   useEffect(() => {
@@ -525,14 +524,14 @@ export function ProfileScreen() {
     const diagnosisDate = splitDiagnosisDate(profile.diagnosed_at)
     reset({
       age: profile.age,
-      conditions: CONDITIONS.filter((condition) => saved.includes(condition)),
+      conditions: availableConditionIds.filter((condition) => saved.includes(condition)),
       diagnosed_at: profile.diagnosed_at ?? null,
       height_cm: profile.height_cm ?? null,
       weight_kg: profile.weight_kg ?? null,
     })
     setDiagnosisMonth(diagnosisDate.month)
     setDiagnosisYear(diagnosisDate.year)
-  }, [profile, reset])
+  }, [availableConditionIds, profile, reset])
 
   const mutation = useMutation({
     mutationFn: async (values: ProfileFormValues): Promise<PatientProfileResponse> => {
@@ -553,6 +552,7 @@ export function ProfileScreen() {
       const { primary, comorbidities } = splitConditions(
         values.conditions,
         profile?.primary_condition ?? null,
+        availableConditionIds,
       )
 
       return upsertPatientProfile({
@@ -607,14 +607,14 @@ export function ProfileScreen() {
   /**
    * Bật tắt một bệnh ở bước 2.
    *
-   * Dựng lại danh sách theo thứ tự của `CONDITIONS` chứ không nối thêm vào
+   * Dựng lại danh sách theo thứ tự của danh mục đang hoạt động chứ không nối thêm vào
    * cuối: thứ tự trong form khi đó không phụ thuộc người dùng bấm ô nào trước,
    * nên `splitConditions` luôn cho cùng một kết quả với cùng một lựa chọn.
    */
-  function toggleCondition(condition: PrimaryCondition, isChecked: boolean): void {
+  function toggleCondition(condition: string, isChecked: boolean): void {
     setValue(
       'conditions',
-      CONDITIONS.filter((candidate) =>
+      availableConditionIds.filter((candidate) =>
         candidate === condition ? isChecked : conditions.includes(candidate),
       ),
       { shouldValidate: true },
@@ -808,24 +808,41 @@ export function ProfileScreen() {
             <legend className={FIELD_LABEL_CLASS}>{LABELS.conditions}</legend>
             <FieldHint id="conditions-hint">{LABELS.conditionsHint}</FieldHint>
 
+            {conditionCatalog.isPending && (
+              <p role="status" className="font-display mt-snug text-question text-slate">
+                Đang đọc danh mục bệnh được hệ thống hỗ trợ…
+              </p>
+            )}
+            {conditionCatalog.isError && (
+              <div className="mt-snug">
+                <ErrorNotice
+                  error={conditionCatalog.error}
+                  retryLabel="Đọc lại danh mục"
+                  onRetry={() => void conditionCatalog.refetch()}
+                />
+              </div>
+            )}
+
+            {conditionCatalog.data !== undefined && (
             <div
               className="mt-snug space-y-snug"
               aria-describedby={
                 errors.conditions ? 'conditions-hint conditions-error' : 'conditions-hint'
               }
             >
-              {CONDITIONS.map((condition) => (
+              {conditionCatalog.data.conditions.map((condition) => (
                 <ChoiceOption
-                  key={condition}
+                  key={condition.condition_id}
                   type="checkbox"
                   name="conditions"
-                  value={condition}
-                  label={CONDITION_LABEL[condition]}
-                  checked={conditions.includes(condition)}
-                  onChange={(isChecked) => toggleCondition(condition, isChecked)}
+                  value={condition.condition_id}
+                  label={condition.label_vi}
+                  checked={conditions.includes(condition.condition_id)}
+                  onChange={(isChecked) => toggleCondition(condition.condition_id, isChecked)}
                 />
               ))}
             </div>
+            )}
             <FieldError id="conditions-error" message={errors.conditions?.message} />
           </fieldset>
         )}

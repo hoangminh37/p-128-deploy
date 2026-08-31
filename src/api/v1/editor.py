@@ -11,17 +11,32 @@ from src.api.v1.auth import get_editor_user
 from src.core.database import async_session_maker, get_db
 from src.core.logging import get_logger
 from src.models.domain import EditorQueueItem as EditorQueueItemModel
-from src.models.domain import OutOfScopeLog
+from src.models.domain import OutOfScopeLog, PatientEditorialQuestion, PatientNotification
 from src.rag.config import get_rag_settings
 
 # Import rag modules
 from src.rag.ingest import approve, stage_upload, start_indexing
 from src.rag.ingest import reject as reject_source
-from src.rag.registry import QuarantinedDoc, SourceDoc, load_registry, quarantined_uploads, uploaded_docs
+from src.rag.registry import (
+    QuarantinedDoc,
+    SourceDoc,
+    create_runtime_disease,
+    load_registry,
+    quarantined_uploads,
+    runtime_diseases,
+    set_runtime_disease_status,
+    uploaded_docs,
+)
 from src.rag.store import VectorStore
 from src.schemas.editor import (
+    AnswerPatientEditorialQuestionRequest,
     EditorApproveRequest,
+    EditorCondition,
+    EditorConditionList,
+    EditorConditionStatusRequest,
+    EditorCreateConditionRequest,
     EditorDashboard,
+    EditorDraftUpdateRequest,
     EditorItemStatus,
     EditorQueueItem,
     EditorQueueItemDetail,
@@ -31,6 +46,9 @@ from src.schemas.editor import (
     EditorSourceDocumentList,
     OutOfScopeLogList,
     OutOfScopeLogSchema,
+    PatientEditorialQuestionList,
+    PatientEditorialQuestionSchema,
+    PatientEditorialQuestionStatus,
 )
 from src.schemas.patient import UserInfo
 
@@ -125,6 +143,32 @@ def _source_document_schema(
     )
 
 
+def _condition_schema(
+    *,
+    condition_id: str,
+    config: dict,
+    origin: str,
+    runtime_status: str | None,
+    created_at: str | None,
+    updated_at: str | None,
+    source_document_count: int,
+    approved_source_count: int,
+) -> EditorCondition:
+    """Map one merged registry condition to the editor's safe API contract."""
+    return EditorCondition(
+        condition_id=condition_id,
+        label_vi=str(config.get("label_vi") or condition_id),
+        label_en=str(config["label_en"]) if config.get("label_en") else None,
+        aliases=[str(alias) for alias in config.get("aliases", [])],
+        origin=origin,  # type: ignore[arg-type]
+        status=runtime_status or "active",  # type: ignore[arg-type]
+        source_document_count=source_document_count,
+        approved_source_count=approved_source_count,
+        created_at=created_at,
+        updated_at=updated_at,
+    )
+
+
 def _quarantined_document_schema(document: QuarantinedDoc, *, source_origin: str) -> EditorSourceDocument:
     """Expose a rejected source as history only; it is never queried by RAG."""
     return EditorSourceDocument(
@@ -210,6 +254,18 @@ def _queue_item_detail(item: EditorQueueItemModel) -> EditorQueueItemDetail:
     )
 
 
+def _patient_question_schema(item: PatientEditorialQuestion) -> PatientEditorialQuestionSchema:
+    """Project only the request and editorial response BTV needs to handle."""
+    return PatientEditorialQuestionSchema(
+        request_id=item.id,
+        question=item.question,
+        status=item.status,  # type: ignore[arg-type]
+        created_at=item.created_at,
+        answer=item.answer,
+        answered_at=item.answered_at,
+    )
+
+
 async def _finish_source_index_queue_projection(document_id: str, queue_status: str) -> None:
     """Persist the UI projection after a background job completes or fails."""
     async with async_session_maker() as session:
@@ -245,8 +301,113 @@ async def get_dashboard(db: AsyncSession = Depends(get_db), current_user: UserIn
     # SQL, toán tử `not` của Python sẽ ép nó về bool và mất luôn mệnh đề lọc.
     result_oos = await db.execute(select(OutOfScopeLog).filter(OutOfScopeLog.drafted.is_(False)))
     oos_count = len(result_oos.scalars().all())
+    result_patient_questions = await db.execute(
+        select(PatientEditorialQuestion).filter(PatientEditorialQuestion.status == "pending")
+    )
+    patient_question_count = len(result_patient_questions.scalars().all())
 
-    return EditorDashboard(pending_count=pending_count, out_of_scope_count=oos_count)
+    return EditorDashboard(
+        pending_count=pending_count,
+        out_of_scope_count=oos_count,
+        patient_question_count=patient_question_count,
+    )
+
+
+@router.get("/conditions", response_model=EditorConditionList)
+async def get_conditions(current_user: UserInfo = Depends(get_editor_user)):
+    """List the merged condition catalog used by upload validation and RAG."""
+    settings = get_rag_settings()
+    registry = load_registry(settings=settings)
+    runtime = runtime_diseases(settings)
+    conditions: list[EditorCondition] = []
+    for condition_id, config in registry.diseases.items():
+        docs = [document for document in registry.documents if condition_id in document.diseases]
+        approved_count = sum(document.status == "approved" for document in docs)
+        runtime_disease = runtime.get(condition_id)
+        conditions.append(
+            _condition_schema(
+                condition_id=condition_id,
+                config=config,
+                origin="editor_runtime" if runtime_disease is not None else "system",
+                runtime_status=runtime_disease.status if runtime_disease is not None else None,
+                created_at=runtime_disease.created_at if runtime_disease is not None else None,
+                updated_at=runtime_disease.updated_at if runtime_disease is not None else None,
+                source_document_count=len(docs),
+                approved_source_count=approved_count,
+            )
+        )
+    conditions.sort(key=lambda item: (item.status != "active", item.label_vi.casefold()))
+    return EditorConditionList(conditions=conditions)
+
+
+@router.post("/conditions", response_model=EditorCondition, status_code=status.HTTP_201_CREATED)
+async def create_condition(
+    payload: EditorCreateConditionRequest,
+    current_user: UserInfo = Depends(get_editor_user),
+):
+    """Create a runtime condition. It waits for a successfully indexed source."""
+    settings = get_rag_settings()
+    try:
+        disease = await asyncio.to_thread(
+            create_runtime_disease,
+            disease_id=payload.condition_id,
+            label_vi=payload.label_vi,
+            label_en=payload.label_en,
+            aliases=payload.aliases,
+            created_by=current_user.user_id,
+            settings=settings,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    return _condition_schema(
+        condition_id=payload.condition_id.strip().lower(),
+        config=disease.model_dump(mode="json"),
+        origin="editor_runtime",
+        runtime_status=disease.status,
+        created_at=disease.created_at,
+        updated_at=disease.updated_at,
+        source_document_count=0,
+        approved_source_count=0,
+    )
+
+
+@router.post("/conditions/{condition_id}/status", response_model=EditorCondition)
+async def update_condition_status(
+    condition_id: str,
+    payload: EditorConditionStatusRequest,
+    current_user: UserInfo = Depends(get_editor_user),
+):
+    """Temporarily disable a runtime condition or re-enable one with sources."""
+    settings = get_rag_settings()
+    registry = load_registry(settings=settings)
+    docs = [document for document in registry.documents if condition_id in document.diseases]
+    approved_count = sum(document.status == "approved" for document in docs)
+    if payload.status == "active" and approved_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Chưa thể bật bệnh này vì chưa có tài liệu nào được index thành công.",
+        )
+    try:
+        disease = await asyncio.to_thread(
+            set_runtime_disease_status,
+            condition_id,
+            payload.status,
+            settings=settings,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bệnh runtime") from exc
+
+    return _condition_schema(
+        condition_id=condition_id,
+        config=disease.model_dump(mode="json"),
+        origin="editor_runtime",
+        runtime_status=disease.status,
+        created_at=disease.created_at,
+        updated_at=disease.updated_at,
+        source_document_count=len(docs),
+        approved_source_count=approved_count,
+    )
 
 
 @router.get("/documents", response_model=EditorSourceDocumentList)
@@ -482,11 +643,54 @@ async def approve_queue_item(
     if item.status in ["approved", "rejected"]:
         raise HTTPException(status_code=409, detail=f"Mục {item.id} đã ở trạng thái {item.status}")
 
+    final_content = payload.content if payload.content is not None else item.content
+    if not final_content.strip():
+        raise HTTPException(status_code=422, detail="Cần có nội dung trước khi duyệt bản nháp")
+    if not item.conditions:
+        raise HTTPException(status_code=422, detail="Cần gắn ít nhất một bệnh trước khi duyệt bản nháp")
+
     item.status = "approved"
-    item.content = payload.content if payload.content else item.content
+    item.content = final_content
     item.review_note = payload.note
     item.reviewed_at = datetime.utcnow()
     item.reviewed_by = current_user.user_id
+    await db.commit()
+    await db.refresh(item)
+    return _queue_item_detail(item)
+
+
+@router.patch("/queue/{item_id}/draft", response_model=EditorQueueItemDetail)
+async def update_queue_draft(
+    item_id: str,
+    payload: EditorDraftUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserInfo = Depends(get_editor_user),
+):
+    """Persist a question-log draft without promoting it out of ``draft``."""
+    result = await db.execute(select(EditorQueueItemModel).filter(EditorQueueItemModel.id == item_id))
+    item = result.scalars().first()
+    if item is None:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy mục {item_id}")
+    if item.status != "draft":
+        raise HTTPException(status_code=409, detail="Chỉ mục đang ở trạng thái nháp mới có thể lưu chỉnh sửa")
+    if item.origin != "question_log":
+        raise HTTPException(status_code=409, detail="Chỉ bản nháp tạo từ câu hỏi chưa có tài liệu mới có thể sửa ở đây")
+
+    known_conditions = set(load_registry().diseases)
+    invalid_conditions = sorted(set(payload.conditions) - known_conditions)
+    if invalid_conditions:
+        raise HTTPException(
+            status_code=422,
+            detail="Bệnh áp dụng không còn tồn tại trong danh mục: " + ", ".join(invalid_conditions),
+        )
+
+    item.title = payload.title
+    item.content = payload.content
+    item.topics = payload.topics
+    item.conditions = payload.conditions
+    item.source_url = payload.source_url
+    item.issuer = payload.issuer
+    item.doc_code = payload.doc_code
     await db.commit()
     await db.refresh(item)
     return _queue_item_detail(item)
@@ -600,6 +804,66 @@ async def draft_out_of_scope(
     await db.commit()
 
     return await get_queue_item(draft.id, db, current_user)
+
+
+@router.get("/patient-questions", response_model=PatientEditorialQuestionList)
+async def list_patient_editorial_questions(
+    request_status: PatientEditorialQuestionStatus | None = Query(None, alias="status"),
+    db: AsyncSession = Depends(get_db),
+    current_user: UserInfo = Depends(get_editor_user),
+) -> PatientEditorialQuestionList:
+    """List individual questions waiting for a BTV response, newest first."""
+    statement = select(PatientEditorialQuestion).order_by(PatientEditorialQuestion.created_at.desc())
+    if request_status is not None:
+        statement = statement.filter(PatientEditorialQuestion.status == request_status)
+    result = await db.execute(statement)
+    return PatientEditorialQuestionList(
+        requests=[_patient_question_schema(item) for item in result.scalars().all()]
+    )
+
+
+@router.post("/patient-questions/{request_id}/answer", response_model=PatientEditorialQuestionSchema)
+async def answer_patient_editorial_question(
+    request_id: str,
+    payload: AnswerPatientEditorialQuestionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserInfo = Depends(get_editor_user),
+) -> PatientEditorialQuestionSchema:
+    """Send one BTV-authored response to the patient notification inbox.
+
+    The response is communication to this patient only. It is intentionally not
+    indexed or fed back into RAG; an approved source document still follows the
+    normal review and indexing lifecycle.
+    """
+    result = await db.execute(
+        select(PatientEditorialQuestion).where(PatientEditorialQuestion.id == request_id)
+    )
+    item = result.scalars().first()
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy yêu cầu phản hồi")
+    if item.status != "pending":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Yêu cầu này đã được phản hồi")
+
+    answer = payload.answer.strip()
+    if answer == "":
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Nội dung phản hồi không được để trống")
+
+    item.status = "answered"
+    item.answer = answer
+    item.answered_at = datetime.utcnow()
+    item.answered_by = current_user.user_id
+    db.add(
+        PatientNotification(
+            patient_id=item.patient_id,
+            editorial_question_id=item.id,
+            kind="editor_response",
+            title="Phản hồi từ biên tập viên y khoa",
+            body=answer,
+        )
+    )
+    await db.commit()
+    await db.refresh(item)
+    return _patient_question_schema(item)
 
 
 @router.post("/seed-database")

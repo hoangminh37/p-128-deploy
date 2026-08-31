@@ -8,7 +8,10 @@
 import type { PatientProfileResponse, PrimaryCondition } from '../lib/schemas'
 import { Mascot } from './Mascot'
 
-const BY_CONDITION: Record<PrimaryCondition, readonly string[]> = {
+// Đây chỉ là các gợi ý được biên soạn sẵn cho những bệnh đã có nội dung UX
+// riêng. `PrimaryCondition` bây giờ là mã động từ danh mục BTV, nên không thể
+// dùng `Record<PrimaryCondition, ...>` (nó sẽ đòi có câu gợi ý cho mọi bệnh).
+const BY_CONDITION: Partial<Record<PrimaryCondition, readonly string[]>> = {
   hypertension: [
     'Tôi bị tăng huyết áp thì nên ăn uống thế nào?',
     'Tôi nên đo huyết áp vào lúc nào trong ngày?',

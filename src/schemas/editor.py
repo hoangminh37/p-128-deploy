@@ -1,10 +1,15 @@
+from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 EditorItemStatus = Literal["draft", "pending", "indexing", "failed", "approved", "rejected"]
 EditorItemOrigin = Literal["question_log", "editor_upload"]
-PatientCondition = Literal["type2_diabetes", "hypertension"]
+PatientEditorialQuestionStatus = Literal["pending", "answered"]
+# Condition IDs are registry data, not a code enum. Keeping this as ``str`` is
+# what allows a BTV-added runtime condition to flow from upload to RAG without a
+# backend redeploy.
+PatientCondition = str
 SourceOrigin = Literal["system", "editor_upload"]
 SourceApprovalStatus = Literal[
     "approved",
@@ -18,6 +23,8 @@ SourceIndexStatus = Literal["indexed", "indexing", "failed", "not_indexed", "not
 # Loại có thể trình bày trực tiếp trong trình duyệt. Giá trị này mô tả file
 # thật của nguồn, không suy ra từ title hay từ các chunk trong Vector Store.
 SourceViewerType = Literal["pdf", "markdown", "unsupported"]
+EditorConditionOrigin = Literal["system", "editor_runtime"]
+EditorConditionStatus = Literal["waiting_for_sources", "active", "inactive"]
 
 
 class EditorDashboard(BaseModel):
@@ -25,6 +32,37 @@ class EditorDashboard(BaseModel):
 
     pending_count: int = Field(..., ge=0)
     out_of_scope_count: int = Field(..., ge=0)
+    patient_question_count: int = Field(default=0, ge=0)
+
+
+class EditorCondition(BaseModel):
+    """One condition available in the RAG registry and the BTV upload form."""
+
+    condition_id: str
+    label_vi: str
+    label_en: str | None = None
+    aliases: list[str] = Field(default_factory=list)
+    origin: EditorConditionOrigin
+    status: EditorConditionStatus
+    source_document_count: int = Field(default=0, ge=0)
+    approved_source_count: int = Field(default=0, ge=0)
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class EditorConditionList(BaseModel):
+    conditions: list[EditorCondition] = Field(default_factory=list)
+
+
+class EditorCreateConditionRequest(BaseModel):
+    condition_id: str = Field(min_length=2, max_length=64)
+    label_vi: str = Field(min_length=2, max_length=120)
+    label_en: str | None = Field(default=None, max_length=120)
+    aliases: list[str] = Field(default_factory=list, max_length=20)
+
+
+class EditorConditionStatusRequest(BaseModel):
+    status: Literal["active", "inactive"]
 
 
 class EditorSourceDocument(BaseModel):
@@ -108,6 +146,44 @@ class EditorApproveRequest(BaseModel):
     note: str | None = None
 
 
+class EditorDraftUpdateRequest(BaseModel):
+    """Complete editable working copy of a question-log draft."""
+
+    title: str = Field(min_length=1, max_length=120)
+    content: str = ""
+    topics: list[str] = Field(default_factory=list, max_length=20)
+    conditions: list[PatientCondition] = Field(default_factory=list, max_length=20)
+    source_url: str | None = Field(default=None, max_length=2_000)
+    issuer: str | None = Field(default=None, max_length=240)
+    doc_code: str | None = Field(default=None, max_length=120)
+
+    @field_validator("title")
+    @classmethod
+    def title_must_not_be_blank(cls, value: str) -> str:
+        title = value.strip()
+        if title == "":
+            raise ValueError("Tiêu đề bản nháp không được để trống")
+        return title
+
+    @field_validator("source_url", "issuer", "doc_code", mode="before")
+    @classmethod
+    def blank_metadata_is_none(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+    @field_validator("topics", "conditions")
+    @classmethod
+    def normalize_list_values(cls, values: list[str]) -> list[str]:
+        """Trim and deduplicate editor input without changing its order."""
+        normalized: list[str] = []
+        for value in values:
+            item = value.strip()
+            if item and item not in normalized:
+                normalized.append(item)
+        return normalized
+
+
 class EditorRejectRequest(BaseModel):
     reason: str = Field(..., min_length=1)
 
@@ -123,3 +199,37 @@ class OutOfScopeLogSchema(BaseModel):
 
 class OutOfScopeLogList(BaseModel):
     logs: list[OutOfScopeLogSchema] = Field(default_factory=list)
+
+
+class PatientEditorialQuestionSchema(BaseModel):
+    """A patient request visible to BTV without unrelated profile details."""
+
+    request_id: str
+    question: str
+    status: PatientEditorialQuestionStatus
+    created_at: datetime
+    answer: str | None = None
+    answered_at: datetime | None = None
+
+    @field_serializer("created_at", "answered_at", when_used="json")
+    def serialize_audit_datetime_as_utc(self, value: datetime | None) -> str | None:
+        """Expose audit timestamps as unambiguous UTC ISO-8601 values.
+
+        SQLite's existing rows were written with ``datetime.utcnow()``, so
+        they are naive values even though the application has always treated
+        them as UTC. Normalise at the API boundary rather than changing old
+        records or weakening the frontend's strict timestamp contract.
+        """
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+class PatientEditorialQuestionList(BaseModel):
+    requests: list[PatientEditorialQuestionSchema] = Field(default_factory=list)
+
+
+class AnswerPatientEditorialQuestionRequest(BaseModel):
+    answer: str = Field(min_length=1, max_length=4_000)

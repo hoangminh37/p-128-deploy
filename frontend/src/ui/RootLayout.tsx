@@ -30,8 +30,9 @@ import { Outlet, useLocation, useMatch } from 'react-router-dom'
 
 import { useConversations } from '../app/conversations'
 import { APP_NAME } from '../lib/appName'
-import { CONDITION_LABEL } from '../lib/conditions'
+import { conditionLabel } from '../lib/conditions'
 import { usePatient } from '../patient/context'
+import { useSession } from '../session/context'
 import { Backdrop } from './Backdrop'
 import { ContentHeader } from './ContentHeader'
 import { Sidebar } from './Sidebar'
@@ -42,12 +43,15 @@ const DESKTOP_QUERY = '(min-width: 1024px)'
 
 /** Tên bốn màn của khu vực biên tập, suy từ đường dẫn. */
 function editorTitle(pathname: string): string {
+  if (pathname.startsWith('/editor/conditions')) return 'Danh mục bệnh'
   if (pathname.startsWith('/editor/queue/')) return 'Duyệt nội dung'
   if (pathname.startsWith('/editor/queue')) return 'Hàng đợi duyệt'
   if (pathname.startsWith('/editor/documents/')) return 'Xem tài liệu'
   if (pathname.startsWith('/editor/documents')) return 'Tài liệu nguồn'
   if (pathname.startsWith('/editor/out-of-scope')) return 'Câu hỏi chưa trả lời được'
+  if (pathname.startsWith('/editor/patient-questions')) return 'Yêu cầu phản hồi bệnh nhân'
   if (pathname.startsWith('/editor/upload')) return 'Tải lên tài liệu'
+  if (pathname.startsWith('/editor/doctors')) return 'Quản lý bác sỹ'
   return 'Tổng quan'
 }
 
@@ -113,6 +117,7 @@ export function RootLayout() {
   const [isDrawerOpen, setDrawerOpen] = useState(false)
 
   const { profile } = usePatient()
+  const { user } = useSession()
   const { pathname } = useLocation()
   const contentRef = useRef<HTMLElement>(null)
 
@@ -121,6 +126,13 @@ export function RootLayout() {
   // tô đậm một phiên còn màn hình đang hiện một phiên khác.
   const chatMatch = useMatch('/chat/:conversationId')
   const activeConversationId = chatMatch?.params.conversationId ?? null
+  // A consultation room is a working surface like Messenger, not a reading
+  // page. It owns the complete content pane below the shared app header.
+  // `/consultations/doctors/:id` deliberately does not match either route.
+  const patientConsultationRoomMatch = useMatch('/consultations/:consultationId')
+  const doctorConsultationRoomMatch = useMatch('/doctor/consultations/:consultationId')
+  const isConsultationRoom =
+    patientConsultationRoomMatch !== null || doctorConsultationRoomMatch !== null
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), [])
 
@@ -138,6 +150,11 @@ export function RootLayout() {
    */
   function headerTitle(): string {
     if (pathname === '/profile') return 'Hồ sơ của bạn'
+    if (pathname.startsWith('/consultations')) return 'Tư vấn với bác sỹ'
+    if (pathname === '/doctor') return 'Tổng quan tư vấn'
+    if (pathname.startsWith('/doctor/notifications')) return 'Thông báo'
+    if (pathname.startsWith('/doctor/profile')) return 'Hồ sơ bác sỹ'
+    if (pathname.startsWith('/doctor/consultations')) return 'Phiên tư vấn'
     if (pathname === '/learning') return 'Thư viện học tập'
     if (pathname.startsWith('/editor')) return editorTitle(pathname)
     if (!pathname.startsWith('/chat')) return APP_NAME
@@ -152,10 +169,12 @@ export function RootLayout() {
    * đứng ở màn nào — với luồng bệnh nhân thì đó là tên bệnh chính, còn ở đây
    * phải là tên màn.
    */
-  const conditionLabel = pathname.startsWith('/editor')
+  const headerConditionLabel = pathname.startsWith('/editor')
     ? editorTitle(pathname)
+    : user?.role === 'doctor'
+      ? 'Khu vực bác sỹ'
     : profile !== null
-      ? CONDITION_LABEL[profile.primary_condition]
+      ? conditionLabel(profile.primary_condition, profile.primary_condition_label)
       : APP_NAME
 
   const isDark = isDarkContent(pathname)
@@ -172,7 +191,7 @@ export function RootLayout() {
   }
 
   return (
-    <div className="flex min-h-dvh bg-ink">
+    <div className={`flex bg-ink ${isConsultationRoom ? 'h-dvh overflow-hidden' : 'min-h-dvh'}`}>
       {isDesktop && (
         // `h-dvh` + `sticky` cho thanh bên đứng yên trong lúc nội dung cuộn.
         // Có chiều cao tường minh nên nó không bị flex kéo giãn theo nội dung,
@@ -204,18 +223,23 @@ export function RootLayout() {
           isDesktop={isDesktop}
           isDark={isDark}
           title={headerTitle()}
-          conditionLabel={conditionLabel}
+          conditionLabel={headerConditionLabel}
           isDrawerOpen={isDrawerOpen}
           onOpenMenu={() => setDrawerOpen(true)}
           contentRef={contentRef}
+          showTranscriptActions={!pathname.startsWith('/chat')}
         />
 
         <main
           ref={contentRef}
-          className={`relative z-10 mx-auto flex w-full flex-1 flex-col px-cozy py-cozy ${
-            // Màn tổng quan biên tập là một bố cục thẻ, không phải một cột chữ,
-            // nên nó cần cả bề ngang. Mọi màn còn lại giữ nguyên cột đọc cũ.
-            isDark ? 'max-w-page' : 'max-w-answer lg:max-w-reading'
+          className={`relative z-10 mx-auto flex w-full flex-1 flex-col ${
+            isConsultationRoom
+              ? 'min-h-0 max-w-none overflow-hidden p-0'
+              : `px-cozy py-cozy ${
+                  // Màn tổng quan biên tập là một bố cục thẻ, không phải một cột chữ,
+                  // nên nó cần cả bề ngang. Mọi màn còn lại giữ nguyên cột đọc cũ.
+                  isDark ? 'max-w-page' : 'max-w-answer lg:max-w-reading'
+                }`
           }`}
         >
           <Outlet />

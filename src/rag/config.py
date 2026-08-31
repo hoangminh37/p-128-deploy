@@ -31,6 +31,10 @@ class RagSettings(BaseSettings):
 
     # ---- Đường dẫn ----------------------------------------------------------
     registry_path: Path = DATA_DIR / "registry.yaml"
+    # Danh mục bệnh do BTV tạo lúc vận hành. Tách khỏi ``registry.yaml`` được
+    # commit để thao tác trong UI không làm bẩn Git hay làm mất chú thích của
+    # bộ dữ liệu nền. Production phải mount file này lên persistent volume.
+    runtime_registry_path: Path | None = None
     raw_dir: Path = DATA_DIR / "raw"
     interim_dir: Path = DATA_DIR / "interim"
     processed_dir: Path = DATA_DIR / "processed"

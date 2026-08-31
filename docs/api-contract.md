@@ -83,6 +83,7 @@ trường khác, xem mục 10.
 | GET | `/api/v1/editor/documents/{document_id}/file` | Tải bản gốc của một tài liệu nguồn. Xem mục 8 |
 | GET | `/api/v1/editor/queue` | Danh sách mục chờ duyệt |
 | GET | `/api/v1/editor/queue/{item_id}` | Chi tiết một mục chờ duyệt |
+| PATCH | `/api/v1/editor/queue/{item_id}/draft` | Lưu chỉnh sửa của bản nháp tạo từ câu hỏi chưa có tài liệu |
 | POST | `/api/v1/editor/queue/upload` | Tải tài liệu lên, đưa vào hàng chờ duyệt. **Form data**, không phải JSON |
 | POST | `/api/v1/editor/queue/{item_id}/approve` | Duyệt nguồn và bắt đầu job index nền |
 | POST | `/api/v1/editor/queue/{item_id}/retry-index` | Chạy lại một job index nguồn đã thất bại |
@@ -207,13 +208,15 @@ Request:
 | :-- | :-- | :-- | :-- |
 | `patient_id` | string | có | Client sinh nếu chưa có. Không chứa thông tin định danh thật |
 | `age` | int | có | 18 đến 120 |
-| `primary_condition` | enum | có | `type2_diabetes` hoặc `hypertension` |
-| `comorbidities` | enum[] | không | Cùng tập giá trị với `primary_condition`, mặc định rỗng |
+| `primary_condition` | string | có | Mã bệnh từ `GET /api/v1/conditions`; chỉ nhận bệnh đang hoạt động và đã có nguồn RAG duyệt |
+| `comorbidities` | string[] | không | Cùng danh mục với `primary_condition`, mặc định rỗng, không được trùng bệnh chính |
 | `diagnosed_at` | string | không | Định dạng `YYYY-MM`, không ở tương lai |
 | `asking_as` | enum | không | `self` hoặc `caregiver`, mặc định `self`. Người hỏi là chính bệnh nhân hay người chăm sóc. Chỉ ảnh hưởng cách xưng hô trong câu trả lời, không đổi nội dung y khoa |
 | `height_cm` | int | không | 100 đến 250. Dùng để agent chọn đúng tài liệu phù hợp thể trạng |
 | `weight_kg` | number | không | 25 đến 300. Nên nhập tới một chữ số thập phân — đây là khuyến nghị, không phải ràng buộc validate. Dùng để agent chọn đúng tài liệu phù hợp thể trạng |
 | `updated_at` | string | chỉ có trong response | Định dạng ISO 8601 có offset múi giờ |
+| `primary_condition_label` | string | chỉ có trong response | Nhãn tiếng Việt lấy từ registry runtime, để client không hardcode danh mục bệnh |
+| `comorbidity_labels` | object | chỉ có trong response | Map từ id bệnh kèm sang nhãn tiếng Việt, lấy từ cùng registry |
 
 Hai trường `height_cm` và `weight_kg` chỉ dùng để chọn tài liệu phù hợp thể trạng. Agent KHÔNG
 được đưa ra chỉ tiêu cân nặng, mục tiêu giảm cân, hay số calo cụ thể dựa trên hai trường này,
@@ -222,6 +225,25 @@ vì đó là tư vấn dinh dưỡng cá nhân hoá — nằm ngoài phạm vi g
 Không nhận tên, số điện thoại, số căn cước. Ràng buộc PII trong brief mục 7.4.
 
 Response 200: trả về đúng object vừa lưu, thêm `updated_at` dạng ISO 8601 có offset múi giờ.
+
+### GET /api/v1/conditions
+
+Danh mục bệnh dành cho form hồ sơ bệnh nhân. Endpoint không yêu cầu vai trò BTV,
+nhưng chỉ trả bệnh **đang hoạt động** và có ít nhất một tài liệu nguồn đã duyệt;
+vì vậy giao diện không thể lưu hồ sơ cho một bệnh mà agent chưa có căn cứ để trả
+lời.
+
+```json
+{
+  "conditions": [
+    {
+      "condition_id": "type2_diabetes",
+      "label_vi": "Đái tháo đường típ 2",
+      "label_en": "Type 2 diabetes"
+    }
+  ]
+}
+```
 
 ### GET /api/v1/patients/{patient_id}/profile
 
@@ -533,6 +555,38 @@ chứa PII, còn câu hỏi thì là chữ tự do nên phải làm sạch chủ
 `origin` là thứ bản vẽ hiển thị ngay dưới tiêu đề mỗi mục ("Từ log câu hỏi" và "Tự thêm"),
 nên nó phải là dữ liệu có sẵn ở danh sách, không phải thứ chỉ tra được khi mở chi tiết.
 
+### GET /api/v1/editor/conditions
+
+Trả danh mục đã merge giữa bệnh nền và bệnh BTV tạo lúc vận hành. Mỗi phần tử có
+`condition_id`, `label_vi`, `label_en`, `aliases`, `origin` (`system` hoặc
+`editor_runtime`), `status` (`waiting_for_sources`, `active`, `inactive`),
+`source_document_count` và `approved_source_count`. Chỉ tài khoản `editor` được
+gọi.
+
+### POST /api/v1/editor/conditions
+
+Tạo bệnh runtime, không ghi `registry.yaml`.
+
+```json
+{
+  "condition_id": "asthma",
+  "label_vi": "Hen phế quản",
+  "label_en": "Asthma",
+  "aliases": ["hen", "hen suyễn"]
+}
+```
+
+`condition_id` phải bắt đầu bằng chữ thường và chỉ gồm chữ thường, số, dấu gạch
+dưới. Response 201 là phần tử vừa tạo, với `status: "waiting_for_sources"`.
+Response 409 nếu mã trùng bệnh nền hoặc một bệnh runtime đã có.
+
+### POST /api/v1/editor/conditions/{condition_id}/status
+
+Body `{ "status": "inactive" }` tạm ngừng bệnh và loại các tài liệu của bệnh
+đó khỏi retrieval, nhưng giữ nguyên vector để bật lại. Body `{ "status":
+"active" }` chỉ hợp lệ khi có ít nhất một tài liệu nguồn đã duyệt; nếu không
+trả 409. Không thể đổi trạng thái bệnh nền qua endpoint này.
+
 ### GET /api/v1/editor/dashboard
 
 Hai con số ở màn Tổng quan của bản vẽ.
@@ -704,9 +758,12 @@ file đính kèm. Đừng đặt `Content-Type` bằng tay — để trình duy�
 `.pdf`, `.pptx`, `.docx`, `.md`, `.html`, `.htm`, `.xlsx`. Đây là những định dạng Docling đọc
 được và đã kiểm chứng trên corpus của dự án.
 
-Giá trị hợp lệ của `diseases` là id bệnh trong `data/registry.yaml`, hiện đúng bằng tập giá trị
-của `primary_condition` ở mục 4: `type2_diabetes` và `hypertension`. Gửi id lạ thì trả 400 kèm
-danh sách id đang hỗ trợ — **không** phải tên tiếng Việt như "Tiểu đường".
+Giá trị hợp lệ của `diseases` là id bệnh trong danh mục đã merge giữa
+`data/registry.yaml` và `data/registry_runtime.yaml`. BTV tạo bệnh mới qua
+`POST /editor/conditions` rồi có thể chọn id đó ngay trong form upload. Gửi id
+lạ thì trả 400 kèm danh sách id đang hỗ trợ — **không** phải tên tiếng Việt như
+"Tiểu đường". Một bệnh runtime chỉ được agent và hồ sơ bệnh nhân dùng sau khi
+có ít nhất một tài liệu index thành công.
 
 Response 201, trả về đúng object của `GET /editor/queue/{item_id}`, với `status` bằng `pending`,
 `content` rỗng, còn `source_url`, `issuer`, `doc_code`, `conditions` lấy từ chính form vừa gửi.

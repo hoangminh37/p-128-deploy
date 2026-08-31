@@ -9,8 +9,13 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import os
+import re
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -23,6 +28,10 @@ from src.rag.diseases import DiseaseCatalog
 # danh sách bệnh vào code, mà đó chính là thứ vừa gỡ ra.
 Disease = str
 Authority = Literal["vn_moh", "international"]
+RuntimeDiseaseStatus = Literal["waiting_for_sources", "active", "inactive"]
+
+_RUNTIME_REGISTRY_VERSION = 1
+_DISEASE_ID_RE = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
 
 # Trạng thái vòng đời của một tài liệu:
 #   approved        — index thành công, được phép vào vector store
@@ -144,8 +153,19 @@ class Registry(BaseModel):
     def diseases_in_scope(self) -> list[str]:
         return self.catalog.ids
 
+    @property
+    def active_disease_ids(self) -> list[str]:
+        """Conditions that are currently allowed to surface in patient RAG."""
+        return [
+            disease_id for disease_id, config in self.diseases.items() if config.get("status", "active") == "active"
+        ]
+
     def approved(self) -> list[SourceDoc]:
-        return [d for d in self.documents if d.status == "approved"]
+        # Deactivating a runtime condition must take effect immediately even
+        # though its chunks remain in Chroma for recoverable re-activation.
+        # The retrieval allow-list is built from this method.
+        active = set(self.active_disease_ids)
+        return [d for d in self.documents if d.status == "approved" and active.intersection(d.diseases)]
 
     def pending(self) -> list[SourceDoc]:
         """Tài liệu biên tập viên đã tải lên nhưng chưa duyệt — chưa được index."""
@@ -164,6 +184,24 @@ class Registry(BaseModel):
             if d.doc_id == doc_id:
                 return d
         raise KeyError(f"Không có tài liệu doc_id={doc_id!r} trong registry")
+
+
+class RuntimeDisease(BaseModel):
+    """Một bệnh do BTV thêm qua UI, nằm ngoài registry nền được commit."""
+
+    label_vi: str = Field(min_length=2, max_length=120)
+    label_en: str | None = Field(default=None, max_length=120)
+    aliases: list[str] = Field(default_factory=list)
+    keywords: str = Field(min_length=1)
+    status: RuntimeDiseaseStatus = "waiting_for_sources"
+    created_by: str
+    created_at: str
+    updated_at: str
+
+
+class RuntimeRegistry(BaseModel):
+    version: int = _RUNTIME_REGISTRY_VERSION
+    diseases: dict[str, RuntimeDisease] = Field(default_factory=dict)
 
 
 def _assign_priority(docs: list[SourceDoc], policy: str, disease_ids: list[str] | None = None) -> None:
@@ -224,6 +262,9 @@ def load_registry(
         raise FileNotFoundError(f"Không tìm thấy {path}. Đây là file bắt buộc, xem data/README.md.")
 
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} không có định dạng registry YAML hợp lệ")
+    raw = _merge_runtime_diseases(raw, settings)
     registry = Registry.model_validate(raw)
 
     # Nạp thêm tài liệu do biên tập viên tải lên lúc chạy. Chúng nằm ở file
@@ -255,6 +296,196 @@ def load_registry(
     _assign_priority(registry.documents, policy, catalog.ids)
     registry.ranking_policy = policy  # type: ignore[assignment]
     return registry
+
+
+def _runtime_registry_path(settings: RagSettings) -> Path:
+    return settings.runtime_registry_path or (settings.registry_path.parent / "registry_runtime.yaml")
+
+
+def _load_runtime_registry(settings: RagSettings) -> RuntimeRegistry:
+    """Missing runtime file simply means no editor-created conditions yet."""
+    path = _runtime_registry_path(settings)
+    if not path.exists():
+        return RuntimeRegistry()
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Không đọc được danh mục bệnh runtime: {exc}") from exc
+    if raw is None:
+        return RuntimeRegistry()
+    if not isinstance(raw, dict):
+        raise ValueError("Danh mục bệnh runtime không đúng định dạng YAML")
+    return RuntimeRegistry.model_validate(raw)
+
+
+def _merge_runtime_diseases(base: dict[str, Any], settings: RagSettings) -> dict[str, Any]:
+    """Merge base catalog with runtime entries without ever mutating base YAML."""
+    runtime = _load_runtime_registry(settings)
+    merged = dict(base)
+    base_diseases = base.get("diseases")
+    if not isinstance(base_diseases, dict):
+        raise ValueError("registry.yaml thiếu mục diseases")
+    diseases = dict(base_diseases)
+    collisions = sorted(set(diseases).intersection(runtime.diseases))
+    if collisions:
+        raise ValueError("Danh mục runtime trùng mã bệnh nền: " + ", ".join(collisions))
+    for disease_id, disease in runtime.diseases.items():
+        diseases[disease_id] = disease.model_dump(mode="json")
+    merged["diseases"] = diseases
+    return merged
+
+
+@contextmanager
+def _runtime_registry_lock(path: Path) -> Iterator[None]:
+    """Serialize writers while atomic replacement keeps readers safe."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    with lock_path.open("a+") as lock_file:
+        try:
+            import fcntl
+
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        except ImportError:  # pragma: no cover - Windows does not ship fcntl
+            pass
+        try:
+            yield
+        finally:
+            try:
+                import fcntl
+
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            except ImportError:  # pragma: no cover - Windows does not ship fcntl
+                pass
+
+
+def _save_runtime_registry(runtime: RuntimeRegistry, settings: RagSettings) -> Path:
+    """Write atomically: a crash may keep the old file, never a half-written YAML."""
+    path = _runtime_registry_path(settings)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.stem}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as temp_file:
+            yaml.safe_dump(
+                runtime.model_dump(mode="json"),
+                temp_file,
+                allow_unicode=True,
+                sort_keys=False,
+                default_flow_style=False,
+            )
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        os.replace(temp_name, path)
+    except Exception:
+        Path(temp_name).unlink(missing_ok=True)
+        raise
+    return path
+
+
+def _utc_now() -> str:
+    return _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds")
+
+
+def _normalize_aliases(label_vi: str, label_en: str | None, aliases: list[str]) -> list[str]:
+    values = [label_vi, label_en or "", *aliases]
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        cleaned = " ".join(value.split())
+        key = cleaned.casefold()
+        if cleaned and key not in seen:
+            normalized.append(cleaned)
+            seen.add(key)
+    return normalized
+
+
+def _keywords_from_aliases(aliases: list[str]) -> str:
+    """Generate literal patterns so BTV never has to write arbitrary regex."""
+    return "|".join(re.escape(alias).replace(r"\ ", r"\s+") for alias in aliases)
+
+
+def create_runtime_disease(
+    *,
+    disease_id: str,
+    label_vi: str,
+    label_en: str | None,
+    aliases: list[str],
+    created_by: str,
+    settings: RagSettings | None = None,
+) -> RuntimeDisease:
+    """Create a BTV-managed condition without touching ``registry.yaml``."""
+    settings = settings or get_rag_settings()
+    disease_id = disease_id.strip().lower()
+    if not _DISEASE_ID_RE.fullmatch(disease_id):
+        raise ValueError("Mã bệnh chỉ gồm chữ thường, số và dấu gạch dưới; bắt đầu bằng chữ cái.")
+    label_vi = " ".join(label_vi.split())
+    label_en = " ".join(label_en.split()) if label_en else None
+    if len(label_vi) < 2:
+        raise ValueError("Tên tiếng Việt của bệnh cần ít nhất 2 ký tự.")
+    normalized_aliases = _normalize_aliases(label_vi, label_en, aliases)
+    now = _utc_now()
+
+    with _runtime_registry_lock(_runtime_registry_path(settings)):
+        base = yaml.safe_load(settings.registry_path.read_text(encoding="utf-8"))
+        base_diseases = base.get("diseases", {}) if isinstance(base, dict) else {}
+        if disease_id in base_diseases:
+            raise ValueError(f"Mã bệnh {disease_id!r} đã thuộc danh mục nền.")
+        runtime = _load_runtime_registry(settings)
+        if disease_id in runtime.diseases:
+            raise ValueError(f"Mã bệnh {disease_id!r} đã tồn tại trong danh mục runtime.")
+
+        disease = RuntimeDisease(
+            label_vi=label_vi,
+            label_en=label_en,
+            aliases=normalized_aliases,
+            keywords=_keywords_from_aliases(normalized_aliases),
+            status="waiting_for_sources",
+            created_by=created_by,
+            created_at=now,
+            updated_at=now,
+        )
+        runtime.diseases[disease_id] = disease
+        _save_runtime_registry(runtime, settings)
+    return disease
+
+
+def set_runtime_disease_status(
+    disease_id: str,
+    status: RuntimeDiseaseStatus,
+    *,
+    settings: RagSettings | None = None,
+) -> RuntimeDisease:
+    settings = settings or get_rag_settings()
+    with _runtime_registry_lock(_runtime_registry_path(settings)):
+        runtime = _load_runtime_registry(settings)
+        try:
+            disease = runtime.diseases[disease_id]
+        except KeyError:
+            raise KeyError(f"Không có bệnh runtime {disease_id!r}") from None
+        disease.status = status
+        disease.updated_at = _utc_now()
+        _save_runtime_registry(runtime, settings)
+    return disease
+
+
+def activate_runtime_diseases_with_sources(disease_ids: list[str], settings: RagSettings | None = None) -> list[str]:
+    """Only a successful source indexing run may activate a new disease."""
+    settings = settings or get_rag_settings()
+    activated: list[str] = []
+    with _runtime_registry_lock(_runtime_registry_path(settings)):
+        runtime = _load_runtime_registry(settings)
+        for disease_id in disease_ids:
+            disease = runtime.diseases.get(disease_id)
+            if disease is not None and disease.status == "waiting_for_sources":
+                disease.status = "active"
+                disease.updated_at = _utc_now()
+                activated.append(disease_id)
+        if activated:
+            _save_runtime_registry(runtime, settings)
+    return activated
+
+
+def runtime_diseases(settings: RagSettings | None = None) -> dict[str, RuntimeDisease]:
+    return _load_runtime_registry(settings or get_rag_settings()).diseases
 
 
 def verify_sources(registry: Registry, settings: RagSettings | None = None) -> None:
