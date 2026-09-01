@@ -10,8 +10,13 @@
  * duyệt không theo được thang cỡ chữ của ứng dụng, và trên điện thoại nó hiện ở
  * giữa màn hình, xa hẳn chỗ ngón tay vừa chạm.
  *
- * Nút này nằm trên nền navy của thanh bên, nên nó dùng cặp màu của họ nền tối:
- * viền và chữ `mist` (6.80:1) ở trạng thái nghỉ, `white` cho câu hỏi lại.
+ * DỰNG TỪ BẢN MẪU: lớp `.thoat` — viền `--ke`, chữ `--xam`, và chuyển sang đỏ
+ * khi rê chuột (`.thoat:hover{border-color:var(--do);color:var(--do)}`). Đó là
+ * chỗ DUY NHẤT trong thanh bên bản mẫu dùng đỏ, và nó dùng đúng: đăng xuất là
+ * hành động phá huỷ phiên làm việc.
+ *
+ * Bước hỏi lại thì bản mẫu không có — nó là trang tĩnh nên không có gì để mất.
+ * Giữ lại từ code cũ, dựng bằng `.btn` của bản mẫu.
  */
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -48,42 +53,35 @@ export function SignOutButton() {
 
   if (!isConfirming) {
     return (
-      <button
-        type="button"
-        onClick={() => setConfirming(true)}
-        className="motion-press font-display flex min-h-touch w-full items-center gap-tight rounded-pill border-2 border-mist px-snug text-input font-semibold text-mist enabled:hover:bg-white/10 enabled:hover:text-white"
-      >
-        <SignOutIcon className="h-6 w-6 shrink-0" />
-        Đăng xuất
+      <button type="button" onClick={() => setConfirming(true)} className="thoat">
+        <SignOutIcon className="" />
+        <span>Đăng xuất</span>
       </button>
     )
   }
 
   return (
-    <div>
-      <p id="signout-question" className="font-display text-question text-white">
+    <div style={{ paddingTop: 9 }}>
+      <p id="signout-question" className="lab" style={{ color: 'var(--ink)' }}>
         Đăng xuất khỏi máy này?
       </p>
 
       <div
         role="group"
         aria-labelledby="signout-question"
-        className="mt-tight flex gap-tight"
+        style={{ display: 'flex', gap: 7, marginTop: 8 }}
       >
         <button
           type="button"
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
-          className="motion-press font-display min-h-touch flex-1 rounded-pill bg-mint px-snug text-input font-bold text-ink enabled:hover:bg-mint-press disabled:bg-white/10 disabled:font-normal disabled:text-mist"
+          className="btn sm pri"
+          style={{ flex: 1 }}
         >
           {mutation.isPending ? 'Đang thoát…' : 'Đăng xuất'}
         </button>
 
-        <button
-          type="button"
-          onClick={() => setConfirming(false)}
-          className="motion-press font-display min-h-touch rounded-pill border-2 border-mist px-snug text-input font-semibold text-white enabled:hover:bg-white/10"
-        >
+        <button type="button" onClick={() => setConfirming(false)} className="btn sm gh">
           Ở lại
         </button>
       </div>

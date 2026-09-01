@@ -134,10 +134,17 @@ function TermTooltipPortal({
       id={tooltipId}
       role="tooltip"
       style={style}
-      className="rounded-card bg-ink p-snug shadow-xl animate-answer-in"
+      // Tooltip là một trong hai chỗ duy nhất còn được phép đổ bóng: nó THẬT
+      // SỰ nổi khỏi mặt giấy, và không có nét kẻ nào nói được điều đó. Bậc bóng
+      // `shadow-card` rất nhạt — đủ để mắt biết có một lớp phía trên, không đủ
+      // để thành một cái hộp bồng bềnh. Xem `--shadow-card` ở `index.css`.
+      className="animate-answer-in border border-ink-soft bg-ink p-snug shadow-card"
     >
       {/* Tên thuật ngữ */}
-      <span className="font-display block text-source font-semibold text-mint">
+      {/* Tên thuật ngữ trên nền mực: dùng nền xanh nhạt làm MÀU CHỮ. Cặp này
+          đạt 15.21:1 — sáng hơn hẳn dòng giải thích ngay dưới, nên mắt bắt
+          được tên trước rồi mới đọc nghĩa. */}
+      <span className="font-title block text-source text-art-green-pale">
         {annotation.term}
       </span>
 
@@ -189,11 +196,25 @@ function AnnotatedTerm({ annotation, value }: { annotation: TermAnnotation; valu
       onFocus={show}
       onBlur={hide}
       tabIndex={0}
+      // BÚT DẠ QUANG cộng nét gạch chân chấm màu tím — hai tín hiệu, hai việc
+      // khác nhau:
+      //
+      //   `.hl` (vệt vàng phủ 38% chiều cao dưới của dòng chữ, xem `index.css`)
+      //   nói "đây là một thuật ngữ y khoa". Nó đọc ra được cả khi người dùng
+      //   không phân biệt được màu, vì nó đổi hẳn nền của mấy chữ đó.
+      //
+      //   Nét gạch chân CHẤM màu tím nói "còn có gì đó để mở ra". Chấm chứ
+      //   không liền: nét liền là dấu hiệu của một liên kết, mà chữ này không
+      //   dẫn đi đâu cả — nó chỉ hiện thêm một dòng giải nghĩa tại chỗ.
+      //
+      // `.hl` đã ép `color: var(--color-body)`, nên vệt vàng luôn phủ dưới chữ
+      // mực chứ không bao giờ phủ dưới chữ xám — `slate` trên vàng chỉ đạt
+      // 4.25:1, dưới ngưỡng.
       className="
-        relative inline cursor-help rounded-sm
-        bg-transparent font-inherit text-inherit
-        underline decoration-mint decoration-dotted underline-offset-2
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-mint
+        hl relative inline cursor-help
+        bg-transparent font-inherit
+        underline decoration-coral-deep decoration-dotted underline-offset-2
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-deep
       "
     >
       {value}
@@ -217,7 +238,7 @@ function renderInlineFormatting(rawText: string) {
   return boldParts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
       return (
-        <strong key={`b-${i}`} className="font-semibold text-ink">
+        <strong key={`b-${i}`} className="font-semibold text-body">
           {part.slice(2, -2)}
         </strong>
       )

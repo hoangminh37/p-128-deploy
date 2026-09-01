@@ -389,10 +389,10 @@ export function VideoConsultationCall({ consultationId, call, isInitiator, onEnd
     >
       <header className="video-call-header flex shrink-0 items-center justify-between gap-snug border-b border-white/10">
         <div className="min-w-0">
-          <p id="consultation-call-title" className="truncate text-heading font-semibold text-white">Cuộc gọi tư vấn</p>
+          <p id="consultation-call-title" className="truncate font-title text-heading text-white">Cuộc gọi tư vấn</p>
           <p aria-live="polite" className="font-display mt-hair truncate text-question text-mist">{connectionLabel}</p>
         </div>
-        <button type="button" onClick={() => void finish(true)} className="motion-press grid min-h-touch min-w-touch shrink-0 place-items-center rounded-pill border-2 border-mist text-white hover:bg-white/10" aria-label="Đóng cuộc gọi">
+        <button type="button" onClick={() => void finish(true)} className="motion-press grid min-h-touch min-w-touch shrink-0 place-items-center rounded-pill border border-mist text-white hover:bg-white/10" aria-label="Đóng cuộc gọi">
           <CloseIcon className="h-6 w-6" />
         </button>
       </header>
@@ -401,7 +401,7 @@ export function VideoConsultationCall({ consultationId, call, isInitiator, onEnd
         <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-contain" />
         {!hasRemoteStream && <p className="absolute inset-0 flex items-center justify-center px-cozy text-center text-input text-mist">{connectionLabel}</p>}
 
-        <div className="video-call-local absolute aspect-video overflow-hidden rounded-card border-2 border-white/70 bg-slate/30 shadow-card">
+        <div className="video-call-local absolute aspect-video overflow-hidden rounded-card border border-white/70 bg-slate/30 shadow-card">
           <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
           {isCameraOff && <p className="font-display absolute inset-0 grid place-items-center bg-ink/80 px-tight text-center text-note text-white">Camera đang tắt</p>}
           <p className="font-display absolute bottom-1 left-1 rounded-pill bg-ink/80 px-tight py-px text-note text-white">Bạn</p>
@@ -412,22 +412,22 @@ export function VideoConsultationCall({ consultationId, call, isInitiator, onEnd
 
       <footer className="video-call-controls shrink-0 border-t border-white/10">
         {!hasIceInfrastructure && <p className="video-call-network-note font-display rounded-card bg-white/10 px-snug py-tight text-question text-mist">Đang thử kết nối trực tiếp giữa hai thiết bị. Để gọi ổn định khi hai bên ở khác mạng, hệ thống cần máy chủ TURN do đội vận hành cấu hình.</p>}
-        {cameraMessage !== null && <p aria-live="polite" className="font-display mt-tight text-center text-question text-coral">{cameraMessage}</p>}
+        {cameraMessage !== null && <p aria-live="polite" className="font-display mt-tight text-center text-question text-mist">{cameraMessage}</p>}
 
         <div className={`video-call-actions grid gap-tight ${canSwitchCamera ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}>
-          <button type="button" onClick={toggleMute} className="motion-press font-display flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill border-2 border-mist px-snug text-input font-semibold text-white hover:bg-white/10" aria-label={isMuted ? 'Bật micro' : 'Tắt micro'}>
+          <button type="button" onClick={toggleMute} className="motion-press font-display flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill border border-mist px-snug text-input font-semibold text-white hover:bg-white/10" aria-label={isMuted ? 'Bật micro' : 'Tắt micro'}>
             <MicrophoneIcon className="h-5 w-5 shrink-0" />
             <span>{isMuted ? 'Bật micro' : 'Tắt micro'}</span>
           </button>
-          <button type="button" onClick={toggleCamera} className="motion-press font-display flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill border-2 border-mist px-snug text-input font-semibold text-white hover:bg-white/10" aria-label={isCameraOff ? 'Bật camera' : 'Tắt camera'}>
+          <button type="button" onClick={toggleCamera} className="motion-press font-display flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill border border-mist px-snug text-input font-semibold text-white hover:bg-white/10" aria-label={isCameraOff ? 'Bật camera' : 'Tắt camera'}>
             <CameraIcon className="h-5 w-5 shrink-0" />
             <span>{isCameraOff ? 'Bật camera' : 'Tắt camera'}</span>
           </button>
-          {canSwitchCamera && <button type="button" disabled={isSwitchingCamera} onClick={() => void switchCamera()} className="motion-press font-display flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill border-2 border-mist px-snug text-input font-semibold text-white enabled:hover:bg-white/10 disabled:cursor-wait disabled:text-mist" aria-label="Đổi camera">
+          {canSwitchCamera && <button type="button" disabled={isSwitchingCamera} onClick={() => void switchCamera()} className="motion-press font-display flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill border border-mist px-snug text-input font-semibold text-white enabled:hover:bg-white/10 disabled:cursor-wait disabled:text-mist" aria-label="Đổi camera">
             <CameraSwitchIcon className="h-5 w-5 shrink-0" />
             <span>{isSwitchingCamera ? 'Đang đổi…' : 'Đổi camera'}</span>
           </button>}
-          <button type="button" onClick={() => void finish(true)} className="motion-press font-display col-span-2 flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill bg-coral px-snug text-input font-bold text-ink hover:brightness-105 sm:col-span-1">
+          <button type="button" onClick={() => void finish(true)} className="motion-press font-display col-span-2 flex min-h-touch min-w-0 items-center justify-center gap-tight rounded-pill border border-coral-deep bg-coral px-snug text-input font-bold text-body hover:brightness-105 sm:col-span-1">
             <PhoneIcon className="h-5 w-5 shrink-0" />
             <span>Kết thúc cuộc gọi</span>
           </button>

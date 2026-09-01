@@ -1,82 +1,72 @@
 /**
- * Bốn khối trạng thái, dựng trên cùng một khung.
+ * Bốn trạng thái trợ lý KHÔNG trả lời như bình thường.
  *
- * Cả bốn đều nằm TRONG khung của một câu trả lời bình thường — có tiêu đề câu
- * hỏi ở trên, có dòng miễn trừ ở dưới (xem `AnswerTurn.tsx`). Người bệnh phải
- * thấy đây là phản hồi cho câu mình vừa hỏi, chứ không phải một hộp lỗi rơi từ
- * đâu xuống giữa trang.
+ * CHÉP TỪ SECTION `id="tt"` CỦA BẢN MẪU. Bản mẫu bày cả bốn cạnh nhau trong
+ * một lưới, và mỗi khối là một `.phieu` với đúng ba phần:
  *
- * BỐN GIỌNG, phân biệt bằng BA tín hiệu cùng lúc — nền, khối biểu tượng, và
- * hình vẽ — chứ không chỉ bằng màu. Khoảng 8% nam giới không phân biệt được đỏ
- * với vàng nâu, mà `alert` với `sand` thì đúng là đỏ với vàng nâu:
+ *   `.phieu-top`   một dải nhãn hai đầu — trái là TÊN TRẠNG THÁI, phải là một
+ *                  con số hoặc một mẩu siêu dữ liệu.
+ *   `.hang-tt`     ô biểu tượng `.obt` 48px bên trái, tiêu đề + nội dung bên
+ *                  phải.
+ *   cụm `.btn`     việc làm tiếp theo.
  *
- *   red_flag  — NỀN ALERT ĐẶC, chữ trắng, khối biểu tượng nền trắng, nút gọi
- *               115 nền trắng chữ alert cao 56px. Ồn nhất trong cả ứng dụng.
- *               Người đọc có thể đang nguy hiểm thật. KHÔNG có linh vật.
- *   refused   — NỀN SAND, chữ sand-deep, khối biểu tượng nền sand-deep. Hệ
- *               thống BIẾT chủ đề này nhưng KHÔNG ĐƯỢC PHÉP trả lời. Giọng
- *               giải thích vì sao, kèm việc cụ thể để làm tiếp — không phải
- *               giọng cấm đoán. KHÔNG có linh vật.
- *   referral  — NỀN TRẮNG CÓ VIỀN, kèm LINH VẬT bản `muted` bên trái. Thư viện
- *               CHƯA CÓ tài liệu. Người hỏi không làm gì sai, và hình khối phải
- *               nói ra điều đó trước cả khi họ kịp đọc chữ.
- *   lỗi       — NỀN TRẮNG, nét trái màu alert (xem `ErrorNotice.tsx`). Đỏ để
- *               báo có trục trặc, nhưng không nền đặc — trục trặc kỹ thuật
- *               không được phép trông ngang hàng với dấu hiệu cấp cứu.
+ * BA MẶT CỦA `.obt`, và bản mẫu phân biệt bằng CẢ MÀU LẪN HÌNH — người không
+ * bắt được màu vẫn đọc ra ba trạng thái khác nhau:
  *
- * VÌ SAO LINH VẬT CHỈ Ở `referral`: một khuôn mặt cười đứng cạnh dòng "dấu hiệu
- * này cần được khám ngay" là đùa cợt với người có thể đang nguy hiểm; đứng cạnh
- * một lời từ chối thì thành ra chế nhạo. Xem thêm ghi chú ở `Mascot.tsx`.
+ *   `.obt.cc`  nền đỏ đặc, chữ giấy      — tam giác cảnh báo · nguy cấp
+ *   `.obt.tc`  nền vàng, chữ nâu         — tờ giấy gập góc  · ngoài phạm vi
+ *   `.obt.tn`  nền tím nhạt, viền tím    — hai gáy sách     · chưa đủ căn cứ
  *
- * TƯƠNG PHẢN, đo trên nền của CHÍNH khối đó:
- *   white trên alert       6.54:1
- *   alert trên white       6.54:1  (chữ trên nút gọi 115)
- *   sand-deep trên sand    7.79:1
- *   sand trên sand-deep    7.79:1  (chữ trên nút của khối refused)
- *   ink trên white        15.39:1
- *   slate trên white       4.96:1
- * ĐỪNG đặt `slate` lên `sand`: cặp đó chỉ đạt 4.00:1.
+ * Khối nguy cấp là khối DUY NHẤT có `border-width:2px` và `.phieu-top` nền đỏ
+ * đặc. Nó được phép hét, và chỉ nó thôi.
+ *
+ * Khối "mất kết nối" của bản mẫu (`border-style:dashed`) đã có `ErrorNotice`
+ * đảm nhiệm, nên nó không dựng lại ở đây.
  */
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { splitParagraphs } from '../lib/paragraphs'
-import { AlertIcon, NoteIcon, PhoneIcon } from './icons'
-import { Mascot } from './Mascot'
+import { AlertIcon, LibraryIcon, NoteIcon, PhoneIcon } from './icons'
 
 /**
- * Bốn giọng của khối trạng thái.
+ * Bốn giọng, ánh xạ thẳng sang các lớp của bản mẫu.
  *
- * `iconBox` luôn NGƯỢC nền của khối: nền đặc thì khối biểu tượng sáng, nền
- * sáng thì khối biểu tượng đặc. Nhờ vậy biểu tượng là thứ đầu tiên mắt bắt
- * được, kể cả khi người đọc chưa kịp phân biệt màu nền.
+ * `phieu` / `top` / `obt` là ba chỗ duy nhất khác nhau giữa bốn giọng; phần còn
+ * lại của khung dùng chung, nên không có cách nào để hai khối lệch nhịp.
  */
 const TONE = {
+  /** Nguy cấp. `.phieu` viền đỏ 2px, `.phieu-top` nền đỏ đặc chữ giấy. */
   emergency: {
-    container: 'bg-alert-solid',
-    heading: 'text-white',
-    body: 'text-white',
-    // Nền TRẮNG THẬT, không phải `surface`: ở chế độ tối `surface` là navy, mà
-    // một ô navy trên khối đỏ thì chìm. Ô này phải sáng ở cả hai chế độ.
-    iconBox: 'bg-white text-alert-solid',
+    phieu: { borderColor: 'var(--do)', borderWidth: 2 },
+    top: { background: 'var(--do)', color: 'var(--paper)', borderBottomColor: 'var(--do)' },
+    obt: 'obt cc',
+    heading: { color: 'var(--do)' },
   },
+  /** Ngoài phạm vi / từ chối. `.phieu-top` nền tím nhạt chữ tím. */
   refuse: {
-    container: 'bg-sand',
-    heading: 'text-sand-deep',
-    body: 'text-sand-deep',
-    iconBox: 'bg-sand-deep text-sand',
+    phieu: undefined,
+    top: {
+      background: 'var(--tim-wash)',
+      color: 'var(--tim)',
+      borderBottomColor: 'var(--tim)',
+    },
+    obt: 'obt tc',
+    heading: undefined,
   },
+  /** Chưa đủ căn cứ. `.phieu-top` mặc định, ô biểu tượng tím. */
   neutral: {
-    container: 'border-2 border-line bg-surface',
-    heading: 'text-body',
-    body: 'text-body',
-    iconBox: 'bg-canvas text-body',
+    phieu: undefined,
+    top: undefined,
+    obt: 'obt tn',
+    heading: undefined,
   },
+  /** Sự cố kỹ thuật. Bản mẫu dùng viền ĐỨT cho khối "mất kết nối". */
   fault: {
-    container: 'border-2 border-l-8 border-alert bg-surface',
-    heading: 'text-alert',
-    body: 'text-body',
-    iconBox: 'bg-alert-solid text-white',
+    phieu: { borderStyle: 'dashed' as const },
+    top: undefined,
+    obt: 'obt tn',
+    heading: undefined,
   },
 } as const
 
@@ -85,19 +75,22 @@ export type StateTone = keyof typeof TONE
 /**
  * Khung chung của bốn khối.
  *
- * Khối biểu tượng là một ô vuông bo góc `icon` (12px) chứ không phải một hình
- * vẽ trơ giữa chữ. Ô vuông có nền riêng nên nó giữ được tương phản của mình bất
- * kể nền khối là gì, và nó cho cả bốn khối một điểm neo chung ở góc trên trái.
+ * `label` là mẩu bên PHẢI của `.phieu-top` — bản mẫu đặt ở đó "Không hiện trích
+ * dẫn", "Đã ghi lại", "0 trích dẫn". Nó luôn là một sự thật kiểm chứng được về
+ * chính khối này, không phải một câu quảng cáo.
  */
 export function StateBlock({
   tone,
   heading,
+  label,
   icon,
   role,
   children,
 }: {
   tone: StateTone
   heading: string
+  /** Mẩu bên phải của `.phieu-top`. */
+  label?: string
   icon: ReactNode
   /**
    * `alert` ngắt lời trình đọc màn hình để đọc ngay; `status` chờ đọc xong câu
@@ -107,35 +100,40 @@ export function StateBlock({
   role?: 'alert' | 'status'
   children: ReactNode
 }) {
-  const style = TONE[tone]
+  const t = TONE[tone]
 
   return (
-    <section
-      role={role}
-      className={`max-w-answer rounded-card-lg p-cozy ${style.container} ${style.body}`}
-    >
-      <div className="flex items-start gap-snug">
-        <span
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-icon ${style.iconBox}`}
-        >
-          {icon}
-        </span>
-
-        <h2 className={`mt-tight text-heading font-semibold ${style.heading}`}>
-          {heading}
-        </h2>
+    <section role={role} className="phieu" style={{ maxWidth: 920, ...t.phieu }}>
+      <div className="phieu-top" style={t.top}>
+        <span>{STATE_NAME[tone]}</span>
+        {label !== undefined && <span>{label}</span>}
       </div>
 
-      <div className="mt-cozy">{children}</div>
+      <div style={{ padding: '20px clamp(16px,2vw,24px)' }}>
+        <div className="hang-tt">
+          <span className={t.obt}>{icon}</span>
+          <div>
+            <h2 style={{ fontSize: 'var(--t-h3)', lineHeight: 1.3, ...t.heading }}>{heading}</h2>
+            <div style={{ marginTop: 10 }}>{children}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rangcua" />
     </section>
   )
 }
 
+/** Tên trạng thái ở mẩu TRÁI của `.phieu-top`, đúng chữ của bản mẫu. */
+const STATE_NAME: Record<StateTone, string> = {
+  emergency: 'Dấu hiệu nguy cấp',
+  refuse: 'Ngoài phạm vi',
+  neutral: 'Chưa đủ căn cứ',
+  fault: 'Mất kết nối',
+}
+
 /**
  * Nội dung `answer` từ API, cắt thành đoạn.
- *
- * Cỡ `notice` 19px — lớn hơn câu trả lời thường một bậc. Ba trạng thái này ngắn
- * và phải đọc hết ngay lần đầu, không phải thứ để lướt rồi quay lại.
  *
  * Ba trạng thái này luôn có `citations` rỗng theo mục 5 và mục 6 hợp đồng, nên
  * `answer` không bao giờ chứa marker `[n]` — cắt đoạn thuần là đủ, không cần
@@ -149,7 +147,11 @@ function AnswerText({ answer }: { answer: string }) {
       {paragraphs.map((paragraph, index) => (
         <p
           key={index}
-          className={`text-notice whitespace-pre-wrap ${index < paragraphs.length - 1 ? 'mb-para' : ''}`}
+          style={{
+            whiteSpace: 'pre-wrap',
+            maxWidth: '60ch',
+            marginBottom: index < paragraphs.length - 1 ? 12 : 0,
+          }}
         >
           {paragraph}
         </p>
@@ -161,48 +163,42 @@ function AnswerText({ answer }: { answer: string }) {
 /**
  * Dấu hiệu cấp cứu.
  *
- * Đặt NGAY DƯỚI tiêu đề câu hỏi, trước mọi thứ khác — kể cả trước nhãn số tài
- * liệu, thứ mà mọi trạng thái còn lại đều có. Người đang đau ngực không đọc hết
- * trang rồi mới thấy nút gọi.
+ * Đặt NGAY DƯỚI tiêu đề câu hỏi, trước mọi thứ khác. Người đang đau ngực không
+ * đọc hết trang rồi mới thấy nút gọi.
  *
  * `role="alert"` để trình đọc màn hình ngắt lời và đọc ngay khi khối này xuất
  * hiện — cùng với khối lỗi kỹ thuật, đây là một trong hai chỗ duy nhất trong
  * ứng dụng được phép ngắt lời người dùng.
  *
- * Nút gọi là thứ nổi nhất màn hình: NỀN TRẮNG trên nền alert đặc (6.54:1), cao
- * tối thiểu 56px chứ không phải 44px, chữ 19px, và chiếm hết bề ngang trên điện
- * thoại. Nền trắng chứ không phải nền đậm hơn: trong một khối đã đỏ kín, thứ
- * duy nhất còn nổi lên được là một mảng sáng.
- *
- * Dùng `a` với `tel:` thật chứ không phải nút gọi JavaScript, để máy nào gọi
- * điện được là bấm ra ngay trình quay số.
- *
- * KHÔNG gắn `role="button"` cho thẻ `a` này: trình đọc màn hình sẽ đọc là "nút",
- * mà người dùng bàn phím bấm phím Space lên một cái "nút" là `a` thì không có gì
- * xảy ra. Nó là một liên kết, cứ để nó là liên kết. Chiều cao 56px đã đặt tường
- * minh bằng `min-h-call` nên cũng không cần mượn quy tắc 44px ở `index.css`.
+ * Nút gọi dùng `a href="tel:115"` thật chứ không phải nút JavaScript, để máy nào
+ * gọi điện được là bấm ra ngay trình quay số. KHÔNG gắn `role="button"`: trình
+ * đọc màn hình sẽ đọc là "nút", mà người dùng bàn phím bấm Space lên một cái
+ * "nút" vốn là `a` thì không có gì xảy ra. Bản mẫu cũng để nó là `<a class="btn">`.
  */
 export function RedFlagBlock({ answer }: { answer: string }) {
   return (
     <StateBlock
       tone="emergency"
       role="alert"
+      label="Không hiện trích dẫn"
       heading="Dấu hiệu này cần được khám ngay"
-      icon={<AlertIcon className="h-7 w-7" />}
+      icon={<AlertIcon className="" />}
     >
       <AnswerText answer={answer} />
 
-      <a
-        href="tel:115"
-        // Nền TRẮNG THẬT và chữ `alert-solid`, cố định ở cả hai chế độ. Đây là
-        // nút duy nhất trong ứng dụng không đổi một pixel nào khi chuyển chế
-        // độ — người đang đau ngực phải thấy đúng một thứ, bất kể máy họ đang
-        // để chế độ nào. Trắng trên đỏ đặc: 6.54:1.
-        className="font-display mt-block flex min-h-call w-full items-center justify-center gap-tight rounded-pill bg-white px-cozy text-center text-notice font-bold text-alert-solid no-underline lg:w-auto lg:px-block"
-      >
-        <PhoneIcon className="h-7 w-7 shrink-0" />
-        Gọi cấp cứu 115
-      </a>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 18 }}>
+        {/* Nền đỏ đặc, chữ giấy — đúng kiểu bản mẫu đặt cho nút gọi 115. Đây
+            là nút duy nhất trong ứng dụng không đổi một pixel nào khi chuyển
+            chế độ, vì `--do` ở khối này là màu cố định của cấp cứu. */}
+        <a
+          href="tel:115"
+          className="btn"
+          style={{ background: 'var(--do)', borderColor: 'var(--do)', color: 'var(--paper)' }}
+        >
+          <PhoneIcon className="" />
+          Gọi cấp cứu 115
+        </a>
+      </div>
     </StateBlock>
   )
 }
@@ -223,35 +219,34 @@ const ANSWERABLE_TOPICS: readonly string[] = [
  *
  * Nên khối này có hai thứ mà `answer` của API không có: một việc cụ thể để làm
  * ngay, và một danh sách nói rõ hỏi lại thế nào thì trợ lý trả lời được.
- *
- * Mọi chữ trong khối đều là `sand-deep` (7.79:1). KHÔNG hạ dòng phụ xuống
- * `slate` cho "nhẹ đi": slate trên sand chỉ đạt 4.00:1.
  */
 export function RefusedBlock({ answer }: { answer: string }) {
   return (
     <StateBlock
       tone="refuse"
+      label="Đã ghi lại"
       heading="Câu hỏi này phải do bác sĩ quyết định"
-      icon={<NoteIcon className="h-7 w-7" />}
+      icon={<NoteIcon className="" />}
     >
       <AnswerText answer={answer} />
 
-      <p className="font-display mt-block text-question font-semibold">
+      <p className="lab" style={{ marginTop: 18 }}>
         Việc bạn có thể làm ngay
       </p>
-      <p className="font-display mt-hair text-question">
-        Bạn hãy ghi câu hỏi này ra giấy, kèm ngày hôm nay, rồi mang theo trong
-        lần tái khám tới. Bác sĩ đang điều trị cho bạn là người trả lời được, vì
-        họ nắm kết quả xét nghiệm và những thuốc bạn đang uống.
+      <p style={{ marginTop: 6, fontSize: 'var(--t-note)', maxWidth: '60ch', lineHeight: 1.7 }}>
+        Bạn hãy ghi câu hỏi này ra giấy, kèm ngày hôm nay, rồi mang theo trong lần tái
+        khám tới. Bác sĩ đang điều trị cho bạn là người trả lời được, vì họ nắm kết quả
+        xét nghiệm và những thuốc bạn đang uống.
       </p>
 
-      <div className="mt-block border-t border-sand-deep/30 pt-snug">
-        <p className="font-display text-question font-semibold">
-          Những điều tôi trả lời được
-        </p>
-        <ul className="mt-tight space-y-tight">
+      <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--ke)' }}>
+        <p className="lab">Những điều tôi trả lời được</p>
+        <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0 }}>
           {ANSWERABLE_TOPICS.map((topic) => (
-            <li key={topic} className="font-display text-question">
+            <li
+              key={topic}
+              style={{ fontSize: 'var(--t-note)', lineHeight: 1.7, marginTop: 4 }}
+            >
               {topic}
             </li>
           ))}
@@ -264,72 +259,73 @@ export function RefusedBlock({ answer }: { answer: string }) {
 /**
  * Chưa có tài liệu về chủ đề này.
  *
- * KHỐI DUY NHẤT có linh vật. Trung tính hoàn toàn: nền trắng, viền mảnh, chữ
- * `ink` và `slate` — không màu cảnh báo, không màu từ chối. Người hỏi KHÔNG làm
- * gì sai, và bố cục phải nói ra điều đó trước khi họ kịp đọc chữ.
+ * Ô biểu tượng `.obt.tn` — TÍM, hình GIÁ SÁCH — và đó là cả lập luận của khối:
+ * tím là màu của XUẤT XỨ, nên ô tím nói ngay rằng vấn đề nằm ở thư viện tài
+ * liệu chứ không nằm ở câu hỏi. Người hỏi KHÔNG làm gì sai, và bố cục phải nói
+ * ra điều đó trước khi họ kịp đọc chữ.
  *
- * Đặt cạnh khối `refused` phải nhận ra ngay là hai chuyện khác nhau: một bên là
- * mảng màu kín với biểu tượng tờ giấy, một bên là khối trắng với một búp sen.
- * Trộn hai cái này lại sẽ khiến người bệnh tưởng mình vừa hỏi điều cấm.
+ * Đặt cạnh khối `refused` phải nhận ra ngay là hai chuyện khác nhau: một bên ô
+ * vàng hình tờ giấy, một bên ô tím hình giá sách. Khác cả màu lẫn hình.
  *
- * Câu "đã được ghi nhận" là lời hứa của hệ thống chứ không phải của mô hình, nên
- * nó do giao diện nói, không lấy từ `answer`. Đặt sau một nét kẻ, cỡ nhỏ hơn —
- * nó là ghi chú về quy trình, không phải phần trả lời.
+ * Câu "đã được ghi nhận" là lời hứa của HỆ THỐNG chứ không phải của mô hình,
+ * nên nó do giao diện nói, không lấy từ `answer`.
  */
 export function ReferralBlock({ answer }: { answer: string }) {
   return (
-    <section className="max-w-answer rounded-card-lg border-2 border-line bg-surface p-cozy">
-      <div className="flex items-start gap-snug">
-        {/* Linh vật thay hẳn khối biểu tượng của ba khối kia. 64px chứ không
-            lớn hơn: trên máy 360px, thẻ này chỉ còn ~296px bề ngang, và mỗi
-            pixel linh vật lấy đi là một pixel tiêu đề phải xuống dòng. */}
-        <span className="shrink-0">
-          <Mascot variant="muted" size={64} />
-        </span>
+    <StateBlock
+      tone="neutral"
+      label="0 trích dẫn"
+      heading="Thư viện chưa có tài liệu về chủ đề này"
+      icon={<LibraryIcon className="" />}
+    >
+      <p style={{ fontSize: 'var(--t-note)', color: 'var(--xam)', lineHeight: 1.7 }}>
+        Bạn không hỏi sai. Chủ đề này chỉ là chưa có trong thư viện tài liệu mà hệ thống
+        được phép trích dẫn.
+      </p>
 
-        <div className="min-w-0 flex-1">
-          <h2 className="text-heading font-semibold text-body">
-            Thư viện chưa có tài liệu về chủ đề này
-          </h2>
-          <p className="font-display mt-tight text-question text-slate">
-            Bạn không hỏi sai. Chủ đề này chỉ là chưa có trong thư viện tài liệu
-            mà hệ thống được phép trích dẫn.
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-cozy text-body">
+      <div style={{ marginTop: 12 }}>
         <AnswerText answer={answer} />
       </div>
 
-      <Link
-        to="/consultations"
-        className="motion-press font-display mt-snug inline-flex min-h-touch items-center rounded-pill bg-mint px-cozy text-input font-bold text-mint-deep no-underline hover:bg-mint-press"
-      >
-        Chọn tư vấn với bác sỹ
-      </Link>
+      <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginTop: 18 }}>
+        <Link to="/consultations" className="btn sm pri">
+          Chọn tư vấn với bác sỹ
+        </Link>
+        <Link to="/chat" className="btn sm">
+          Hỏi câu khác
+        </Link>
+      </div>
 
-      <p className="font-display mt-block border-t border-line pt-snug text-question text-slate">
-        Câu hỏi của bạn đã được ghi nhận. Đội ngũ biên tập y khoa sẽ xem xét bổ
-        sung tài liệu cho chủ đề này.
+      <p
+        className="lab"
+        style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--ke)', lineHeight: 1.6 }}
+      >
+        Câu hỏi của bạn đã được ghi nhận. Đội ngũ biên tập y khoa sẽ xem xét bổ sung tài
+        liệu cho chủ đề này.
       </p>
-    </section>
+    </StateBlock>
   )
 }
 
 /**
  * Câu chốt bắt buộc ở mọi phản hồi, theo mục 5 hợp đồng.
  *
- * Mờ nhất trên trang: màu `slate`, tách bằng một nét kẻ mảnh. Nó phải luôn đọc
- * được, nhưng không bao giờ được tranh chỗ với câu trả lời.
- *
- * Cỡ 16px chứ không phải bậc `note` 15px: đây là câu nói ra giới hạn pháp lý
- * và y khoa của cả ứng dụng. Mờ nhất KHÔNG có nghĩa là nhỏ tới mức người ta bỏ
- * qua — nó lùi lại bằng màu và bằng vị trí, không bằng cỡ chữ.
+ * Mờ nhất trên trang: lớp `.lab` — mono, giãn chữ, màu `--xam` — tách bằng một
+ * nét kẻ mảnh. Nó phải luôn đọc được, nhưng không bao giờ được tranh chỗ với
+ * câu trả lời. Nó lùi lại bằng MÀU và VỊ TRÍ, không bằng cỡ chữ.
  */
 export function Disclaimer({ text }: { text: string }) {
   return (
-    <p className="font-display mt-block max-w-answer border-t border-line pt-snug text-question text-slate">
+    <p
+      className="lab"
+      style={{
+        marginTop: 26,
+        maxWidth: '64ch',
+        paddingTop: 14,
+        borderTop: '1px solid var(--ke)',
+        lineHeight: 1.6,
+      }}
+    >
       {text}
     </p>
   )

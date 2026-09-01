@@ -124,130 +124,154 @@ export function QuizPanel({
   // ── Đang làm bài ─────────────────────────────────────────────────────────
   if (quiz) {
     return (
-      <section className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
-        <header className="mb-snug border-b border-line pb-snug">
-          <p className="font-display text-note font-semibold uppercase tracking-widest text-slate">
-            {title}
-          </p>
-          <h3 className="text-heading font-semibold text-body">{quiz.topic}</h3>
-          <p className="mt-hair font-display text-note text-slate">
-            {hint ?? SOURCE_HINTS[quiz.source]}
-            {!quiz.metadata.grounded && ' (chưa đối chiếu được với tài liệu gốc)'}
-          </p>
-          <p className="mt-tight font-display text-note text-slate" aria-live="polite">
-            Đã trả lời {answeredCount}/{quiz.questions.length} câu
-          </p>
-        </header>
+      /* CHÉP TỪ `id="ot"`: nhãn `.eb` đếm câu, dòng `.lab` tiến độ, một dãy
+         vạch 2px làm thanh tiến trình, rồi `.phieu` chứa câu hỏi và bốn ô
+         `.chon` có `.box` + `.abcd`. */
+      <section style={{ marginBottom: 26 }}>
+        <div className="eb">{title}</div>
+        <p className="lab" style={{ marginTop: 6 }}>
+          Đã trả lời {answeredCount}/{quiz.questions.length} câu ·{' '}
+          {hint ?? SOURCE_HINTS[quiz.source]}
+          {!quiz.metadata.grounded && ' (chưa đối chiếu được với tài liệu gốc)'}
+        </p>
 
-        <ol className="flex flex-col gap-para">
+        {/* Thanh tiến trình: một vạch cho mỗi câu, tô TÍM khi đã trả lời.
+            `aria-hidden` vì dòng `.lab` ngay trên đã nói đúng con số đó bằng
+            chữ, và `aria-live` ở đây sẽ đọc lặp mỗi lần chọn. */}
+        <div aria-hidden="true" style={{ display: 'flex', gap: 5, marginTop: 14, maxWidth: 260 }}>
           {quiz.questions.map((question) => (
-            <li key={question.index}>
-              <fieldset>
-                <legend className="font-display text-question font-semibold text-body">
-                  Câu {question.index + 1}. {question.question}
-                </legend>
-                <div className="mt-tight flex flex-col gap-tight">
-                  {question.options.map((option, optionIndex) => {
-                    const checked = answers[question.index] === optionIndex
-                    return (
-                      <label
-                        key={optionIndex}
-                        className={`flex min-h-touch cursor-pointer items-center gap-snug rounded-card p-snug transition-colors ${
-                          checked ? 'bg-mint text-ink' : 'bg-canvas text-body hover:bg-canvas/70'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name={`${quiz.quiz_id}-q${question.index}`}
-                          className="sr-only"
-                          checked={checked}
-                          onChange={() => {
-                            chooseOption(question.index, optionIndex)
-                            setShowUnanswered(false)
-                          }}
-                        />
-                        <span
-                          className={`font-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-icon text-question font-semibold ${
-                            checked ? 'bg-ink text-mint' : 'bg-surface text-slate'
-                          }`}
-                          aria-hidden="true"
-                        >
-                          {OPTION_LABELS[optionIndex]}
-                        </span>
-                        <span className="font-display text-question">{option}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </fieldset>
-            </li>
+            <span
+              key={question.index}
+              style={{
+                flex: 1,
+                height: 2,
+                background:
+                  answers[question.index] === UNANSWERED ? 'var(--ke-dam)' : 'var(--tim)',
+              }}
+            />
           ))}
-        </ol>
+        </div>
+        <p className="sr-only" aria-live="polite">
+          Đã trả lời {answeredCount} trên {quiz.questions.length} câu
+        </p>
 
-        {showUnanswered && (
-          <p role="alert" className="mt-snug font-display text-note font-semibold text-alert">
-            Bạn còn {quiz.questions.length - answeredCount} câu chưa chọn đáp án.
-          </p>
-        )}
+        <div className="phieu" style={{ marginTop: 22 }}>
+          <div style={{ padding: 'clamp(20px,3vw,30px)' }}>
+            <h3 style={{ fontSize: 'var(--t-h3)', lineHeight: 1.24, maxWidth: '26ch' }}>
+              {quiz.topic}
+            </h3>
 
-        {submit.isError && (
-          <div className="mt-snug">
-            <ErrorNotice error={submit.error} retryLabel="Nộp lại" onRetry={handleSubmit} />
+            <ol style={{ listStyle: 'none', margin: '24px 0 0', padding: 0, display: 'grid', gap: 26 }}>
+              {quiz.questions.map((question) => (
+                <li key={question.index}>
+                  <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
+                    <legend style={{ fontWeight: 500, padding: 0 }}>
+                      Câu {question.index + 1}. {question.question}
+                    </legend>
+
+                    <div style={{ display: 'grid', gap: 10, marginTop: 12, maxWidth: '46ch' }}>
+                      {question.options.map((option, optionIndex) => {
+                        const checked = answers[question.index] === optionIndex
+                        return (
+                          <label key={optionIndex} className="chon" aria-pressed={checked}>
+                            {/* Ô radio thật, ẩn khỏi mắt nhưng còn nguyên cho
+                                bàn phím và trình đọc màn hình. `.box` và
+                                `.abcd` là phần nhìn thấy được. */}
+                            <input
+                              type="radio"
+                              name={`${quiz.quiz_id}-q${question.index}`}
+                              className="sr-only"
+                              checked={checked}
+                              onChange={() => {
+                                chooseOption(question.index, optionIndex)
+                                setShowUnanswered(false)
+                              }}
+                            />
+                            <span className="box" aria-hidden="true" />
+                            <span className="abcd" aria-hidden="true">
+                              {OPTION_LABELS[optionIndex]}
+                            </span>
+                            <span style={{ minWidth: 0, flex: 1 }}>{option}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </fieldset>
+                </li>
+              ))}
+            </ol>
+
+            {showUnanswered && (
+              <p role="alert" className="lab" style={{ color: 'var(--do)', marginTop: 14 }}>
+                Bạn còn {quiz.questions.length - answeredCount} câu chưa chọn đáp án.
+              </p>
+            )}
+
+            {submit.isError && (
+              <div style={{ marginTop: 14 }}>
+                <ErrorNotice error={submit.error} retryLabel="Nộp lại" onRetry={handleSubmit} />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 24 }}>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submit.isPending}
+                className="btn pri"
+              >
+                {submit.isPending ? 'Đang chấm bài…' : 'Nộp bài'}
+              </button>
+            </div>
+
+            <p className="lab" style={{ marginTop: 14, lineHeight: 1.6 }}>
+              {quiz.disclaimer}
+            </p>
           </div>
-        )}
-
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submit.isPending}
-          className="motion-press font-display mt-cozy min-h-touch w-full rounded-pill bg-mint px-cozy text-input font-bold text-ink disabled:bg-canvas disabled:font-normal disabled:text-slate"
-        >
-          {submit.isPending ? 'Đang chấm bài…' : 'Nộp bài'}
-        </button>
-
-        <p className="mt-tight font-display text-note text-slate">{quiz.disclaimer}</p>
+          <div className="rangcua" />
+        </div>
       </section>
     )
   }
 
   // ── Chưa bắt đầu ─────────────────────────────────────────────────────────
   return (
-    <section className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
-      <h3 className="text-heading font-semibold text-body">{title}</h3>
-      <p className="mt-hair font-display text-question text-slate">
-        {hint ?? SOURCE_HINTS[source]} Trả lời đúng từ 60% trở lên để nhận điểm HP.
-      </p>
+    <section className="phieu" style={{ marginBottom: 26 }}>
+      <div className="phieu-top">
+        <span>{title}</span>
+        <span>{numQuestions} câu</span>
+      </div>
 
-      {generate.isError && (
-        <div className="mt-snug">
-          <ErrorNotice error={generate.error} retryLabel="Thử lại" onRetry={startQuiz} />
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={startQuiz}
-        disabled={generate.isPending}
-        className="motion-press font-display mt-snug inline-flex min-h-touch items-center gap-tight rounded-pill bg-mint px-cozy text-input font-bold text-ink disabled:bg-canvas disabled:font-normal disabled:text-slate"
-      >
-        {generate.isPending ? (
-          <>
-            <span
-              className="h-4 w-4 animate-spin rounded-full border-2 border-ink/30 border-t-ink"
-              aria-hidden="true"
-            />
-            Đang soạn đề cho bạn…
-          </>
-        ) : (
-          <>🎯 {ctaLabel}</>
-        )}
-      </button>
-
-      {generate.isPending && (
-        <p className="mt-tight font-display text-note text-slate" aria-live="polite">
-          Trợ lý đang đọc lại tài liệu và soạn {numQuestions} câu hỏi. Mất khoảng vài giây.
+      <div style={{ padding: '20px clamp(16px,2vw,24px)' }}>
+        <p style={{ fontSize: 'var(--t-note)', color: 'var(--xam)', maxWidth: '56ch', lineHeight: 1.7 }}>
+          {hint ?? SOURCE_HINTS[source]} Trả lời đúng từ 60% trở lên để nhận điểm HP.
         </p>
-      )}
+
+        {generate.isError && (
+          <div style={{ marginTop: 14 }}>
+            <ErrorNotice error={generate.error} retryLabel="Thử lại" onRetry={startQuiz} />
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={startQuiz}
+          disabled={generate.isPending}
+          className="btn pri"
+          style={{ marginTop: 18 }}
+        >
+          {generate.isPending ? 'Đang soạn đề cho bạn…' : ctaLabel}
+        </button>
+
+        {generate.isPending && (
+          <p className="lab" style={{ marginTop: 9, lineHeight: 1.6 }} aria-live="polite">
+            Trợ lý đang đọc lại tài liệu và soạn {numQuestions} câu hỏi. Mất khoảng vài
+            giây.
+          </p>
+        )}
+      </div>
+
+      <div className="rangcua" />
     </section>
   )
 }
@@ -268,92 +292,114 @@ function QuizResultView({
   isRetrying: boolean
 }) {
   return (
-    <section className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
-      <header className="mb-snug border-b border-line pb-snug">
-        <p className="font-display text-note font-semibold uppercase tracking-widest text-slate">
-          {title} — kết quả
-        </p>
-        <h3 className="text-heading font-semibold text-body">{topic}</h3>
-        <p className="mt-tight text-ask font-semibold text-body">
+    /* CHÉP TỪ khối phản hồi cuối `id="ot"`: một `.phieu` viền XANH với
+       `.phieu-top` nền xanh nhạt ghi kết quả, rồi từng câu với bốn ô `.chon`
+       đánh dấu đáp án đúng và ô mình đã chọn, và số hiệu văn bản mono tím ở
+       cuối mỗi phần giải thích. */
+    <section
+      className="phieu"
+      style={{ marginBottom: 26, borderColor: result.passed ? 'var(--xanh)' : 'var(--ke)' }}
+    >
+      <div
+        className="phieu-top"
+        style={
+          result.passed
+            ? {
+                background: 'var(--xanh-wash)',
+                color: 'var(--xanh)',
+                borderBottomColor: 'var(--xanh)',
+              }
+            : undefined
+        }
+      >
+        <span>{title} — kết quả</span>
+        <span>
           {result.score}/{result.total} câu đúng
-        </p>
-        <p className="mt-hair font-display text-question text-slate">
+        </span>
+      </div>
+
+      <div style={{ padding: '20px clamp(16px,2vw,24px)' }}>
+        <h3 style={{ fontSize: 'var(--t-h3)' }}>{topic}</h3>
+        <p style={{ marginTop: 8, fontSize: 'var(--t-note)', color: 'var(--xam)', lineHeight: 1.7, maxWidth: '56ch' }}>
           {result.passed
             ? `Bạn nắm bài tốt. Được cộng ${result.hp_earned} HP, tổng điểm hiện tại ${result.stats.total_score}.`
             : 'Chưa đạt 60% nên lần này chưa cộng HP. Đọc lại phần giải thích rồi thử lại nhé.'}
         </p>
-      </header>
 
-      <ol className="flex flex-col gap-para">
-        {result.results.map((item) => (
-          <li key={item.index}>
-            <p className="font-display text-question font-semibold text-body">
-              <span
-                className={`mr-tight font-bold ${item.is_correct ? 'text-body' : 'text-alert'}`}
-                aria-hidden="true"
+        <ol style={{ listStyle: 'none', margin: '26px 0 0', padding: 0, display: 'grid', gap: 26 }}>
+          {result.results.map((item) => (
+            <li key={item.index}>
+              <p style={{ fontWeight: 500 }}>
+                Câu {item.index + 1}. {item.question}
+              </p>
+
+              <div style={{ display: 'grid', gap: 7, marginTop: 12, maxWidth: '46ch' }}>
+                {item.options.map((option, optionIndex) => {
+                  const isCorrect = optionIndex === item.correct_index
+                  const isYours = optionIndex === item.your_answer
+
+                  return (
+                    <p
+                      key={optionIndex}
+                      className="chon"
+                      style={
+                        isCorrect
+                          ? { borderColor: 'var(--tim)', background: 'var(--tim-wash)' }
+                          : isYours
+                            ? { borderColor: 'var(--do)' }
+                            : undefined
+                      }
+                    >
+                      <span className="abcd" aria-hidden="true">
+                        {OPTION_LABELS[optionIndex]}
+                      </span>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        {option}
+                        {/* MÀU KHÔNG PHẢI KÊNH DUY NHẤT: cả hai ô đặc biệt đều
+                            kèm chữ, vì trong nhóm người đọc 45–70 tuổi tỉ lệ
+                            khó phân biệt màu là đáng kể. */}
+                        {isCorrect && <strong> — đáp án đúng</strong>}
+                        {isYours && !isCorrect && <strong> — bạn đã chọn</strong>}
+                      </span>
+                    </p>
+                  )
+                })}
+              </div>
+
+              {/* Giải thích hiện cho CẢ hai trường hợp, không chỉ khi sai.
+                  Người đoán mò mà trúng cũng chưa hiểu gì hơn người sai —
+                  giấu phần này của họ là để họ mang cái không-hiểu đi tiếp. */}
+              <p
+                style={{
+                  marginTop: 12,
+                  border: `1px solid ${item.is_correct ? 'var(--ke)' : 'var(--do)'}`,
+                  background: 'var(--page)',
+                  padding: '11px 13px',
+                  fontSize: 'var(--t-note)',
+                  lineHeight: 1.7,
+                }}
               >
-                {item.is_correct ? '✓' : '✗'}
-              </span>
-              Câu {item.index + 1}. {item.question}
-            </p>
+                <strong style={{ color: item.is_correct ? 'var(--ink)' : 'var(--do)' }}>
+                  {item.is_correct ? 'Đúng rồi. ' : 'Chưa đúng. '}
+                </strong>
+                {item.explanation}
+              </p>
+            </li>
+          ))}
+        </ol>
 
-            <div className="mt-tight flex flex-col gap-hair">
-              {item.options.map((option, optionIndex) => {
-                const isCorrect = optionIndex === item.correct_index
-                const isYours = optionIndex === item.your_answer
-                const tone = isCorrect
-                  ? 'bg-mint text-ink'
-                  : isYours
-                    ? 'border-2 border-alert bg-canvas text-body'
-                    : 'bg-canvas text-body'
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={isRetrying}
+          className="btn"
+          style={{ marginTop: 26 }}
+        >
+          {isRetrying ? 'Đang soạn đề mới…' : 'Làm bộ câu hỏi khác'}
+        </button>
+      </div>
 
-                return (
-                  <p
-                    key={optionIndex}
-                    className={`font-display flex items-start gap-snug rounded-card p-snug text-question ${tone}`}
-                  >
-                    <span className="font-bold" aria-hidden="true">
-                      {OPTION_LABELS[optionIndex]}
-                    </span>
-                    <span className="flex-1">{option}</span>
-                    {isCorrect && (
-                      <span className="font-display text-note font-semibold">Đáp án đúng</span>
-                    )}
-                    {isYours && !isCorrect && (
-                      <span className="font-display text-note font-semibold text-alert">Bạn đã chọn</span>
-                    )}
-                  </p>
-                )
-              })}
-            </div>
-
-            {/* Giải thích hiện cho CẢ hai trường hợp, không chỉ khi sai.
-                Người đoán mò mà trúng cũng chưa hiểu gì hơn người sai — giấu
-                phần này của họ là để họ mang cái không-hiểu đó đi tiếp. */}
-            <p
-              className={`mt-snug rounded-card p-snug font-display text-question text-body ${
-                item.is_correct ? 'bg-canvas' : 'border-2 border-alert bg-canvas'
-              }`}
-            >
-              <span
-                className={`font-semibold ${item.is_correct ? 'text-body' : 'text-alert'}`}
-              >
-                {item.is_correct ? 'Đúng rồi. ' : 'Chưa đúng. '}
-              </span>
-              {item.explanation}
-            </p>
-          </li>
-        ))}
-      </ol>
-
-      <button
-        type="button"
-        onClick={onRetry}
-        disabled={isRetrying}
-        className="motion-press font-display mt-cozy min-h-touch w-full rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body enabled:hover:bg-canvas disabled:opacity-50"
-      >
-        {isRetrying ? 'Đang soạn đề mới…' : 'Làm bộ câu hỏi khác'}
-      </button>
+      <div className="rangcua" />
     </section>
   )
 }

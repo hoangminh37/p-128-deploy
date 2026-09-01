@@ -1,6 +1,11 @@
 /**
  * Duyệt chi tiết một mục, đường dẫn `/editor/queue/:itemId`.
  *
+ * DỰNG TỪ `id="btm"` CỦA BẢN MẪU (`docs/design/eduhealth-ai.html`): nút quay
+ * lại `.btn.sm.gh`, nhãn `.eb`, tiêu đề `--t-h2`, rồi `.co` hai cột — trái là
+ * nội dung trong một `.phieu` có dải trích dẫn `.doc-rail`, phải là `.phu` thẻ
+ * "Xuất xứ và phân loại" dính theo màn hình.
+ *
  * Đây là màn có hậu quả thật: bấm Duyệt là nội dung đi vào thư viện mà trợ lý
  * trích dẫn cho bệnh nhân, và không quay lại được. Nên màn này ưu tiên cho người
  * duyệt ĐỌC KỸ trước khi bấm: toàn văn nội dung, xuất xứ, và bệnh áp dụng đều
@@ -10,7 +15,13 @@
  * tra tài liệu theo bệnh trong hồ sơ bệnh nhân, nên một mục đã duyệt mà không
  * gắn bệnh nào sẽ nằm trong thư viện và không bao giờ được lấy ra — hỏng âm
  * thầm, không báo lỗi, không ai biết cho tới khi có người đi dò. Schema ở
- * `lib/schemas.ts` cũng canh đúng luật này ở tầng dữ liệu.
+ * `lib/schemas.ts` cũng canh đúng luật này ở tầng dữ liệu. Bản mẫu vẽ sẵn khối
+ * "Chưa duyệt được" viền đỏ cho đúng tình huống này; nó nằm ngay trên hàng nút.
+ *
+ * THIẾU DỮ LIỆU THÌ NÓI LÀ THIẾU. Số hiệu văn bản, cơ quan ban hành hay tài
+ * liệu nguồn còn trống thì ô tương ứng ghi thẳng "Chưa có" bằng chữ xám, không
+ * in một giá trị thay thế trông như thật — cùng luật với màn `id="xc"` của bản
+ * mẫu.
  */
 import { useEffect, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
@@ -20,20 +31,10 @@ import { useEditorConditions, useEditorQueueItem, useInvalidateEditorData } from
 import { approveEditorQueueItem, rejectEditorQueueItem, retryEditorSourceIndex, updateEditorQueueDraft } from '../lib/api'
 import { conditionLabel } from '../lib/conditions'
 import { formatDateTime } from '../lib/datetime'
-import { STATUS_LABEL } from '../lib/editorLabels'
+import { ORIGIN_LABEL, STATUS_LABEL } from '../lib/editorLabels'
 import type { EditorQueueItemDetail } from '../lib/schemas'
-import { OriginBadge, StatusBadge, TopicTags } from '../ui/EditorBadges'
+import { StatusBadge, TopicTags } from '../ui/EditorBadges'
 import { ErrorNotice } from '../ui/ErrorNotice'
-
-const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-body'
-
-/** Ô soạn thảo. Viền `slate` (4.96:1 trên trắng) cho ngưỡng 3:1 của WCAG
- * 1.4.11 — `line` KHÔNG dùng được ở đây, xem cảnh báo trong `index.css`. */
-const FIELD_TEXTAREA_CLASS =
-  'font-body mt-snug w-full rounded-card border-2 border-slate bg-surface p-snug text-body'
-
-const FIELD_INPUT_CLASS =
-  'font-body mt-snug w-full rounded-card border-2 border-slate bg-surface px-snug py-tight text-input text-body'
 
 function normalizedTopics(value: string): string[] {
   const topics: string[] = []
@@ -53,14 +54,35 @@ function sameValues(left: readonly string[], right: readonly string[]): boolean 
   return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
-/** Một dòng siêu dữ liệu. Nhãn và giá trị xếp dọc để không vỡ trên màn hẹp. */
-function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * Một trường trong thẻ xuất xứ: nhãn `.lab` trên, giá trị dưới.
+ *
+ * Xếp dọc để không vỡ trên cột phụ hẹp, và để lúc trường đó thành ô nhập ở bản
+ * nháp thì không phải đổi bố cục.
+ */
+function Field({
+  label,
+  children,
+  danger = false,
+}: {
+  label: string
+  children: React.ReactNode
+  /** `true` cho trường bắt buộc còn trống — nhãn chuyển sang đỏ. */
+  danger?: boolean
+}) {
   return (
-    <div className="border-t border-line pt-snug">
-      <dt className="font-display text-question text-slate">{label}</dt>
-      <dd className="font-display mt-hair text-input text-body">{children}</dd>
+    <div style={{ marginTop: 14 }}>
+      <span className="lab" style={danger ? { color: 'var(--do)' } : undefined}>
+        {label}
+      </span>
+      <div style={{ fontSize: 'var(--t-note)', marginTop: 3 }}>{children}</div>
     </div>
   )
+}
+
+/** Giá trị còn trống. Chữ xám, nói thẳng là chưa có. */
+function Missing({ children = 'Chưa có' }: { children?: string }) {
+  return <span style={{ color: 'var(--xam)' }}>{children}</span>
 }
 
 function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged: () => void }) {
@@ -160,411 +182,578 @@ function ItemForm({ item, onChanged }: { item: EditorQueueItemDetail; onChanged:
     !isFailed
   const canSendRejection = reason.trim() !== '' && !isBusy
 
+  // Số hiệu và cơ quan ban hành đang hiện: ở bản nháp là thứ đang gõ dở, ở mục
+  // đã gửi là thứ máy chủ giữ. Tính một lần để dải trích dẫn bên trái và thẻ
+  // xuất xứ bên phải không bao giờ nói hai điều khác nhau.
+  const shownDocCode = isDraft ? optionalValue(docCode) : item.doc_code
+  const shownIssuer = isDraft ? optionalValue(issuer) : item.issuer
+  const shownTopics = isDraft ? normalizedTopics(topicsInput) : item.topics
+
   return (
-    <div className="max-w-reading">
-      <Link
-        to="/editor/queue"
-        className="font-display inline-flex min-h-touch items-center text-input font-semibold text-body underline underline-offset-4"
-      >
-        Về hàng đợi
+    <div>
+      <Link to="/editor/queue" className="btn sm gh">
+        Quay lại hàng đợi
       </Link>
 
-      <h1 className="mt-snug text-ask font-semibold text-body">
+      <div className="eb" style={{ marginTop: 18 }}>
+        {ORIGIN_LABEL[item.origin]} · {STATUS_LABEL[item.status]}
+      </div>
+
+      <h1
+        style={{
+          fontSize: 'var(--t-h2)',
+          lineHeight: 1.22,
+          marginTop: 12,
+          maxWidth: '26ch',
+        }}
+      >
         {isDraft ? 'Soạn bản nháp' : item.title}
       </h1>
 
-      <div className="mt-snug flex flex-wrap items-center gap-tight">
-        <OriginBadge origin={item.origin} />
-        <StatusBadge status={item.status} />
-        {/* Số hiệu văn bản là một viên thuốc đứng cạnh nhãn chủ đề, không phải
-            một dòng chữ mono lọt thỏm trong bảng siêu dữ liệu bên dưới. Đây là
-            thứ người duyệt đối chiếu với bản gốc, nên nó phải nằm trong tầm mắt
-            cùng lúc với tên mục. */}
-        {(isDraft ? optionalValue(docCode) : item.doc_code) !== null && (
-          <span className="font-mono rounded-pill bg-canvas px-snug py-hair text-question text-body">
-            {isDraft ? optionalValue(docCode) : item.doc_code}
-          </span>
-        )}
-      </div>
-
-      {(isDraft ? normalizedTopics(topicsInput) : item.topics).length > 0 && (
-        <div className="mt-snug">
-          <TopicTags topics={isDraft ? normalizedTopics(topicsInput) : item.topics} />
-        </div>
-      )}
-
-      {/* ---- Siêu dữ liệu ---- */}
-      <dl className="mt-block space-y-snug">
-        <MetaRow label="Tài liệu nguồn">
-          {isDraft ? (
-            <input
-              type="url"
-              value={sourceUrl}
-              onChange={(event) => setSourceUrl(event.target.value)}
-              placeholder="Dán liên kết tài liệu nguồn"
-              aria-label="Tài liệu nguồn"
-              maxLength={2_000}
-              className={FIELD_INPUT_CLASS}
-            />
-          ) : item.source_url !== null ? (
-            <a
-              href={item.source_url}
-              target="_blank"
-              rel="noreferrer"
-              className="font-display inline-flex min-h-touch items-center break-all text-body underline underline-offset-4"
-            >
-              {item.source_url}
-            </a>
-          ) : (
-            <span className="text-slate">Chưa có</span>
-          )}
-        </MetaRow>
-
-        <MetaRow label="Cơ quan ban hành">
-          {isDraft ? (
-            <input
-              value={issuer}
-              onChange={(event) => setIssuer(event.target.value)}
-              placeholder="Ví dụ: Bộ Y tế"
-              aria-label="Cơ quan ban hành"
-              maxLength={240}
-              className={FIELD_INPUT_CLASS}
-            />
-          ) : item.issuer ?? <span className="text-slate">Chưa có</span>}
-        </MetaRow>
-
-        <MetaRow label="Số hiệu văn bản">
-          {isDraft ? (
-            <input
-              value={docCode}
-              onChange={(event) => setDocCode(event.target.value)}
-              placeholder="Ví dụ: 5481/QĐ-BYT"
-              aria-label="Số hiệu văn bản"
-              maxLength={120}
-              className={`${FIELD_INPUT_CLASS} font-mono`}
-            />
-          ) : item.doc_code !== null ? (
-            <span className="font-mono">{item.doc_code}</span>
-          ) : (
-            <span className="text-slate">Chưa có</span>
-          )}
-        </MetaRow>
-
-        <MetaRow label="Thẻ chủ đề">
-          {isDraft ? (
-            <>
-              <input
-                value={topicsInput}
-                onChange={(event) => setTopicsInput(event.target.value)}
-                placeholder="Ví dụ: huyết áp, tự theo dõi"
-                aria-label="Thẻ chủ đề"
-                className={FIELD_INPUT_CLASS}
-              />
-              <p className="font-display mt-hair text-question text-slate">Ngăn cách các thẻ bằng dấu phẩy.</p>
-            </>
-          ) : item.topics.length > 0 ? (
-            <TopicTags topics={item.topics} />
-          ) : (
-            <span className="text-slate">Chưa gắn thẻ nào</span>
-          )}
-        </MetaRow>
-
-        <MetaRow label="Bệnh áp dụng">
-          {isDraft ? (
-            <fieldset>
-              <legend className="sr-only">Bệnh áp dụng</legend>
-              <p className="font-display text-question text-slate">
-                Chọn ít nhất một bệnh trước khi duyệt.
-              </p>
-              {conditionsQuery.isPending && <p role="status" className="font-display mt-snug text-question text-slate">Đang đọc danh mục bệnh…</p>}
-              {conditionsQuery.isError && <div className="mt-snug"><ErrorNotice error={conditionsQuery.error} retryLabel="Đọc lại danh mục bệnh" onRetry={() => void conditionsQuery.refetch()} /></div>}
-              {!conditionsQuery.isPending && !conditionsQuery.isError && availableConditions.length === 0 && (
-                <p className="font-display mt-snug text-question text-alert">Danh mục hiện chưa có bệnh đang hoạt động để gắn vào bản nháp.</p>
-              )}
-              {availableConditions.length > 0 && (
-                <div className="mt-snug grid gap-tight sm:grid-cols-2">
-                  {availableConditions.map((condition) => {
-                    const checked = conditions.includes(condition.condition_id)
-                    return (
-                      <label key={condition.condition_id} className="font-display flex min-h-touch cursor-pointer items-center gap-tight rounded-card border-2 border-slate bg-surface px-snug py-tight text-question text-body has-[:checked]:border-mint has-[:checked]:bg-mint/15">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => setConditions((current) => checked
-                            ? current.filter((conditionId) => conditionId !== condition.condition_id)
-                            : [...current, condition.condition_id])}
-                          className="h-5 w-5 shrink-0 accent-ink"
-                        />
-                        <span>{condition.label_vi}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-              )}
-            </fieldset>
-          ) : hasConditions ? (
-            conditions.map((condition) => conditionLabel(condition)).join(' · ')
-          ) : (
-            <span className="text-alert">Chưa gắn bệnh nào</span>
-          )}
-        </MetaRow>
-
-        <MetaRow label="Tạo lúc">{formatDateTime(item.created_at)}</MetaRow>
-      </dl>
-
-      {isSourceUpload && (
-        <div className="mt-block rounded-card bg-canvas p-cozy">
-          <p className="font-display text-input font-semibold text-body">Tiến độ đưa vào RAG</p>
-          {isIndexing && (
-            <p role="status" className="font-display mt-hair text-question text-slate">
-              Đang parse, chunk, embedding và ghi vào Vector Store. Agent chưa thể dùng tài liệu này; trang sẽ tự cập nhật.
-            </p>
-          )}
-          {isFailed && (
-            <>
-              <p className="font-display mt-hair text-question text-alert">
-                Index chưa hoàn tất nên agent không thể dùng tài liệu này.
-              </p>
-              {item.source_index_error !== null && item.source_index_error !== undefined && (
-                <p className="font-display mt-snug rounded-card bg-sand p-snug text-question text-sand-deep">
-                  Lỗi: {item.source_index_error}
-                </p>
-              )}
-              {item.index_attempts !== null && item.index_attempts !== undefined && (
-                <p className="font-display mt-snug text-question text-slate">
-                  Đã chạy {item.index_attempts} lần.
-                </p>
-              )}
-            </>
-          )}
-          {item.status === 'approved' && (
-            <p className="font-display mt-hair text-question text-mint-deep">
-              {item.indexed_chunk_count ?? 0} đoạn đã index thành công. Agent có thể truy xuất tài liệu này.
-            </p>
-          )}
-          {item.status === 'pending' && (
-            <p className="font-display mt-hair text-question text-slate">
-              Tài liệu vẫn tách khỏi RAG cho đến khi bạn duyệt và index hoàn tất.
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* ---- Kết quả đã chốt, nếu có ---- */}
-      {isSettled && (
-        <div className="mt-block rounded-card bg-surface p-cozy">
-          <p className="font-display text-input font-semibold text-body">
-            Mục này đã {STATUS_LABEL[item.status].toLowerCase()}
-          </p>
-          <p className="font-display mt-hair text-question text-slate">
-            {item.reviewed_at !== null && `Xử lý lúc ${formatDateTime(item.reviewed_at)}. `}
-            {item.reviewed_by !== null && `Người xử lý: ${item.reviewed_by}.`}
-          </p>
-          {item.review_note !== null && (
-            <p className="mt-snug text-notice text-body">{item.review_note}</p>
-          )}
-          {item.reject_reason !== null && (
-            <p className="mt-snug text-notice text-body">{item.reject_reason}</p>
-          )}
-        </div>
-      )}
-
-      {/* ---- Nội dung hoặc file nguồn ---- */}
-      {isSourceUpload ? (
-        <div className="mt-block">
-          <p className={FIELD_LABEL_CLASS}>Nội dung tài liệu nguồn</p>
-          <p className="font-display mt-hair text-question text-slate">
-            RAG luôn parse từ file gốc đã tải lên, không dùng ô nội dung rỗng hay bản sao rút gọn trong hàng đợi.
-          </p>
-          <Link
-            to={`/editor/documents/${encodeURIComponent(item.item_id)}`}
-            className="font-display mt-snug inline-flex min-h-touch items-center text-input font-semibold text-body underline underline-offset-4"
-          >
-            Mở toàn văn tài liệu
-          </Link>
-        </div>
-      ) : (
-        <div className="mt-block">
-          <label htmlFor="content" className={FIELD_LABEL_CLASS}>
-            Nội dung
-          </label>
-          <p id="content-hint" className="font-display mt-hair text-question text-slate">
-            Sửa trực tiếp ở đây trước khi duyệt. Đây chính là đoạn văn bệnh nhân sẽ đọc, nên viết câu ngắn và tránh thuật ngữ không giải thích.
-          </p>
-          <textarea
-            id="content"
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-            rows={12}
-            disabled={isSettled}
-            aria-describedby="content-hint"
-            className={`${FIELD_TEXTAREA_CLASS} text-notice disabled:text-slate`}
-          />
-        </div>
-      )}
-
-      {!isSettled && !isIndexing && (
-        <>
-          {/* ---- Ghi chú của người duyệt ---- */}
-          <div className="mt-block">
-            <label htmlFor="note" className={FIELD_LABEL_CLASS}>
-              Ghi chú của người duyệt
-            </label>
-            <p id="note-hint" className="font-display mt-hair text-question text-slate">
-              Không bắt buộc. Ghi lại đã sửa gì so với bản gốc, để lần rà soát sau
-              không phải đối chiếu lại từ đầu.
-            </p>
-            <textarea
-              id="note"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              rows={3}
-              aria-describedby="note-hint"
-              className={`${FIELD_TEXTAREA_CLASS} text-input`}
-            />
-          </div>
-
-          {/* ---- Chặn duyệt khi chưa gắn bệnh ---- */}
-          {!hasConditions && (
-            <p
-              id="approve-blocked"
-              role="alert"
-              className="font-display mt-block rounded-card border-2 border-l-8 border-alert bg-surface p-cozy text-notice text-body"
-            >
-              Chưa gắn bệnh nào nên không duyệt được. Trợ lý chỉ tra tài liệu theo
-              bệnh trong hồ sơ bệnh nhân, nên nội dung không gắn bệnh sẽ nằm trong
-              thư viện mà không bao giờ được lấy ra.
-            </p>
-          )}
-
-          {(approve.isError || reject.isError || retryIndex.isError || saveDraft.isError) && (
-            <div className="mt-block">
-              <ErrorNotice
-                error={approve.error ?? reject.error ?? retryIndex.error ?? saveDraft.error}
-                retryLabel="Thử lại"
-                onRetry={() => {
-                  if (approve.isError) approve.mutate()
-                  else if (reject.isError) reject.mutate()
-                  else if (retryIndex.isError) retryIndex.mutate()
-                  else saveDraft.mutate()
-                }}
-              />
+      <div className="co" style={{ marginTop: 24 }}>
+        <div>
+          {/* ---- Nội dung, cùng dải trích dẫn bên trái ---- */}
+          <div className="phieu">
+            <div className="phieu-top">
+              <span>{isDraft ? 'Bản nháp đang soạn' : 'Nội dung chờ duyệt'}</span>
+              <StatusBadge status={item.status} />
             </div>
-          )}
 
-          {/* ---- Hai nút hành động ----
-              Nút Duyệt bị chặn dùng `aria-disabled` chứ không dùng `disabled`:
-              nút `disabled` bị bàn phím bỏ qua hoàn toàn, nên người dùng bàn phím
-              sẽ không bao giờ nghe được dòng giải thích vì sao nó chưa bấm được. */}
-          <div className="mt-block flex flex-wrap gap-snug">
-            {isDraft && (
-              <button
-                type="button"
-                disabled={!draftHasUnsavedChanges || isBusy || title.trim() === ''}
-                onClick={() => saveDraft.mutate()}
-                className="motion-press font-display min-h-call flex-1 rounded-pill bg-ink px-cozy text-input font-bold text-white enabled:hover:bg-ink-press disabled:bg-canvas disabled:font-normal disabled:text-slate"
-              >
-                {saveDraft.isPending ? 'Đang lưu bản nháp…' : 'Lưu bản nháp'}
-              </button>
-            )}
-            {isFailed && isSourceUpload ? (
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={() => retryIndex.mutate()}
-                className="motion-press font-display min-h-call flex-1 rounded-pill bg-mint px-cozy text-input font-bold text-mint-deep enabled:hover:bg-mint-press disabled:bg-canvas disabled:font-normal disabled:text-slate"
-              >
-                {retryIndex.isPending ? 'Đang bắt đầu lại…' : 'Thử lại index'}
-              </button>
-            ) : (
-            <button
-              type="button"
-              aria-disabled={!canApprove}
-              aria-describedby={hasConditions ? undefined : 'approve-blocked'}
-              onClick={() => {
-                if (!canApprove) return
-                approve.mutate()
-              }}
-              // Nền mint chữ mint-deep (6.72:1). Trạng thái bị chặn KHÔNG dùng
-              // `disabled` (xem ghi chú ngay trên) nên nó phải tự nói bằng hình:
-              // nền canvas, viền đứt, chữ slate (4.58:1) — vẫn đọc được, vẫn
-              // Tab tới được, nhưng nhìn ra ngay là chưa bấm được.
-              className={`motion-press font-display min-h-call flex-1 rounded-pill px-cozy text-input font-bold ${
-                canApprove
-                  ? 'bg-mint text-mint-deep hover:bg-mint-press'
-                  : 'cursor-not-allowed border-2 border-dashed border-slate bg-canvas font-normal text-slate'
-              }`}
-            >
-              {approve.isPending
-                ? 'Đang bắt đầu index…'
-                : isSourceUpload
-                  ? 'Duyệt và bắt đầu index'
-                  : 'Duyệt'}
-            </button>
-            )}
+            <div style={{ padding: '0 clamp(16px,2vw,24px)' }}>
+              <div className="doc">
+                <div className="doc-rail">
+                  {/* Dải trích dẫn: số hiệu văn bản trên, điều khoản hoặc cơ
+                      quan ban hành dưới. Thiếu số hiệu thì ghi thẳng là thiếu. */}
+                  <div className="ref" aria-current="true">
+                    {shownDocCode ?? <Missing>Chưa có số hiệu</Missing>}
+                    <span>{shownIssuer ?? 'Chưa rõ cơ quan ban hành'}</span>
+                  </div>
+                </div>
 
-            <button
-              type="button"
-              onClick={() => setRejecting(true)}
-              className="motion-press font-display min-h-call flex-1 rounded-pill bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
-            >
-              Từ chối
-            </button>
-          </div>
-
-          {/* ---- Ô lý do, chỉ hiện khi đã bấm Từ chối ---- */}
-          {isRejecting && (
-            <div className="mt-block rounded-card bg-sand p-cozy">
-              <label
-                htmlFor="reason"
-                className="font-display block text-input font-semibold text-sand-deep"
-              >
-                Lý do từ chối
-              </label>
-              <p id="reason-hint" className="font-display mt-hair text-question text-sand-deep">
-                Bắt buộc. Không ghi lý do thì người sau lại soạn đúng nội dung này
-                lần nữa, và cả vòng duyệt lặp lại từ đầu.
-              </p>
-              <textarea
-                id="reason"
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                rows={3}
-                autoFocus
-                aria-describedby="reason-hint"
-                className={`${FIELD_TEXTAREA_CLASS} text-input`}
-              />
-
-              <div className="mt-snug flex flex-wrap gap-snug">
-                <button
-                  type="button"
-                  aria-disabled={!canSendRejection}
-                  aria-describedby="reason-hint"
-                  onClick={() => {
-                    if (!canSendRejection) return
-                    reject.mutate()
-                  }}
-                  className={`motion-press font-display min-h-touch flex-1 rounded-pill px-cozy text-input font-bold ${
-                    canSendRejection
-                      ? 'bg-sand-deep text-sand hover:bg-sand-deep-press'
-                      : 'cursor-not-allowed border-2 border-dashed border-sand-deep bg-sand font-normal text-sand-deep'
-                  }`}
-                >
-                  {reject.isPending ? 'Đang gửi…' : 'Gửi từ chối'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRejecting(false)}
-                  className="motion-press font-display min-h-touch rounded-pill bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
-                >
-                  Huỷ
-                </button>
+                <div className="doc-body">
+                  {isSourceUpload ? (
+                    <>
+                      <p>
+                        RAG luôn parse từ file gốc đã tải lên, không dùng ô nội dung
+                        rỗng hay bản sao rút gọn trong hàng đợi.
+                      </p>
+                      <Link
+                        to={'/editor/documents/' + encodeURIComponent(item.item_id)}
+                        className="btn sm gh"
+                        style={{ marginTop: 14 }}
+                      >
+                        Mở toàn văn tài liệu
+                      </Link>
+                    </>
+                  ) : isSettled ? (
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{content}</p>
+                  ) : (
+                    <>
+                      <label htmlFor="content" className="lab">
+                        Nội dung
+                      </label>
+                      <p
+                        id="content-hint"
+                        style={{
+                          fontSize: 'var(--t-note)',
+                          color: 'var(--xam)',
+                          marginTop: 4,
+                          lineHeight: 1.66,
+                        }}
+                      >
+                        Sửa trực tiếp ở đây trước khi duyệt. Đây chính là đoạn văn
+                        bệnh nhân sẽ đọc, nên viết câu ngắn và tránh thuật ngữ
+                        không giải thích.
+                      </p>
+                      <textarea
+                        id="content"
+                        className="o"
+                        value={content}
+                        onChange={(event) => setContent(event.target.value)}
+                        rows={12}
+                        aria-describedby="content-hint"
+                        style={{ marginTop: 10 }}
+                      />
+                    </>
+                  )}
+                </div>
               </div>
             </div>
+
+            <div className="rangcua" />
+          </div>
+
+          {/* ---- Tiến độ đưa vào RAG, chỉ với tài liệu BTV tải lên ---- */}
+          {isSourceUpload && (
+            <div className="phieu" style={{ marginTop: 14 }}>
+              <div className="phieu-top">
+                <span>Tiến độ đưa vào RAG</span>
+              </div>
+              <div style={{ padding: '16px clamp(16px,2vw,24px)', fontSize: 'var(--t-note)' }}>
+                {isIndexing && (
+                  <p role="status">
+                    Đang parse, chunk, embedding và ghi vào Vector Store. Agent chưa
+                    thể dùng tài liệu này; trang sẽ tự cập nhật.
+                  </p>
+                )}
+                {isFailed && (
+                  <>
+                    <p style={{ color: 'var(--do)' }}>
+                      Index chưa hoàn tất nên agent không thể dùng tài liệu này.
+                    </p>
+                    {item.source_index_error !== null && item.source_index_error !== undefined && (
+                      <p
+                        className="mono"
+                        style={{
+                          marginTop: 10,
+                          padding: '10px 12px',
+                          border: '1px solid var(--do)',
+                          background: 'var(--do-wash)',
+                          color: 'var(--do)',
+                          overflowWrap: 'anywhere',
+                        }}
+                      >
+                        {item.source_index_error}
+                      </p>
+                    )}
+                    {item.index_attempts !== null && item.index_attempts !== undefined && (
+                      <p style={{ marginTop: 10, color: 'var(--xam)' }}>
+                        Đã chạy {item.index_attempts} lần.
+                      </p>
+                    )}
+                  </>
+                )}
+                {item.status === 'approved' && (
+                  <p style={{ color: 'var(--xanh)' }}>
+                    {item.indexed_chunk_count ?? 0} đoạn đã index thành công. Agent
+                    có thể truy xuất tài liệu này.
+                  </p>
+                )}
+                {item.status === 'pending' && (
+                  <p style={{ color: 'var(--xam)' }}>
+                    Tài liệu vẫn tách khỏi RAG cho đến khi bạn duyệt và index hoàn tất.
+                  </p>
+                )}
+              </div>
+              <div className="rangcua" />
+            </div>
           )}
-        </>
-      )}
+
+          {/* ---- Kết quả đã chốt, nếu có ---- */}
+          {isSettled && (
+            <div className="phieu" style={{ marginTop: 14 }}>
+              <div className="phieu-top">
+                <span>Mục này đã {STATUS_LABEL[item.status].toLowerCase()}</span>
+              </div>
+              <div style={{ padding: '16px clamp(16px,2vw,24px)', fontSize: 'var(--t-note)' }}>
+                <p style={{ color: 'var(--xam)' }}>
+                  {item.reviewed_at !== null && 'Xử lý lúc ' + formatDateTime(item.reviewed_at) + '. '}
+                  {item.reviewed_by !== null && 'Người xử lý: ' + item.reviewed_by + '.'}
+                </p>
+                {item.review_note !== null && <p style={{ marginTop: 10 }}>{item.review_note}</p>}
+                {item.reject_reason !== null && <p style={{ marginTop: 10 }}>{item.reject_reason}</p>}
+              </div>
+              <div className="rangcua" />
+            </div>
+          )}
+
+          {!isSettled && !isIndexing && (
+            <>
+              {/* ---- Ghi chú của người duyệt ---- */}
+              <div style={{ marginTop: 20 }}>
+                <label htmlFor="note" className="lab">
+                  Ghi chú của người duyệt
+                </label>
+                <p
+                  id="note-hint"
+                  style={{
+                    fontSize: 'var(--t-note)',
+                    color: 'var(--xam)',
+                    marginTop: 4,
+                    lineHeight: 1.66,
+                  }}
+                >
+                  Không bắt buộc. Ghi lại đã sửa gì so với bản gốc, để lần rà soát
+                  sau không phải đối chiếu lại từ đầu.
+                </p>
+                <textarea
+                  id="note"
+                  className="o"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  rows={3}
+                  aria-describedby="note-hint"
+                  style={{ marginTop: 10 }}
+                />
+              </div>
+
+              {/* ---- Chặn duyệt khi chưa gắn bệnh ---- */}
+              {!hasConditions && (
+                <div
+                  className="phieu"
+                  style={{ marginTop: 14, borderColor: 'var(--do)', borderWidth: 2 }}
+                >
+                  <div
+                    className="phieu-top"
+                    style={{
+                      background: 'var(--do-wash)',
+                      color: 'var(--do)',
+                      borderBottomColor: 'var(--do)',
+                    }}
+                  >
+                    <span>Chưa duyệt được</span>
+                  </div>
+                  <div style={{ padding: '16px clamp(16px,2vw,24px)' }}>
+                    <p
+                      id="approve-blocked"
+                      role="alert"
+                      style={{ maxWidth: '54ch', fontSize: 'var(--t-note)', lineHeight: 1.66 }}
+                    >
+                      Mục này chưa gắn bệnh áp dụng nên không duyệt được. Trợ lý chỉ
+                      tra tài liệu theo bệnh trong hồ sơ bệnh nhân, nên nội dung
+                      không gắn bệnh sẽ nằm trong thư viện mà không bao giờ được lấy
+                      ra. Chọn bệnh ở cột bên phải rồi mới duyệt được.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {(approve.isError || reject.isError || retryIndex.isError || saveDraft.isError) && (
+                <div style={{ marginTop: 14 }}>
+                  <ErrorNotice
+                    error={approve.error ?? reject.error ?? retryIndex.error ?? saveDraft.error}
+                    retryLabel="Thử lại"
+                    onRetry={() => {
+                      if (approve.isError) approve.mutate()
+                      else if (reject.isError) reject.mutate()
+                      else if (retryIndex.isError) retryIndex.mutate()
+                      else saveDraft.mutate()
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* ---- Hàng nút hành động ----
+                  Nút Duyệt bị chặn dùng `aria-disabled` chứ không dùng `disabled`:
+                  nút `disabled` bị bàn phím bỏ qua hoàn toàn, nên người dùng bàn
+                  phím sẽ không bao giờ nghe được dòng giải thích vì sao nó chưa
+                  bấm được. Bản mẫu vẽ nút chặn ở `opacity:.45`; giữ đúng lớp mờ
+                  đó, nhưng nút vẫn Tab tới được. */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 20 }}>
+                {isDraft && (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={!draftHasUnsavedChanges || isBusy || title.trim() === ''}
+                    onClick={() => saveDraft.mutate()}
+                    style={
+                      !draftHasUnsavedChanges || isBusy || title.trim() === ''
+                        ? { opacity: 0.45, cursor: 'not-allowed' }
+                        : undefined
+                    }
+                  >
+                    {saveDraft.isPending ? 'Đang lưu bản nháp…' : 'Lưu bản nháp'}
+                  </button>
+                )}
+
+                {isFailed && isSourceUpload ? (
+                  <button
+                    type="button"
+                    className="btn pri"
+                    disabled={isBusy}
+                    onClick={() => retryIndex.mutate()}
+                    style={isBusy ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+                  >
+                    {retryIndex.isPending ? 'Đang bắt đầu lại…' : 'Thử lại index'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn pri"
+                    aria-disabled={!canApprove}
+                    aria-describedby={hasConditions ? undefined : 'approve-blocked'}
+                    onClick={() => {
+                      if (!canApprove) return
+                      approve.mutate()
+                    }}
+                    style={canApprove ? undefined : { opacity: 0.45, cursor: 'not-allowed' }}
+                  >
+                    {approve.isPending
+                      ? 'Đang bắt đầu index…'
+                      : isSourceUpload
+                        ? 'Duyệt và bắt đầu index'
+                        : 'Duyệt'}
+                  </button>
+                )}
+
+                <button type="button" className="btn" onClick={() => setRejecting(true)}>
+                  Từ chối
+                </button>
+              </div>
+
+              {/* ---- Ô lý do, chỉ hiện khi đã bấm Từ chối ---- */}
+              {isRejecting && (
+                <div
+                  className="phieu"
+                  style={{ marginTop: 16, borderLeft: '3px solid var(--tim)' }}
+                >
+                  <div
+                    className="phieu-top"
+                    style={{
+                      background: 'var(--tim-wash)',
+                      color: 'var(--tim)',
+                      borderBottomColor: 'var(--tim)',
+                    }}
+                  >
+                    <span>Lý do từ chối</span>
+                  </div>
+                  <div style={{ padding: '16px clamp(16px,2vw,24px)' }}>
+                    <label htmlFor="reason" className="sr-only">
+                      Lý do từ chối
+                    </label>
+                    <p
+                      id="reason-hint"
+                      style={{
+                        fontSize: 'var(--t-note)',
+                        color: 'var(--xam)',
+                        lineHeight: 1.66,
+                      }}
+                    >
+                      Bắt buộc. Không ghi lý do thì người sau lại soạn đúng nội dung
+                      này lần nữa, và cả vòng duyệt lặp lại từ đầu.
+                    </p>
+                    <textarea
+                      id="reason"
+                      className="o"
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                      rows={3}
+                      autoFocus
+                      aria-describedby="reason-hint"
+                      style={{ marginTop: 10 }}
+                    />
+
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+                      <button
+                        type="button"
+                        className="btn sm"
+                        aria-disabled={!canSendRejection}
+                        aria-describedby="reason-hint"
+                        onClick={() => {
+                          if (!canSendRejection) return
+                          reject.mutate()
+                        }}
+                        style={
+                          canSendRejection ? undefined : { opacity: 0.45, cursor: 'not-allowed' }
+                        }
+                      >
+                        {reject.isPending ? 'Đang gửi…' : 'Gửi từ chối'}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn sm gh"
+                        onClick={() => setRejecting(false)}
+                      >
+                        Huỷ
+                      </button>
+                    </div>
+                  </div>
+                  <div className="rangcua" />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ---- Cột phụ: xuất xứ và phân loại ---- */}
+        <div className="phu">
+          <div className="phieu">
+            <div
+              className="phieu-top"
+              style={{
+                background: 'var(--tim-wash)',
+                color: 'var(--tim)',
+                borderBottomColor: 'var(--tim)',
+              }}
+            >
+              <span>Xuất xứ và phân loại</span>
+            </div>
+
+            <div style={{ padding: '4px 18px 16px' }}>
+              {isDraft && (
+                <Field label="Tiêu đề">
+                  <input
+                    className="o"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    aria-label="Tiêu đề"
+                    maxLength={120}
+                  />
+                </Field>
+              )}
+
+              <Field label="Tài liệu nguồn">
+                {isDraft ? (
+                  <input
+                    className="o"
+                    type="url"
+                    value={sourceUrl}
+                    onChange={(event) => setSourceUrl(event.target.value)}
+                    placeholder="Dán liên kết tài liệu nguồn"
+                    aria-label="Tài liệu nguồn"
+                    maxLength={2_000}
+                  />
+                ) : item.source_url !== null ? (
+                  <a
+                    href={item.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ overflowWrap: 'anywhere' }}
+                  >
+                    {item.source_url}
+                  </a>
+                ) : (
+                  <Missing />
+                )}
+              </Field>
+
+              <Field label="Cơ quan ban hành">
+                {isDraft ? (
+                  <input
+                    className="o"
+                    value={issuer}
+                    onChange={(event) => setIssuer(event.target.value)}
+                    placeholder="Ví dụ: Bộ Y tế"
+                    aria-label="Cơ quan ban hành"
+                    maxLength={240}
+                  />
+                ) : item.issuer !== null ? (
+                  item.issuer
+                ) : (
+                  <Missing />
+                )}
+              </Field>
+
+              <Field label="Số hiệu văn bản">
+                {isDraft ? (
+                  <input
+                    className="o mono"
+                    value={docCode}
+                    onChange={(event) => setDocCode(event.target.value)}
+                    placeholder="Ví dụ: 5481/QĐ-BYT"
+                    aria-label="Số hiệu văn bản"
+                    maxLength={120}
+                  />
+                ) : item.doc_code !== null ? (
+                  <span className="mono" style={{ color: 'var(--tim)' }}>
+                    {item.doc_code}
+                  </span>
+                ) : (
+                  <Missing />
+                )}
+              </Field>
+
+              <Field label="Thẻ chủ đề">
+                {isDraft ? (
+                  <>
+                    <input
+                      className="o"
+                      value={topicsInput}
+                      onChange={(event) => setTopicsInput(event.target.value)}
+                      placeholder="Ví dụ: huyết áp, tự theo dõi"
+                      aria-label="Thẻ chủ đề"
+                    />
+                    <p style={{ color: 'var(--xam)', marginTop: 6 }}>
+                      Ngăn cách các thẻ bằng dấu phẩy.
+                    </p>
+                  </>
+                ) : shownTopics.length > 0 ? (
+                  <TopicTags topics={shownTopics} />
+                ) : (
+                  <Missing>Chưa gắn thẻ nào</Missing>
+                )}
+              </Field>
+
+              <Field label="Tạo lúc">
+                <span className="mono">{formatDateTime(item.created_at)}</span>
+              </Field>
+
+              <div style={{ height: 1, background: 'var(--ke)', margin: '16px 0 0' }} />
+
+              {/* ---- Bệnh áp dụng ----
+                  Ở bản nháp đây là ô chọn `.chon` của bản mẫu; ở mục đã gửi nó
+                  chỉ còn là danh sách chữ, vì lúc đó máy chủ đã chốt. */}
+              <Field label="Bắt buộc chọn bệnh áp dụng" danger={!hasConditions}>
+                {isDraft ? (
+                  <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
+                    <legend className="sr-only">Bệnh áp dụng</legend>
+
+                    {conditionsQuery.isPending && (
+                      <p role="status" style={{ color: 'var(--xam)' }}>
+                        Đang đọc danh mục bệnh…
+                      </p>
+                    )}
+
+                    {conditionsQuery.isError && (
+                      <ErrorNotice
+                        error={conditionsQuery.error}
+                        retryLabel="Đọc lại danh mục bệnh"
+                        onRetry={() => void conditionsQuery.refetch()}
+                      />
+                    )}
+
+                    {!conditionsQuery.isPending &&
+                      !conditionsQuery.isError &&
+                      availableConditions.length === 0 && (
+                        <p style={{ color: 'var(--do)' }}>
+                          Danh mục hiện chưa có bệnh đang hoạt động để gắn vào bản nháp.
+                        </p>
+                      )}
+
+                    {availableConditions.length > 0 && (
+                      <div style={{ display: 'grid', gap: 8, marginTop: 9 }}>
+                        {availableConditions.map((condition) => {
+                          const checked = conditions.includes(condition.condition_id)
+                          return (
+                            <button
+                              key={condition.condition_id}
+                              type="button"
+                              className="chon"
+                              aria-pressed={checked}
+                              onClick={() =>
+                                setConditions((current) =>
+                                  checked
+                                    ? current.filter(
+                                        (conditionId) => conditionId !== condition.condition_id,
+                                      )
+                                    : [...current, condition.condition_id],
+                                )
+                              }
+                              style={{ padding: '11px 13px' }}
+                            >
+                              <span className="box" />
+                              <span style={{ fontSize: 'var(--t-note)' }}>
+                                {condition.label_vi}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </fieldset>
+                ) : hasConditions ? (
+                  conditions.map((condition) => conditionLabel(condition)).join(' · ')
+                ) : (
+                  <span style={{ color: 'var(--do)' }}>Chưa gắn bệnh nào</span>
+                )}
+              </Field>
+            </div>
+
+            <div className="rangcua" />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -581,10 +770,7 @@ export function EditorItemScreen() {
 
   if (isPending) {
     return (
-      <p
-        role="status"
-        className="font-display mx-auto max-w-answer text-notice text-slate"
-      >
+      <p role="status" className="lab">
         Đang mở mục…
       </p>
     )
@@ -592,13 +778,7 @@ export function EditorItemScreen() {
 
   if (isError) {
     return (
-      <div className="mx-auto w-full max-w-answer">
-        <ErrorNotice
-          error={error}
-          retryLabel="Mở lại mục"
-          onRetry={() => void refetch()}
-        />
-      </div>
+      <ErrorNotice error={error} retryLabel="Mở lại mục" onRetry={() => void refetch()} />
     )
   }
 

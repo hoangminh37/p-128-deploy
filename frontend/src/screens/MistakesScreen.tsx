@@ -18,8 +18,6 @@ import type { QuizMistake } from '../lib/schemas'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { QuizPanel } from '../ui/QuizPanel'
 
-const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const
-
 export function MistakesScreen() {
   const { data, isPending, isError, error, refetch } = useQuizMistakes()
   const [dangLamLai, setDangLamLai] = useState(false)
@@ -45,125 +43,122 @@ export function MistakesScreen() {
   const mistakes = data?.items ?? []
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto">
-      <div className="mx-auto w-full max-w-reading px-cozy py-block">
-        <nav className="mb-block">
-          <Link
-            to="/quiz"
-            className="font-display inline-flex min-h-touch items-center text-input font-semibold text-slate underline underline-offset-4 hover:text-body"
-          >
-            ← Trắc nghiệm kiến thức
-          </Link>
-        </nav>
+    /* CHÉP TỪ `id="cs"`: nhãn `.eb` đếm số chỗ, tiêu đề, rồi một `.phieu` cho
+       mỗi chỗ — `.phieu-top` ghi tên khái niệm và số trích dẫn, một hàng
+       `.pill-sai` + `.lab` ngay dưới, và thân là cặp "Bạn chọn / Đáp án" đặt
+       cạnh nhau. */
+    <div>
+      <div className="eb">{mistakes.length} chỗ bạn còn nhầm</div>
 
-        <header className="mb-block">
-          <h1 className="text-ask font-semibold text-body">Chỗ bạn chưa nắm</h1>
-          {mistakes.length > 0 ? (
-            <p className="mt-snug max-w-answer text-notice text-body">
-              {mistakes.length} chỗ, tổng {data?.total_wrong} lần trả lời sai, tính trên{' '}
-              {data?.sessions_scanned} bài đã nộp. Câu sai nhiều lần xếp trước.
-            </p>
-          ) : (
-            <p className="mt-snug max-w-answer text-notice text-body">
-              Bạn chưa trả lời sai câu nào. Làm thêm vài bài trắc nghiệm rồi quay lại đây nhé.
-            </p>
-          )}
-        </header>
+      <h1 style={{ fontSize: 'var(--t-h2)', lineHeight: 1.22, marginTop: 12 }}>
+        Chỗ chưa nắm
+      </h1>
 
-        {mistakes.length === 0 ? (
-          <Link
-            to="/quiz"
-            className="motion-press font-display inline-flex min-h-touch items-center rounded-pill bg-mint px-cozy text-input font-bold text-ink no-underline"
-          >
-            Làm một bài trắc nghiệm
-          </Link>
-        ) : (
-          <>
-            <ol className="mb-block flex flex-col gap-para">
-              {mistakes.map((mistake, index) => (
-                <MistakeCard key={`${mistake.quiz_id}-${index}`} mistake={mistake} />
-              ))}
-            </ol>
+      {mistakes.length > 0 ? (
+        <p className="lab" style={{ marginTop: 8, lineHeight: 1.6 }}>
+          Tổng {data?.total_wrong} lần trả lời sai, tính trên {data?.sessions_scanned} bài
+          đã nộp. Câu sai nhiều lần xếp trước.
+        </p>
+      ) : (
+        <p className="lab" style={{ marginTop: 8, lineHeight: 1.6 }}>
+          Bạn chưa trả lời sai câu nào. Làm thêm vài bài trắc nghiệm rồi quay lại đây nhé.
+        </p>
+      )}
 
+      {mistakes.length === 0 ? (
+        <Link to="/quiz" className="btn pri" style={{ marginTop: 22 }}>
+          Làm một bài trắc nghiệm
+        </Link>
+      ) : (
+        <>
+          <ol style={{ listStyle: 'none', margin: '22px 0 0', padding: 0 }}>
+            {mistakes.map((mistake, index) => (
+              <MistakeCard key={`${mistake.quiz_id}-${index}`} mistake={mistake} />
+            ))}
+          </ol>
+
+          <div style={{ marginTop: 22 }}>
             {dangLamLai ? (
               <QuizPanel source="mistakes" ctaLabel="Bắt đầu làm lại" />
             ) : (
-              <section className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
-                <h2 className="text-heading font-semibold text-body">
-                  Thử lại những chỗ này
-                </h2>
-                <p className="mt-hair font-display text-question text-slate">
-                  Trợ lý sẽ soạn <strong className="font-semibold text-body">câu hỏi mới</strong> về
-                  đúng các khái niệm trên, diễn đạt khác đi. Nhớ mặt đáp án cũ sẽ không giúp được —
-                  đó mới là cách biết bạn đã thật sự hiểu.
+              <>
+                <p className="lab" style={{ maxWidth: '56ch', lineHeight: 1.6 }}>
+                  Trợ lý sẽ soạn câu hỏi MỚI về đúng các khái niệm trên, diễn đạt khác
+                  đi. Nhớ mặt đáp án cũ sẽ không giúp được — đó mới là cách biết bạn đã
+                  thật sự hiểu.
                 </p>
                 <button
                   type="button"
                   onClick={() => setDangLamLai(true)}
-                  className="motion-press font-display mt-snug inline-flex min-h-touch items-center rounded-pill bg-mint px-cozy text-input font-bold text-ink"
+                  className="btn pri"
+                  style={{ marginTop: 14 }}
                 >
-                  🎯 Làm lại bằng câu hỏi mới
+                  Làm đề mới trên những chỗ này
                 </button>
-              </section>
+              </>
             )}
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
+/**
+ * Một chỗ chưa nắm — CHÉP TỪ `id="cs"`.
+ *
+ * `.phieu` với `.phieu-top` ghi câu hỏi, một hàng `.pill-sai` + `.lab` ngay
+ * dưới dải đầu, rồi cặp "Bạn chọn / Đáp án" đặt cạnh nhau.
+ *
+ * ĐỎ Ở "BẠN CHỌN" LÀ NHÃN LỖI, không phải cảnh báo nguy cấp — bản mẫu dùng
+ * đúng cặp này (`--do` cho lựa chọn sai, `--xanh` cho đáp án đúng), và cả hai
+ * đều kèm nhãn chữ nên người không phân biệt được màu vẫn đọc ra.
+ */
 function MistakeCard({ mistake }: { mistake: QuizMistake }) {
   /** Đáp án chọn gần nhất. Mảng `chosen` xếp mới nhất trước. */
   const daChon = mistake.chosen[0]
 
   return (
-    <li className="rounded-card bg-surface p-cozy">
-      <div className="mb-tight flex flex-wrap items-center gap-tight">
-        <span className="font-display rounded-pill border-2 border-alert px-snug py-hair text-note font-semibold text-alert">
-          Sai {mistake.times_wrong} lần
-        </span>
-        {mistake.topic && (
-          <span className="font-display text-note text-slate">{mistake.topic}</span>
-        )}
+    <li className="phieu" style={{ marginTop: 14 }}>
+      <div className="phieu-top">
+        <span>{mistake.question}</span>
       </div>
 
-      <p className="font-display text-question font-semibold text-body">{mistake.question}</p>
+      <div
+        style={{
+          display: 'flex',
+          gap: 9,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          padding: '14px clamp(16px,2vw,24px) 0',
+        }}
+      >
+        <span className="pill-sai">Sai {mistake.times_wrong} lần</span>
+        {mistake.topic && <span className="lab">{mistake.topic}</span>}
+      </div>
 
-      <div className="mt-tight flex flex-col gap-hair">
-        {mistake.options.map((option, index) => {
-          const dung = index === mistake.correct_index
-          const cuaBan = index === daChon
-          const tone = dung
-            ? 'bg-mint text-ink'
-            : cuaBan
-              ? 'border-2 border-alert bg-canvas text-body'
-              : 'bg-canvas text-body'
-
-          return (
-            <p
-              key={index}
-              className={`font-display flex items-start gap-snug rounded-card p-snug text-question ${tone}`}
-            >
-              <span className="font-bold" aria-hidden="true">
-                {OPTION_LABELS[index]}
-              </span>
-              <span className="flex-1">{option}</span>
-              {dung && (
-                <span className="font-display text-note font-semibold">Đáp án đúng</span>
-              )}
-              {cuaBan && !dung && (
-                <span className="font-display text-note font-semibold text-alert">Bạn đã chọn</span>
-              )}
+      <div style={{ padding: '18px clamp(16px,2vw,24px)' }}>
+        <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap' }}>
+          <div>
+            <span className="lab">Bạn chọn</span>
+            <p style={{ color: 'var(--do)', marginTop: 2 }}>
+              {daChon !== undefined ? mistake.options[daChon] : 'Chưa trả lời'}
             </p>
-          )
-        })}
+          </div>
+          <div>
+            <span className="lab">Đáp án</span>
+            <p style={{ color: 'var(--xanh)', marginTop: 2 }}>
+              {mistake.options[mistake.correct_index]}
+            </p>
+          </div>
+        </div>
+
+        <p style={{ marginTop: 14, maxWidth: '56ch', fontSize: 'var(--t-note)', lineHeight: 1.7 }}>
+          {mistake.explanation}
+        </p>
       </div>
 
-      <p className="mt-snug rounded-card bg-canvas p-snug font-display text-question text-body">
-        <span className="font-semibold text-body">Vì sao: </span>
-        {mistake.explanation}
-      </p>
+      <div className="rangcua" />
     </li>
   )
 }

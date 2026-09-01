@@ -1,4 +1,21 @@
-/** Patient entrypoint for choosing a real, BTV-managed doctor. */
+/**
+ * Cửa vào tư vấn của bệnh nhân — `/consultations`.
+ *
+ * CHÉP TỪ `id="tvds"` của bản mẫu, đúng ba tầng và đúng thứ tự đó:
+ *
+ *   1. `.eb` "Tư vấn", tiêu đề, một đoạn nói trước LUẬT CHƠI — nhắn được ngay,
+ *      nhưng bác sỹ phải nhận yêu cầu rồi mới trả lời hoặc gọi video được.
+ *   2. `.eb solo` "Chọn bác sỹ để bắt đầu" và lưới `.auto` các `.phieu` bác sỹ.
+ *      Bác sỹ đang chọn được viền xanh 2px và dải `.phieu-top` xanh ghi
+ *      "Đang chọn"; các thẻ còn lại dùng dải trơn ghi chuyên khoa và số năm.
+ *   3. `.eb solo` "Các buổi tư vấn của bạn" — MỘT `.phieu` duy nhất, mỗi buổi
+ *      là một hàng ngăn nhau bằng nét kẻ, không phải mỗi buổi một thẻ.
+ *
+ * Danh sách bác sỹ là người thật do biên tập viên y khoa quản lý, nên chip
+ * "Hồ sơ đã được biên tập viên y khoa xác minh" chỉ hiện khi `is_verified`, và
+ * nút bắt đầu tắt hẳn khi bác sỹ không nhận tư vấn — bản mẫu có sẵn cả hai
+ * trạng thái nút này.
+ */
 import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
@@ -19,6 +36,28 @@ const STATUS_LABEL: Record<ConsultationStatus, string> = {
   ended: 'Đã kết thúc',
 }
 
+/** Chip trạng thái, đúng ba lớp bản mẫu dùng ở `#tvds`. */
+const STATUS_CHIP: Record<ConsultationStatus, string> = {
+  requested: 'chip cho',
+  active: 'chip duyet',
+  ended: 'chip',
+}
+
+/**
+ * Dòng `.lab` dưới tên bác sỹ.
+ *
+ * Bản mẫu viết "Nội tiết · Bệnh viện Nội tiết Trung ương · 12 năm". Nơi làm
+ * việc và số năm đều có thể trống trong dữ liệu thật, nên chúng chỉ góp mặt
+ * khi có — không để lại dấu chấm giữa lơ lửng.
+ */
+function doctorMeta(doctor: DoctorPublicProfile): string {
+  const parts = [doctor.specialty]
+  if (doctor.clinic_name !== null) parts.push(doctor.clinic_name)
+  if (doctor.experience_years !== null) parts.push(`${doctor.experience_years} năm`)
+  return parts.join(' · ')
+}
+
+/** Một `.phieu` bác sỹ trong lưới `.auto` — CHÉP TỪ `id="tvds"`. */
 function DoctorCard({
   doctor,
   selected,
@@ -31,18 +70,88 @@ function DoctorCard({
   onStart: () => void
 }) {
   return (
-    <article className={`rounded-card border-2 p-cozy ${selected ? 'border-mint bg-mint/15' : 'border-line bg-surface'}`}>
-      <p className="text-notice font-semibold text-body">{doctor.display_name}</p>
-      <p className="font-display mt-hair text-input text-mint-deep">{doctor.specialty}</p>
-      {doctor.is_verified && <p className="font-display mt-tight text-question font-semibold text-mint-deep">Hồ sơ đã được BTV xác minh</p>}
-      {doctor.clinic_name !== null && <p className="font-display mt-tight text-question text-slate">{doctor.clinic_name}</p>}
-      {doctor.experience_years !== null && <p className="font-display mt-hair text-question text-slate">{doctor.experience_years} năm kinh nghiệm</p>}
-      {doctor.bio !== null && <p className="font-display mt-snug text-question text-slate">{doctor.bio}</p>}
-      <div className="mt-snug flex flex-wrap gap-tight">
-        <button type="button" disabled={!doctor.is_available || isStarting} onClick={onStart} aria-pressed={selected} className="motion-press font-display min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-mint-deep enabled:hover:bg-mint-press disabled:bg-canvas disabled:text-slate">{!doctor.is_available ? 'Hiện chưa nhận tư vấn' : isStarting ? 'Đang mở cuộc trò chuyện…' : 'Bắt đầu trò chuyện'}</button>
-        <Link to={`/consultations/doctors/${encodeURIComponent(doctor.doctor_id)}`} className="motion-press font-display inline-flex min-h-touch items-center rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body no-underline hover:bg-canvas">Xem hồ sơ</Link>
+    <div
+      className="phieu"
+      style={selected ? { borderColor: 'var(--xanh)', borderWidth: 2 } : undefined}
+    >
+      <div
+        className="phieu-top"
+        style={
+          selected
+            ? {
+                background: 'var(--xanh-wash)',
+                color: 'var(--xanh)',
+                borderBottomColor: 'var(--xanh)',
+              }
+            : undefined
+        }
+      >
+        <span>{selected ? 'Đang chọn' : doctor.specialty}</span>
+        <span>
+          {selected
+            ? doctor.specialty
+            : doctor.experience_years !== null
+              ? `${String(doctor.experience_years).padStart(2, '0')} năm`
+              : ''}
+        </span>
       </div>
-    </article>
+
+      <div style={{ padding: '18px clamp(16px,2vw,22px)' }}>
+        <h2 style={{ fontSize: 'var(--t-h3)' }}>{doctor.display_name}</h2>
+        <p className="lab" style={{ marginTop: 3 }}>
+          {doctorMeta(doctor)}
+        </p>
+
+        {doctor.bio !== null && (
+          <p
+            style={{
+              fontSize: 'var(--t-note)',
+              color: 'var(--xam)',
+              marginTop: 10,
+              lineHeight: 1.65,
+            }}
+          >
+            {doctor.bio}
+          </p>
+        )}
+
+        {doctor.is_verified && (
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 12 }}>
+            <span className="chip duyet">Hồ sơ đã được biên tập viên y khoa xác minh</span>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginTop: 16 }}>
+          {/* Bản mẫu để sẵn hai trạng thái nút: `btn pri sm` khi nhận tư vấn,
+              và một nút mờ `disabled` ghi "Hiện chưa nhận tư vấn" khi không. */}
+          <button
+            type="button"
+            disabled={!doctor.is_available || isStarting}
+            onClick={onStart}
+            aria-pressed={selected}
+            className={doctor.is_available ? 'btn pri sm' : 'btn sm'}
+            style={
+              doctor.is_available ? undefined : { opacity: 0.5, cursor: 'not-allowed' }
+            }
+          >
+            {!doctor.is_available
+              ? 'Hiện chưa nhận tư vấn'
+              : isStarting
+                ? 'Đang mở cuộc trò chuyện…'
+                : 'Bắt đầu trò chuyện'}
+          </button>
+
+          <Link
+            to={`/consultations/doctors/${encodeURIComponent(doctor.doctor_id)}`}
+            className="btn sm gh"
+          >
+            Xem hồ sơ
+          </Link>
+        </div>
+      </div>
+
+      <div className="rangcua" />
+    </div>
   )
 }
 
@@ -71,46 +180,159 @@ export function ConsultationsScreen() {
   const consultations = consultationsQuery.data?.consultations ?? []
 
   return (
-    <div className="max-w-reading">
-      <h1 className="text-ask font-semibold text-body">Tư vấn với bác sỹ</h1>
-      <p className="mt-snug max-w-answer text-notice text-body">
-        Chọn bác sỹ để mở phòng trò chuyện riêng. Bạn có thể nhắn ngay; bác sỹ nhận thông báo và cần nhận phiên trước khi phản hồi hoặc gọi video.
+    <div>
+      <div className="eb">Tư vấn</div>
+
+      <h1 style={{ fontSize: 'var(--t-h2)', lineHeight: 1.22, marginTop: 12 }}>
+        Tư vấn với bác sỹ
+      </h1>
+
+      <p
+        style={{
+          fontSize: 'var(--t-note)',
+          color: 'var(--xam)',
+          marginTop: 12,
+          maxWidth: '60ch',
+        }}
+      >
+        Chọn bác sỹ để mở phòng trò chuyện riêng. Bạn có thể nhắn ngay; bác sỹ nhận thông báo
+        và cần nhận yêu cầu trước khi phản hồi hoặc gọi video.
       </p>
 
-      {doctorsQuery.isPending && <p role="status" className="font-display mt-block text-notice text-slate">Đang tìm bác sỹ nhận tư vấn…</p>}
-      {doctorsQuery.isError && <div className="mt-block"><ErrorNotice error={doctorsQuery.error} retryLabel="Tải lại danh sách" onRetry={() => void doctorsQuery.refetch()} /></div>}
+      <div className="eb solo" style={{ marginTop: 26 }}>
+        Chọn bác sỹ để bắt đầu
+      </div>
+
+      {doctorsQuery.isPending && (
+        <p role="status" className="lab" style={{ marginTop: 14 }}>
+          Đang tìm bác sỹ nhận tư vấn…
+        </p>
+      )}
+
+      {doctorsQuery.isError && (
+        <div style={{ marginTop: 14 }}>
+          <ErrorNotice
+            error={doctorsQuery.error}
+            retryLabel="Tải lại danh sách"
+            onRetry={() => void doctorsQuery.refetch()}
+          />
+        </div>
+      )}
 
       {!doctorsQuery.isPending && !doctorsQuery.isError && doctors.length === 0 && (
-        <div className="mt-block"><EmptyState title="Hiện chưa có bác sỹ nhận tư vấn" body="BTV sẽ hiển thị bác sỹ tại đây khi đã xác minh và bật lịch nhận tư vấn." /></div>
+        <div className="phieu" style={{ marginTop: 14 }}>
+          <EmptyState
+            title="Hiện chưa có bác sỹ nhận tư vấn"
+            body="BTV sẽ hiển thị bác sỹ tại đây khi đã xác minh và bật lịch nhận tư vấn."
+          />
+          <div className="rangcua" />
+        </div>
       )}
 
       {doctors.length > 0 && (
-        <section className="mt-block rounded-card-lg bg-canvas p-cozy" aria-labelledby="doctor-choice-title">
-          <h2 id="doctor-choice-title" className="text-notice font-semibold text-body">Chọn bác sỹ để bắt đầu</h2>
-          <div className="mt-snug grid gap-snug sm:grid-cols-2">
-            {doctors.map((doctor) => <DoctorCard key={doctor.doctor_id} doctor={doctor} selected={doctor.doctor_id === selectedDoctorId} isStarting={requestConsultation.isPending} onStart={() => startConversation(doctor)} />)}
-          </div>
-          {requestConsultation.isError && <div className="mt-snug"><ErrorNotice error={requestConsultation.error} retryLabel="Mở lại cuộc trò chuyện" onRetry={() => { if (requestConsultation.variables !== undefined) requestConsultation.mutate(requestConsultation.variables) }} /></div>}
-        </section>
+        <div className="auto" style={{ marginTop: 14 }}>
+          {doctors.map((doctor) => (
+            <DoctorCard
+              key={doctor.doctor_id}
+              doctor={doctor}
+              selected={doctor.doctor_id === selectedDoctorId}
+              isStarting={requestConsultation.isPending}
+              onStart={() => startConversation(doctor)}
+            />
+          ))}
+        </div>
       )}
 
-      <section className="mt-block" aria-labelledby="consultation-history-title">
-        <h2 id="consultation-history-title" className="text-heading font-semibold text-body">Các phiên tư vấn của bạn</h2>
-        {consultationsQuery.isPending && <p role="status" className="font-display mt-snug text-notice text-slate">Đang đọc các phiên tư vấn…</p>}
-        {consultationsQuery.isError && <div className="mt-snug"><ErrorNotice error={consultationsQuery.error} retryLabel="Đọc lại" onRetry={() => void consultationsQuery.refetch()} /></div>}
-        {!consultationsQuery.isPending && !consultationsQuery.isError && consultations.length === 0 && <p className="font-display mt-snug text-notice text-slate">Bạn chưa có phiên tư vấn nào.</p>}
-        {consultations.length > 0 && <ul className="mt-snug space-y-snug">
-          {consultations.map((consultation) => <li key={consultation.consultation_id} className="rounded-card bg-surface p-cozy">
-            <div className="flex flex-wrap items-start justify-between gap-snug">
-              <div><h3 className="text-notice font-semibold text-body">{consultation.doctor.display_name}</h3><p className="font-display mt-hair text-question text-slate">{consultation.doctor.specialty}</p></div>
-              <span className="font-display rounded-pill bg-canvas px-snug py-hair text-question font-semibold text-body">{STATUS_LABEL[consultation.status]}</span>
+      {requestConsultation.isError && (
+        <div style={{ marginTop: 14 }}>
+          <ErrorNotice
+            error={requestConsultation.error}
+            retryLabel="Mở lại cuộc trò chuyện"
+            onRetry={() => {
+              if (requestConsultation.variables !== undefined) {
+                requestConsultation.mutate(requestConsultation.variables)
+              }
+            }}
+          />
+        </div>
+      )}
+
+      <div className="eb solo" style={{ marginTop: 32 }}>
+        Các buổi tư vấn của bạn
+      </div>
+
+      {consultationsQuery.isPending && (
+        <p role="status" className="lab" style={{ marginTop: 14 }}>
+          Đang đọc các phiên tư vấn…
+        </p>
+      )}
+
+      {consultationsQuery.isError && (
+        <div style={{ marginTop: 14 }}>
+          <ErrorNotice
+            error={consultationsQuery.error}
+            retryLabel="Đọc lại"
+            onRetry={() => void consultationsQuery.refetch()}
+          />
+        </div>
+      )}
+
+      {!consultationsQuery.isPending && !consultationsQuery.isError && consultations.length === 0 && (
+        <p className="lab" style={{ marginTop: 14, lineHeight: 1.6 }}>
+          Bạn chưa có buổi tư vấn nào.
+        </p>
+      )}
+
+      {consultations.length > 0 && (
+        <div className="phieu" style={{ marginTop: 14 }}>
+          {consultations.map((consultation, index) => (
+            <div
+              key={consultation.consultation_id}
+              style={{
+                display: 'flex',
+                gap: 14,
+                alignItems: 'flex-start',
+                padding: '16px clamp(16px,2vw,22px)',
+                borderBottom:
+                  index === consultations.length - 1 ? undefined : '1px solid var(--ke)',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <p style={{ fontWeight: 500 }}>{consultation.doctor.display_name}</p>
+                <p className="lab">
+                  {consultation.doctor.specialty} · Yêu cầu lúc{' '}
+                  {formatDateTime(consultation.requested_at)}
+                </p>
+                {consultation.last_message_preview !== null && (
+                  <p
+                    style={{
+                      fontSize: 'var(--t-note)',
+                      color: 'var(--xam)',
+                      marginTop: 7,
+                      maxWidth: '52ch',
+                    }}
+                  >
+                    {consultation.last_message_preview}
+                  </p>
+                )}
+              </div>
+
+              <span className={STATUS_CHIP[consultation.status]}>
+                {STATUS_LABEL[consultation.status]}
+              </span>
+
+              <Link
+                to={`/consultations/${encodeURIComponent(consultation.consultation_id)}`}
+                className={consultation.status === 'ended' ? 'btn sm gh' : 'btn sm'}
+              >
+                Mở buổi tư vấn
+              </Link>
             </div>
-            {consultation.last_message_preview !== null && <p className="font-display mt-snug line-clamp-2 text-input text-body">{consultation.last_message_preview}</p>}
-            <p className="font-display mt-snug text-question text-slate">Yêu cầu {formatDateTime(consultation.requested_at)}</p>
-            <Link to={`/consultations/${encodeURIComponent(consultation.consultation_id)}`} className="motion-press font-display mt-snug inline-flex min-h-touch items-center rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body no-underline hover:bg-canvas">Mở phiên tư vấn</Link>
-          </li>)}
-        </ul>}
-      </section>
+          ))}
+          <div className="rangcua" />
+        </div>
+      )}
     </div>
   )
 }

@@ -8,38 +8,58 @@
  *      đầu tiên biến mất với mắt 45–70 tuổi, và ở cỡ nhỏ chúng chỉ làm hình
  *      thành một vệt bẩn.
  *
- *   2. LÀ MỘT VẬT SÁNG, ĐẶT LÊN NỀN NÀO CŨNG ĐƯỢC. Mảng "giấy" dùng trắng đặc
- *      và nét vẽ dùng navy — cả hai CỐ ĐỊNH, không lật theo chế độ sáng/tối.
- *      Nếu để giấy đi theo `--color-surface` thì ở chế độ tối giấy thành navy
- *      và nét navy trên nó biến mất. Minh họa vì thế trông như một hình dán:
- *      nó tự đủ sáng, nên nó đọc được cả trên `canvas` sáng lẫn trên `ink` tối
- *      mà không cần hai phiên bản.
+ *   2. LÀ MỘT VẬT SÁNG, ĐẶT LÊN NỀN NÀO CŨNG ĐƯỢC. Mảng "giấy" dùng bậc giấy
+ *      sáng và nét vẽ dùng mực — cả hai CỐ ĐỊNH, không lật theo chế độ
+ *      sáng/tối. Nếu để giấy đi theo `--color-surface` thì ở chế độ tối mảng
+ *      giấy hoá mực và nét mực vẽ trên nó biến mất. Minh họa vì thế trông như
+ *      một hình dán: nó tự đủ sáng, nên nó đọc được cả trên giấy nền sáng lẫn
+ *      trên mực đặc mà không cần hai phiên bản.
  *
- *   3. CHỈ DÙNG MINT, CORAL, SAND, NAVY. Không thêm màu nào ngoài bảng — ba
- *      màu nhấn đã mang sẵn nghĩa trong sản phẩm và minh họa không được phép
- *      dựng ra một nghĩa thứ tư.
+ *      Chín giá trị đó khai ở `index.css` dưới tên `--color-art-*`, không gõ
+ *      thẳng vào `fill=` ở đây: mã màu của cả ứng dụng nằm trong đúng một
+ *      file, kể cả những mã cố tình không lật theo chế độ.
+ *
+ *   3. CHỈ DÙNG BỐN GIÁ TRỊ CỦA BẢNG MỚI: xanh công vụ, tím xuất xứ, mực và
+ *      giấy. Không thêm màu nào ngoài bảng — mỗi màu đã mang sẵn một nghĩa
+ *      trong sản phẩm và minh họa không được phép dựng ra một nghĩa thứ năm.
+ *      Vàng bút dạ và đỏ cấp cứu KHÔNG có mặt ở đây: hai màu đó chỉ được xuất
+ *      hiện đúng lúc chúng đang nói một điều, mà một hình trang trí thì không
+ *      nói điều gì.
  *
  *   4. `aria-hidden`. Minh họa không mang thông tin nào mà chữ bên cạnh chưa
  *      nói. Trình đọc màn hình đọc chữ, không đọc hình.
  *
- * KHÔNG ĐẶT CẠNH KHỐI CẢNH BÁO CẤP CỨU. Cùng một luật với linh vật Sen ở
- * `Mascot.tsx`: một hình minh họa dễ chịu đứng cạnh dòng "dấu hiệu này cần được
- * khám ngay" là đùa cợt với người có thể đang nguy hiểm thật.
+ * KHÔNG ĐẶT CẠNH KHỐI CẢNH BÁO CẤP CỨU. Cùng một luật với nét sen ở `Sen.tsx`:
+ * một hình minh họa dễ chịu đứng cạnh dòng "dấu hiệu này cần được khám ngay"
+ * là đùa cợt với người có thể đang nguy hiểm thật.
  *
- * KHÁC LINH VẬT SEN CHỖ NÀO: Sen là nhân vật, nó có mặt và nó xuất hiện đúng ở
- * bốn chỗ đã liệt kê trong `Mascot.tsx`. Ba hình dưới đây là minh họa nội dung
- * — chúng minh hoạ cho một ý đang được nói bằng chữ ngay cạnh, và chúng không
- * có mặt mũi. Đừng trộn hai vai đó.
+ * KHÁC NÉT SEN CHỖ NÀO: sen là dấu hiệu của luồng bệnh nhân, nó lấp một khoảng
+ * trống và xuất hiện đúng ở hai chỗ đã liệt kê trong `Sen.tsx`. Ba hình dưới
+ * đây là minh họa nội dung — chúng minh hoạ cho một ý đang được nói bằng chữ
+ * ngay cạnh. Đừng trộn hai vai đó.
  */
 
-/** Bảng màu chung. Cố định ở cả hai chế độ — xem luật 2 ở đầu file. */
+/**
+ * Bảng màu chung. Cố định ở cả hai chế độ — xem luật 2 ở đầu file.
+ *
+ * SÁU KHÓA GIỮ NGUYÊN TÊN, GIÁ TRỊ ĐỔI HẾT sang bảng màu mới. Giữ tên để phần
+ * vẽ bên dưới không phải sửa từng thuộc tính `fill`; nhưng đọc tên xong đừng
+ * đoán màu, đọc giá trị ở `--color-art-*` trong `index.css`:
+ *
+ *   navy      nay là MỰC        `--color-art-ink`
+ *   mint      nay là XANH CÔNG VỤ đặc
+ *   mintSoft  nay là bậc nhạt của xanh
+ *   coral     nay là TÍM XUẤT XỨ (đúng như `--color-coral-deep` cũng là tím)
+ *   sand      nay là tím pha về phía giấy — mảng nền tròn của mỗi hình
+ *   paper     nay là bậc giấy `--color-art-paper`, không còn trắng tuyệt đối
+ */
 const C = {
-  navy: '#0B2545',
-  mint: '#35D0B6',
-  mintSoft: '#5FE0C9',
-  coral: '#FF8A5B',
-  sand: '#FFE3B8',
-  paper: '#FFFFFF',
+  navy: 'var(--color-art-ink)',
+  mint: 'var(--color-art-green)',
+  mintSoft: 'var(--color-art-green-soft)',
+  coral: 'var(--color-art-purple)',
+  sand: 'var(--color-art-purple-pale)',
+  paper: 'var(--color-art-paper)',
 }
 
 type IllustrationProps = {
@@ -156,16 +176,16 @@ export function PhoneInHand({ size = 200, className }: IllustrationProps) {
       <circle cx="100" cy="100" r="88" fill={C.sand} />
 
       {/* Điện thoại */}
-      <rect x="62" y="28" width="76" height="128" rx="12" fill={C.navy} />
-      <rect x="70" y="40" width="60" height="100" rx="6" fill={C.paper} />
+      <rect x="62" y="28" width="76" height="128" fill={C.navy} />
+      <rect x="70" y="40" width="60" height="100" fill={C.paper} />
 
       {/* Bong bóng câu hỏi — mint, lệch trái */}
-      <rect x="78" y="50" width="36" height="14" rx="7" fill={C.mint} />
+      <rect x="78" y="50" width="36" height="14" fill={C.mint} />
       {/* Bong bóng câu trả lời — hai dòng, lệch phải */}
-      <rect x="86" y="72" width="36" height="12" rx="6" fill={C.navy} />
-      <rect x="86" y="90" width="28" height="12" rx="6" fill={C.navy} />
+      <rect x="86" y="72" width="36" height="12" fill={C.navy} />
+      <rect x="86" y="90" width="28" height="12" fill={C.navy} />
       {/* Viên thuốc nguồn tài liệu — coral, dòng cuối */}
-      <rect x="78" y="112" width="30" height="12" rx="6" fill={C.coral} />
+      <rect x="78" y="112" width="30" height="12" fill={C.coral} />
 
       {/* Bàn tay: một mảng đặc ôm nửa dưới máy, ngón cái vắt lên */}
       <path

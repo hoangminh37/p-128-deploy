@@ -20,7 +20,7 @@ import ReactMarkdown from 'react-markdown'
 import { useLearningLibrary } from '../app/learning'
 import { EmptyState } from '../ui/EmptyState'
 import { ErrorNotice } from '../ui/ErrorNotice'
-import { CheckIcon, ChevronLeftIcon, LibraryIcon } from '../ui/icons'
+import { ChevronLeftIcon } from '../ui/icons'
 import { QuizPanel } from '../ui/QuizPanel'
 
 export function ArticleDetailScreen() {
@@ -50,10 +50,7 @@ export function ArticleDetailScreen() {
         title="Không tìm thấy bài học này"
         body="Đường dẫn có thể đã cũ, hoặc bài học đã được gỡ khỏi lộ trình."
         action={
-          <Link
-            to="/learning"
-            className="motion-press font-display flex min-h-touch items-center rounded-pill bg-ink px-cozy text-input font-bold text-white no-underline hover:bg-ink-press"
-          >
+          <Link to="/learning" className="btn pri">
             Về lộ trình học tập
           </Link>
         }
@@ -81,92 +78,111 @@ export function ArticleDetailScreen() {
   const source = sourceLabels[sourceFile]
 
   return (
-    <div className="mx-auto w-full max-w-answer">
+    /* CHÉP TỪ `id="bh"`: nút quay lại, nhãn `.eb` đếm bài, tiêu đề, rồi MỘT
+       `.phieu` chứa `.doc` — bài học là một trang tài liệu có trích dẫn, đúng
+       như câu trả lời của trợ lý. Bản mẫu tắt cột lề ở màn này
+       (`#bh .doc-rail{display:none}`), nên `.doc-khong-le`. */
+    <div>
       {/* Nút quay lại là một NÚT, không phải liên kết: nó gọi `navigate(-1)`,
           tức "lùi một bước trong lịch sử", chứ không dẫn tới một địa chỉ cố
           định. Dựng nó thành thẻ `a` thì bấm chuột giữa sẽ mở một tab trống. */}
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="motion-press font-display flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
-      >
-        <ChevronLeftIcon className="h-5 w-5 shrink-0" />
-        Về lộ trình học tập
+      <button type="button" onClick={() => navigate(-1)} className="btn sm gh">
+        <ChevronLeftIcon className="" />
+        Quay lại thư viện
       </button>
 
-      <div className="mt-snug flex flex-wrap items-center gap-tight">
-        <span className="font-display rounded-pill bg-mint px-snug py-hair text-question font-semibold text-ink">
-          Chặng {day_number}
-        </span>
-        {isCompleted && (
-          <span className="font-display flex items-center gap-hair rounded-pill bg-ink px-snug py-hair text-question font-semibold text-white">
-            <CheckIcon className="h-5 w-5 shrink-0" />
-            Đã hoàn thành
-          </span>
-        )}
+      <div className="eb" style={{ marginTop: 18 }}>
+        Bài {day_number}
+        {isCompleted && ' · đã hoàn thành'}
       </div>
 
-      {/* Tiêu đề Lora — thẻ `h1` lấy `--font-title` từ luật nền ở `index.css`,
-          không cần gắn `font-title` ở đây. */}
-      <h1 className="mt-cozy text-ask font-semibold text-body">{article.title}</h1>
+      <h1 style={{ fontSize: 'var(--t-h1)', lineHeight: 1.2, marginTop: 12, maxWidth: '20ch' }}>
+        {article.title}
+      </h1>
 
-      {/* Nội dung bài học */}
-      <div className="mt-block rounded-card-lg bg-surface p-cozy">
-        <div className="article-body">
-          <ReactMarkdown>{article.full_content ?? article.content}</ReactMarkdown>
+      <div className="phieu" style={{ marginTop: 26, maxWidth: 820 }}>
+        <div className="phieu-top">
+          <span>Bài học · đã đối chiếu văn bản</span>
+          {source && <span>1 trích dẫn</span>}
         </div>
-      </div>
 
-      {/* Nguồn tài liệu */}
-      {source && (
-        <div className="mt-block flex items-start gap-snug rounded-card bg-sand p-cozy">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-icon bg-sand-deep text-sand">
-            <LibraryIcon className="h-7 w-7" />
-          </span>
-          <div className="min-w-0 text-sand-deep">
-            <p className="font-display text-note font-semibold">
-              Nguồn tài liệu biên soạn
-            </p>
-            <p className="font-display mt-hair text-input font-semibold">
-              {source.name}
-            </p>
-            <p className="font-mono mt-hair text-question">{source.code}</p>
-            <p className="font-display text-question">{source.publisher}</p>
-            <p className="font-display mt-snug text-question">
-              Nội dung bài học được biên soạn lại từ tài liệu gốc nhằm giúp bệnh
-              nhân dễ tiếp cận hơn. Không thay thế tư vấn y tế trực tiếp.
-            </p>
+        <div style={{ padding: '0 clamp(16px,2vw,24px)' }}>
+          <div className="doc doc-khong-le">
+            <div className="doc-body">
+              <div className="article-body">
+                <ReactMarkdown>{article.full_content ?? article.content}</ReactMarkdown>
+              </div>
+
+              {/* Số hiệu văn bản mono TÍM ở cuối thân bài — đúng chỗ bản mẫu
+                  đặt "3192/QĐ-BYT · Điều 12". Đây là chỗ thứ nhất trong bốn
+                  chỗ được dùng tím. */}
+              {source && (
+                <p
+                  className="mono"
+                  style={{
+                    fontSize: 'var(--t-mono-s)',
+                    color: 'var(--tim)',
+                    marginTop: 18,
+                    overflowWrap: 'anywhere',
+                  }}
+                >
+                  {source.code} · {source.name}
+                </p>
+              )}
+
+              <p
+                style={{
+                  fontSize: 'var(--t-note)',
+                  color: 'var(--xam)',
+                  borderLeft: '2px solid var(--ke-dam)',
+                  paddingLeft: 12,
+                  marginTop: 15,
+                  lineHeight: 1.7,
+                }}
+              >
+                Nội dung bài học được biên soạn lại từ tài liệu gốc nhằm giúp bệnh nhân dễ
+                tiếp cận hơn. Không thay thế tư vấn y tế trực tiếp.
+                {source && ` Cơ quan ban hành: ${source.publisher}.`}
+              </p>
+            </div>
           </div>
         </div>
-      )}
+
+        <div
+          style={{
+            display: 'flex',
+            gap: 9,
+            flexWrap: 'wrap',
+            padding: '0 clamp(16px,2vw,24px) 18px',
+          }}
+        >
+          <Link to="/chat" className="btn sm gh">
+            Hỏi trợ lý về bài này
+          </Link>
+        </div>
+
+        <div className="rangcua" />
+      </div>
 
       {/* Ôn tập nhanh — HAI CÂU SINH TỪ CHÍNH BÀI VỪA ĐỌC.
 
           Khối cũ ở đây lấy `article.quiz_data` rồi tô sẵn "— đáp án đúng", nên
           người đọc không phải trả lời gì. Tệ hơn: nó lộ đáp án của ĐÚNG câu hỏi
-          mà banner "Bài học hôm nay" ở màn hỏi đáp dùng để chấm 10 điểm. Cả
-          khối vừa không dạy được gì, vừa làm hỏng chỗ duy nhất đang chấm điểm.
-
-          Hai câu chứ không phải năm: đây là chỗ ngay sau khi đọc xong 800 chữ,
-          hai câu là mức người đọc còn chịu làm. Ai muốn kỹ hơn thì có đường dẫn
-          xuống bài đầy đủ ngay bên dưới. */}
-      <div className="mt-block">
+          mà banner "Bài học hôm nay" ở màn hỏi đáp dùng để chấm 10 điểm. */}
+      <div style={{ marginTop: 24 }}>
         <QuizPanel
           source="article"
           articleId={article.id}
           numQuestions={2}
           title="Ôn tập nhanh"
           hint="Hai câu hỏi soạn từ chính bài bạn vừa đọc. Chọn đáp án rồi nộp — mỗi câu sẽ có lời giải thích ngắn."
-          ctaLabel="Ôn tập nhanh (2 câu)"
+          ctaLabel="Làm câu hỏi ôn"
         />
       </div>
 
-      <p className="font-display mt-cozy text-question text-slate">
+      <p className="lab" style={{ marginTop: 18, lineHeight: 1.6 }}>
         Muốn kiểm tra kỹ hơn?{' '}
-        <Link
-          to={`/quiz?source=article&ref=${encodeURIComponent(article.id)}`}
-          className="font-semibold text-body underline"
-        >
+        <Link to={`/quiz?source=article&ref=${encodeURIComponent(article.id)}`}>
           Làm bài đầy đủ 5 câu về bài học này
         </Link>
       </p>
@@ -174,13 +190,18 @@ export function ArticleDetailScreen() {
       {/* Nhắc chỗ cộng điểm. Cố ý KHÔNG in câu hỏi ra đây — in ra là lộ lại
           đúng cái vừa gỡ đi ở trên. */}
       {article.quiz_data && !isCompleted && (
-        <p className="font-display mt-block border-t border-line pt-snug text-question text-slate">
+        <p
+          className="lab"
+          style={{
+            marginTop: 26,
+            paddingTop: 14,
+            borderTop: '1px solid var(--ke)',
+            lineHeight: 1.6,
+          }}
+        >
           Bài này có một câu hỏi cộng 10 điểm. Bạn trả lời nó ở phần{' '}
-          <Link to="/chat" className="font-semibold text-body underline">
-            Bài học hôm nay
-          </Link>{' '}
-          trên màn hỏi đáp, mỗi ngày một lần. Trả lời sai vẫn xem được lời giải
-          thích và làm lại được.
+          <Link to="/chat">Bài học hôm nay</Link> trên màn hỏi đáp, mỗi ngày một lần. Trả
+          lời sai vẫn xem được lời giải thích và làm lại được.
         </p>
       )}
     </div>

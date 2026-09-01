@@ -1,4 +1,21 @@
-/** Separate operational alerts from the consultation list to prevent missed work. */
+/**
+ * Thông báo của bác sỹ — `/doctor/notifications`.
+ *
+ * CHÉP TỪ `id="bstb"`. Bản mẫu tách màn này làm HAI nhóm rời hẳn nhau, mỗi
+ * nhóm mở đầu bằng một nhãn `.eb.solo` nằm cùng hàng với `.chip.cho` đếm số
+ * mới:
+ *
+ *   TRÊN   thông báo hệ thống — yêu cầu tư vấn và lời mời gọi video — dựng
+ *          bằng `.auto`, mỗi cái một thẻ `.phieu` riêng.
+ *   DƯỚI   tin nhắn bệnh nhân, gộp trong MỘT `.phieu` nhiều hàng ngăn bằng
+ *          nét `--ke`, đóng lại bằng `.rangcua`.
+ *
+ * Tách hai nhóm là chủ ý: một yêu cầu chưa nhận và một tin nhắn chưa đọc đòi
+ * hai hành động khác nhau, gộp chung thì cái nọ che cái kia.
+ *
+ * Bản mẫu vẽ mọi thẻ ở trạng thái mới — viền `--tim` 2px kèm chip "Mới". Ở
+ * đây hai thứ đó chỉ hiện khi `read_at === null`.
+ */
 import { useMutation } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
@@ -54,56 +71,174 @@ export function DoctorNotificationsScreen() {
     }
   }
 
-  return <div className="max-w-reading">
-    <h1 className="text-ask font-semibold text-body">Thông báo</h1>
-    <p className="mt-snug max-w-answer text-notice text-body">Yêu cầu và tin nhắn mới được hiển thị riêng, để bạn biết chính xác việc nào cần xử lý.</p>
+  return (
+    <div style={{ maxWidth: 860 }}>
+      <div className="eb">Khu vực bác sỹ</div>
 
-    {query.isPending && <p role="status" className="font-display mt-block text-notice text-slate">Đang kiểm tra thông báo…</p>}
-    {query.isError && <div className="mt-block"><ErrorNotice error={query.error} retryLabel="Đọc lại thông báo" onRetry={() => void query.refetch()} /></div>}
+      <h1 style={{ fontSize: 'var(--t-h2)', lineHeight: 1.22, marginTop: 10 }}>Thông báo</h1>
 
-    {!query.isPending && !query.isError && <>
-      <section className="mt-block" aria-labelledby="system-notification-title">
-        <div className="flex flex-wrap items-center justify-between gap-tight">
-          <div>
-            <h2 id="system-notification-title" className="text-heading font-semibold text-body">Thông báo hệ thống</h2>
-            <p className="font-display mt-hair text-question text-slate">Yêu cầu tư vấn và lời mời gọi video.</p>
-          </div>
-          {unreadSystemCount > 0 && <span className="font-mono rounded-pill bg-mint px-snug py-hair text-question font-bold text-mint-deep">{unreadSystemCount} chưa đọc</span>}
+      {query.isPending && (
+        <p role="status" className="lab" style={{ marginTop: 22, lineHeight: 1.6 }}>
+          Đang kiểm tra thông báo…
+        </p>
+      )}
+
+      {query.isError && (
+        <div style={{ marginTop: 22 }}>
+          <ErrorNotice
+            error={query.error}
+            retryLabel="Đọc lại thông báo"
+            onRetry={() => void query.refetch()}
+          />
         </div>
-        {systemNotifications.length === 0 && <p className="font-display mt-snug rounded-card border border-line bg-canvas p-snug text-question text-slate">Không có thông báo hệ thống cần xử lý.</p>}
-        {systemNotifications.length > 0 && <ul className="mt-snug grid gap-tight sm:grid-cols-2">{systemNotifications.map((notification) => <li key={notification.notification_id} className={`rounded-card border p-snug ${notification.read_at === null ? 'border-mint bg-mint/15' : 'border-line bg-surface'}`}>
-          <div className="flex items-start justify-between gap-tight">
-            <div>
-              <p className="font-display text-input font-semibold text-body">{systemNotificationLabel(notification.kind)}</p>
-              <p className="font-display mt-hair text-question text-slate">{formatDateTime(notification.created_at)}</p>
-            </div>
-            {notification.read_at === null && <span className="font-display rounded-pill bg-ink px-tight py-hair text-note font-semibold text-white">Mới</span>}
-          </div>
-          <Link to={chatPath(notification.consultation_id)} onClick={() => { if (notification.read_at === null) markRead.mutate(notification.notification_id) }} className="motion-press font-display mt-snug inline-flex min-h-touch items-center rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body no-underline hover:bg-canvas">Mở phiên</Link>
-        </li>)}</ul>}
-      </section>
+      )}
 
-      <section className="mt-block" aria-labelledby="patient-message-title">
-        <div className="flex flex-wrap items-center justify-between gap-tight">
-          <div>
-            <h2 id="patient-message-title" className="text-heading font-semibold text-body">Tin nhắn mới từ bệnh nhân</h2>
-            <p className="font-display mt-hair text-question text-slate">Nội dung chat được tách khỏi thông báo hệ thống.</p>
-          </div>
-          {unreadMessageCount > 0 && <span className="font-mono rounded-pill bg-mint px-snug py-hair text-question font-bold text-mint-deep">{unreadMessageCount} chưa đọc</span>}
-        </div>
-        {messageThreads.length === 0 && <p className="font-display mt-snug rounded-card border border-line bg-canvas p-snug text-question text-slate">Chưa có tin nhắn mới.</p>}
-        {messageThreads.length > 0 && <ul className="mt-snug space-y-tight">{messageThreads.map((notification) => <li key={notification.consultation_id} className={`rounded-card border p-snug ${notification.read_at === null ? 'border-mint bg-surface' : 'border-line bg-surface'}`}>
-          <div className="flex items-start justify-between gap-snug">
-            <div className="min-w-0 flex-1">
-              <p className="font-display text-input font-semibold text-body">Cuộc trò chuyện đang tư vấn</p>
-              <p className="font-display mt-hair line-clamp-2 text-input text-body">{notification.content_preview ?? 'Bệnh nhân đã gửi một tin nhắn mới.'}</p>
-              <p className="font-display mt-tight text-note text-slate">{formatDateTime(notification.created_at)}</p>
+      {!query.isPending && !query.isError && (
+        <>
+          {/* ---- Nhóm trên: thông báo hệ thống ---- */}
+          <section aria-labelledby="system-notification-title">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+                gap: 12,
+                marginTop: 28,
+              }}
+            >
+              <div id="system-notification-title" className="eb solo" style={{ margin: 0 }}>
+                Thông báo hệ thống
+              </div>
+              {unreadSystemCount > 0 && <span className="chip cho">{unreadSystemCount} mới</span>}
             </div>
-            {notification.read_at === null && <span className="font-display shrink-0 rounded-pill bg-mint px-tight py-hair text-note font-bold text-mint-deep">Mới</span>}
-          </div>
-          <Link to={chatPath(notification.consultation_id)} onClick={() => markMessageThreadRead(notification.consultation_id)} className="motion-press font-display mt-tight inline-flex min-h-touch items-center rounded-pill bg-mint px-cozy text-input font-bold text-mint-deep no-underline hover:bg-mint-press">Mở chat</Link>
-        </li>)}</ul>}
-      </section>
-    </>}
-  </div>
+
+            <p style={{ fontSize: 'var(--t-note)', color: 'var(--xam)', marginTop: 6 }}>
+              Yêu cầu tư vấn và lời mời gọi video.
+            </p>
+
+            {systemNotifications.length === 0 ? (
+              <p className="lab" style={{ marginTop: 12, lineHeight: 1.6 }}>
+                Không có thông báo hệ thống cần xử lý.
+              </p>
+            ) : (
+              <ul className="auto" style={{ listStyle: 'none', margin: '12px 0 0', padding: 0 }}>
+                {systemNotifications.map((notification) => {
+                  const isUnread = notification.read_at === null
+                  return (
+                    <li
+                      key={notification.notification_id}
+                      className="phieu"
+                      style={isUnread ? { borderColor: 'var(--tim)', borderWidth: 2 } : undefined}
+                    >
+                      <div style={{ padding: '16px clamp(14px,1.8vw,20px)' }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <p style={{ fontWeight: 500, flex: 1, minWidth: 150 }}>
+                            {systemNotificationLabel(notification.kind)}
+                          </p>
+                          {isUnread && <span className="chip cho">Mới</span>}
+                        </div>
+
+                        <p className="lab" style={{ marginTop: 4 }}>
+                          {formatDateTime(notification.created_at)}
+                        </p>
+
+                        <Link
+                          to={chatPath(notification.consultation_id)}
+                          onClick={() => {
+                            if (isUnread) markRead.mutate(notification.notification_id)
+                          }}
+                          className="btn sm"
+                          style={{ marginTop: 12 }}
+                        >
+                          Mở phiên
+                        </Link>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+
+          {/* ---- Nhóm dưới: tin nhắn bệnh nhân ---- */}
+          <section aria-labelledby="patient-message-title">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+                gap: 12,
+                marginTop: 32,
+              }}
+            >
+              <div id="patient-message-title" className="eb solo" style={{ margin: 0 }}>
+                Tin nhắn mới từ bệnh nhân
+              </div>
+              {unreadMessageCount > 0 && <span className="chip cho">{unreadMessageCount} mới</span>}
+            </div>
+
+            <p style={{ fontSize: 'var(--t-note)', color: 'var(--xam)', marginTop: 6 }}>
+              Nội dung chat được tách khỏi thông báo hệ thống.
+            </p>
+
+            {messageThreads.length === 0 ? (
+              <p className="lab" style={{ marginTop: 12, lineHeight: 1.6 }}>
+                Chưa có tin nhắn mới.
+              </p>
+            ) : (
+              <div className="phieu" style={{ marginTop: 12 }}>
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {messageThreads.map((notification, index) => {
+                    const isUnread = notification.read_at === null
+                    const isLast = index === messageThreads.length - 1
+                    return (
+                      <li
+                        key={notification.consultation_id}
+                        style={{
+                          display: 'flex',
+                          gap: 14,
+                          alignItems: 'flex-start',
+                          padding: '16px clamp(16px,2vw,22px)',
+                          borderBottom: isLast ? undefined : '1px solid var(--ke)',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 220 }}>
+                          <p style={{ fontWeight: 500 }}>Cuộc trò chuyện đang tư vấn</p>
+                          <p
+                            style={{
+                              fontSize: 'var(--t-note)',
+                              color: 'var(--xam)',
+                              marginTop: 5,
+                              maxWidth: '52ch',
+                            }}
+                          >
+                            {notification.content_preview ?? 'Bệnh nhân đã gửi một tin nhắn mới.'}
+                          </p>
+                          <p className="lab" style={{ marginTop: 4 }}>
+                            {formatDateTime(notification.created_at)}
+                          </p>
+                        </div>
+
+                        {isUnread && <span className="chip cho">Mới</span>}
+
+                        <Link
+                          to={chatPath(notification.consultation_id)}
+                          onClick={() => markMessageThreadRead(notification.consultation_id)}
+                          className={isUnread ? 'btn sm' : 'btn sm gh'}
+                        >
+                          Mở chat
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <div className="rangcua" />
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  )
 }
