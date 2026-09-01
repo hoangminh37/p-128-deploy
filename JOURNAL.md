@@ -1,7 +1,7 @@
 # Weekly Journal — Team P-128
 
 > Nhật ký phát triển theo tuần. Bản có bảng công việc, mốc commit và bằng chứng
-> đầy đủ nằm tại [`docs/weekly-log.md`](docs/weekly-log.md).
+> đầy đủ nằm tại [`docs/04_weekly_logs/weekly-log.md`](docs/04_weekly_logs/weekly-log.md).
 
 ## Week 1 — 2026-07-24 to 2026-07-30
 
@@ -42,5 +42,5 @@
 - Mỗi tuần thêm mục mới cùng mốc Git/PR tương ứng.
 - Chỉ ghi nhận việc đã có bằng chứng commit, test hoặc triển khai.
 - Khi kiến trúc thay đổi, cập nhật cùng pull request các tài liệu:
-  `docs/ARCHITECTURE.md`, `docs/architecture-diagram.md`, API/functional spec
-  và `docs/weekly-log.md`.
+  `docs/01_architecture/ARCHITECTURE.md`, `docs/01_architecture/architecture-diagram.md`, API/functional spec
+  và `docs/04_weekly_logs/weekly-log.md`.

@@ -115,6 +115,7 @@ pytest tests/ --cov=src --cov-report=term-missing
 ```
 
 > 📖 **Xem thêm tài liệu chi tiết**:
-> - [`docs/TESTING.md`](../../TESTING.md): Đặc tả toàn bộ 320 tests, AI Benchmark (RAGAS / Judge) và kịch bản Manual Test.
+> - [`docs/03_testing/TESTING.md`](../../03_testing/TESTING.md): Đặc tả toàn bộ 320 tests, AI Benchmark (RAGAS / Judge) và kịch bản Manual Test.
 > - [`eval/results/benchmark_report.md`](../../../eval/results/benchmark_report.md): Báo cáo thực nghiệm so sánh với Baseline.
+
 

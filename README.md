@@ -356,19 +356,16 @@ make eval        # chạy eval/run_ragas_eval.py và eval/run_custom_eval.py
 
 Backend có bộ test pytest trong `tests/`, chia theo bốn nhóm: agent, api, rag và services.
 
-## 10. Tài liệu khác
+## 10. Tài liệu dự án (10 Deliverables)
 
-Tài liệu của dự án:
+Tài liệu được phân loại chi tiết theo đúng các Deliverable trong thư mục `docs/`:
 
-- [docs/langgraph-v2.md](docs/langgraph-v2.md) — kiến trúc agent LangGraph v2 đang chạy thật
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — kiến trúc hiện trạng, thành phần và quyết định kỹ thuật
-- [docs/architecture-diagram.md](docs/architecture-diagram.md) — sơ đồ kiến trúc, vòng đời tài liệu và tư vấn bác sĩ
-- [docs/weekly-log.md](docs/weekly-log.md) — nhật ký theo tuần, có đối chiếu commit
-- [docs/api-contract.md](docs/api-contract.md) — hợp đồng API giữa frontend và backend
-- [docs/test-local.md](docs/test-local.md) — hướng dẫn tự đi hết sản phẩm trên máy trong một buổi
-- [docs/gate1/brief.md](docs/gate1/brief.md) — Project Brief: vấn đề, người dùng, phạm vi
-- [docs/gate1/prd.md](docs/gate1/prd.md) — PRD giai đoạn Gate 1
-- [docs/gate1/wireframes/](docs/gate1/wireframes/) — sơ đồ luồng và wireframe Gate 1 (tài liệu lịch sử)
+- [docs/README.md](docs/README.md) — Chỉ mục tổng quan toàn bộ 10 Deliverables
+- **Kiến trúc**: [docs/01_architecture/ARCHITECTURE.md](docs/01_architecture/ARCHITECTURE.md), [docs/01_architecture/architecture-diagram.md](docs/01_architecture/architecture-diagram.md)
+- **Đặc tả & Thiết kế**: [docs/02_specifications/functional-spec.md](docs/02_specifications/functional-spec.md), [docs/02_specifications/api-contract.md](docs/02_specifications/api-contract.md), [docs/02_specifications/design-spec.md](docs/02_specifications/design-spec.md)
+- **Kiểm thử**: [docs/03_testing/TESTING.md](docs/03_testing/TESTING.md), [docs/03_testing/test-local.md](docs/03_testing/test-local.md), [eval/results/benchmark_report.md](eval/results/benchmark_report.md)
+- **Nhật ký tuần**: [docs/04_weekly_logs/weekly-log.md](docs/04_weekly_logs/weekly-log.md)
+- **Hồ sơ Gate 1 (Lịch sử)**: [docs/gate1/brief.md](docs/gate1/brief.md), [docs/gate1/prd.md](docs/gate1/prd.md), [docs/gate1/wireframes/](docs/gate1/wireframes/)
 
 Tài liệu theo từng phần:
 
