@@ -13,7 +13,7 @@ Nguồn đối chiếu chính:
 
 - `frontend/src/App.tsx` — bảng route và guard của từng đường dẫn
 - `frontend/src/app/guards.tsx` — bốn guard điều hướng
-- `frontend/src/screens/` — 16 file màn hình
+- `frontend/src/screens/` — các màn hình theo ba vai trò
 - `frontend/src/lib/api.ts` và `frontend/src/lib/schemas.ts` — hợp đồng dữ liệu
 - `src/api/v1/` — các endpoint thật của backend
 - `src/agent/` và `src/services/guardrail/` — luật an toàn của agent
@@ -23,9 +23,9 @@ Nguồn đối chiếu chính:
 
 Tài liệu bao phủ:
 
-- Hai vai trò người dùng và quyền của từng vai trò
-- 17 đường dẫn màn hình trong ứng dụng web
-- Năm luồng nghiệp vụ chính
+- Ba vai trò người dùng và quyền của từng vai trò
+- Các đường dẫn màn hình trong ứng dụng web
+- Các luồng nghiệp vụ chính: hỏi đáp, nội dung y khoa, tư vấn bác sĩ và học tập
 - Các trạng thái trả lời của trợ lý và điều kiện kích hoạt
 - Quy tắc nghiệp vụ và yêu cầu phi chức năng
 
@@ -42,7 +42,7 @@ của bộ đánh giá trong `eval/`, và quy trình triển khai. Những phầ
 
 ## 2. Vai trò người dùng
 
-Hệ thống có đúng hai vai trò. Vai trò do backend quyết định từ tài khoản và
+Hệ thống có ba vai trò. Vai trò do backend quyết định từ tài khoản và
 được đặt vào JWT lúc đăng nhập (`src/api/v1/auth.py`). Giao diện không có chỗ
 nào cho người dùng tự chọn vai trò.
 
@@ -78,6 +78,9 @@ Làm được:
 - Sửa nội dung một mục trong hàng chờ trước khi duyệt
 - Duyệt hoặc từ chối một mục, chạy lại bước lập chỉ mục khi lỗi
 - Xem những câu hỏi thư viện chưa trả lời được và tạo bản nháp tài liệu từ đó
+- Quản lý danh mục bệnh áp dụng, hồ sơ bác sĩ công khai và trạng thái hoạt động
+- Trả lời yêu cầu phản hồi riêng của bệnh nhân; phản hồi này tạo thông báo cho đúng
+  bệnh nhân nhưng không tự được đưa vào RAG
 
 Không làm được:
 
@@ -86,6 +89,24 @@ Không làm được:
 - Đọc nội dung hội thoại của bệnh nhân. Màn câu hỏi ngoài phạm vi chỉ hiện câu
   hỏi và số lượt hỏi, không hiện danh tính người hỏi
 - Đưa tài liệu vào thư viện trích dẫn mà bỏ qua bước lập chỉ mục
+
+### 2.3. Bác sĩ (`doctor`)
+
+Làm được:
+
+- Cập nhật hồ sơ công khai: tên hiển thị, chuyên khoa, cơ sở, kinh nghiệm, mô tả
+  và phạm vi tư vấn
+- Nhận thông báo khi có yêu cầu tư vấn hoặc tin nhắn mới trong phiên của mình
+- Chấp nhận, kết thúc và nhắn tin trong các phiên tư vấn mà bệnh nhân đã tạo với
+  chính bác sĩ đó
+- Khởi tạo/tham gia gọi video trong phiên tư vấn; backend chỉ xác thực và chuyển
+  WebRTC signalling, luồng media đi trực tiếp giữa hai trình duyệt
+
+Không làm được:
+
+- Xem phiên tư vấn của bác sĩ khác hoặc tự đọc toàn bộ lịch sử chat AI của bệnh nhân
+- Truy cập khu vực BTV, hàng chờ tài liệu hay tự thêm nguồn vào RAG
+- Thay thế nhánh red flag, chẩn đoán/kê đơn hay xử lý cấp cứu của agent
 
 ## 3. Quy tắc phân quyền
 
@@ -103,6 +124,7 @@ Không làm được:
 | `/learning/:articleId` | patient | `RequireAuth` rồi `RequireRole role="patient"` |
 | `/quiz` | patient | `RequireAuth` rồi `RequireRole role="patient"` |
 | `/quiz/mistakes` | patient | `RequireAuth` rồi `RequireRole role="patient"` |
+| `/consultations`, `/consultations/:id`, `/consultations/doctors/:doctorId` | patient | `RequireAuth` rồi `RequireRole role="patient"` |
 | `/editor` | editor | `RequireAuth` rồi `RequireRole role="editor"` |
 | `/editor/upload` | editor | `RequireAuth` rồi `RequireRole role="editor"` |
 | `/editor/documents` | editor | `RequireAuth` rồi `RequireRole role="editor"` |
@@ -110,6 +132,8 @@ Không làm được:
 | `/editor/queue` | editor | `RequireAuth` rồi `RequireRole role="editor"` |
 | `/editor/queue/:itemId` | editor | `RequireAuth` rồi `RequireRole role="editor"` |
 | `/editor/out-of-scope` | editor | `RequireAuth` rồi `RequireRole role="editor"` |
+| `/editor/conditions`, `/editor/doctors`, `/editor/patient-questions` | editor | `RequireAuth` rồi `RequireRole role="editor"` |
+| `/doctor`, `/doctor/notifications`, `/doctor/consultations`, `/doctor/profile`, `/doctor/consultations/:id` | doctor | `RequireAuth` rồi `RequireRole role="doctor"` |
 | đường dẫn lạ | mọi vai trò đã đăng nhập | nằm trong `RequireAuth`, chuyển về `/` |
 
 Toàn bộ đường dẫn trừ `/` và `/login` nằm trong một route layout đã bọc
@@ -134,9 +158,10 @@ nhà của vai trò, không bắt đăng nhập lại.
 
 1. Không có `user` thì về `/login`
 2. Vai trò `editor` thì về `/editor`
-3. Vai trò `patient` thì phải chờ đọc xong hồ sơ mới rẽ. Trong lúc chờ, màn
+3. Vai trò `doctor` thì về `/doctor`
+4. Vai trò `patient` thì phải chờ đọc xong hồ sơ mới rẽ. Trong lúc chờ, màn
    hiện dòng "Đang mở hồ sơ của bạn" trên nền navy
-4. Hồ sơ ở trạng thái `ready` thì về `/chat`, còn lại thì về `/profile`
+5. Hồ sơ ở trạng thái `ready` thì về `/chat`, còn lại thì về `/profile`
 
 Mã nguồn ghi rõ vì sao phải chờ: rẽ sớm sang `/profile` rồi lát nữa hồ sơ về
 lại đá ngược sang `/chat` sẽ cho người dùng thấy màn nhấp nháy qua hai trang.
@@ -144,9 +169,9 @@ Khi đọc hồ sơ hỏng thì đưa về `/profile`, vì ở đó có khối l
 
 Ghi chú về ranh giới trách nhiệm: guard ở tầng điều hướng chỉ giữ cho giao diện
 không dẫn người dùng vào chỗ không phải của họ. Chặn thật nằm ở backend. Mọi
-endpoint trừ `/health`, `/status`, `/auth/login` và `/auth/logout` đều yêu cầu
-JWT hợp lệ; nhóm `/editor` còn qua thêm `get_editor_user`, trả 403 nếu vai trò
-không phải `editor`.
+endpoint trừ `/health`, `/status`, `/auth/login`, `/auth/logout` và danh mục
+đọc công khai `/conditions` đều yêu cầu JWT hợp lệ; nhóm `/editor` còn qua thêm
+`get_editor_user`, trả 403 nếu vai trò không phải `editor`.
 
 ### 3.3. Xử lý khi phiên hết hạn
 
@@ -174,8 +199,8 @@ công cụ nhà phát triển của trình duyệt.
 
 ## 4. Đặc tả từng màn hình
 
-17 đường dẫn, dùng 16 file màn hình. `/chat` và `/chat/:conversationId` dùng
-chung `ChatScreen.tsx`.
+Các route theo vai trò dùng một số màn hình chung; chẳng hạn `/chat` và
+`/chat/:conversationId` cùng dùng `ChatScreen.tsx`.
 
 ### 4.1. Trang giới thiệu — `/`
 
@@ -794,6 +819,37 @@ Kết quả và điều hướng: tạo nháp thành công thì backend tạo m�
 ký tự đầu của câu hỏi và nội dung để trống; đồng thời đánh dấu bản ghi log là đã
 tạo nháp. Màn nạp lại dữ liệu biên tập và dòng đó đổi sang nút mở mục nháp.
 
+### 4.18. Mở rộng khu vực BTV
+
+Ba màn `/editor/conditions`, `/editor/doctors` và `/editor/patient-questions`
+đều yêu cầu vai trò `editor`.
+
+- **Danh mục bệnh** quản lý mã, nhãn hiển thị và trạng thái bệnh. Một bệnh chỉ
+  hiện để bệnh nhân chọn khi có ít nhất một tài liệu approved phù hợp.
+- **Quản lý bác sĩ** tạo/cập nhật hồ sơ công khai, trạng thái xác minh, hoạt động
+  và khả dụng. BTV không đọc tin nhắn trong phiên tư vấn qua màn này.
+- **Yêu cầu phản hồi** hiển thị `PatientEditorialQuestion` theo từng bệnh nhân.
+  BTV gửi câu trả lời riêng; backend tạo `PatientNotification` để bệnh nhân xem
+  từ chuông thông báo. Câu trả lời này không được index vào RAG.
+
+### 4.19. Tư vấn với bác sĩ
+
+Người bệnh vào `/consultations` để xem bác sĩ công khai, tạo phiên và mở lại
+các phiên của mình. `/consultations/doctors/:doctorId` chỉ hiển thị hồ sơ công
+khai trước khi người bệnh tạo phiên. Trong `/consultations/:id`, hai bên nhắn tin
+theo bubble riêng và chỉ người tham gia phiên mới có thể đọc/gửi tin.
+
+Bác sĩ dùng `/doctor` làm dashboard, `/doctor/notifications` để nhận yêu cầu
+hoặc tin nhắn mới, `/doctor/consultations` để lọc các phiên, `/doctor/profile`
+để sửa hồ sơ và `/doctor/consultations/:id` để trao đổi với bệnh nhân. Một bệnh
+nhân có thể tạo nhiều phiên với nhiều bác sĩ; một bác sĩ có nhiều phiên với các
+bệnh nhân khác nhau.
+
+Nút gọi video chỉ hoạt động trong phiên hợp lệ. Browser lấy camera/micro rồi
+dùng WebRTC peer-to-peer; API lưu lifecycle cuộc gọi và chuyển offer/answer/ICE
+signal. Khi hai phía khác mạng, cấu hình `WEBRTC_ICE_SERVERS` phải có STUN/TURN
+khả dụng; FastAPI không đóng vai trò TURN server.
+
 ## 5. Luồng nghiệp vụ chính
 
 ### 5.1. Đăng nhập và phân hướng theo vai trò
@@ -812,6 +868,7 @@ flowchart TD
     I --> E
     E --> J{"Vai trò"}
     J -->|"editor"| K["/editor"]
+    J -->|"doctor"| D1["/doctor"]
     J -->|"patient"| L{"Trạng thái hồ sơ"}
     L -->|"đang đọc"| M["Hiện Đang mở hồ sơ của bạn"]
     M --> L
@@ -860,7 +917,7 @@ flowchart TD
     G -->|"chào hỏi hoặc ngoài phạm vi"| J["out_of_domain_handler"]
     G -->|"hỏi về hồ sơ"| K["profile_handler"]
     G -->|"câu hỏi kiến thức"| L["query_preprocessor"]
-    L --> M["hybrid_retrieval trên ChromaDB"]
+    L --> M["hybrid_retrieval trên VectorStore"]
     M -->|"không có tài liệu"| N["doctor_referral"]
     M -->|"có tài liệu"| O["generate_and_verify"]
     O --> P["answer_verifier"]
@@ -901,27 +958,27 @@ flowchart TD
     O --> Q["Tài liệu đủ điều kiện cho agent trích dẫn"]
 ```
 
-### 5.5. Từ câu hỏi ngoài phạm vi thành bản nháp tài liệu
+### 5.5. Từ khoảng trống tri thức tới phản hồi BTV hoặc tài liệu mới
 
 ```mermaid
 flowchart TD
-    A["Người bệnh hỏi một câu thư viện chưa có tài liệu"] --> B["Agent đi nhánh doctor_referral"]
-    B --> C["Giao diện hiện khối Thư viện chưa có tài liệu về chủ đề này"]
-    C --> D["Bản ghi trong out_of_scope_logs"]
-    D --> E["GET /api/v1/editor/out-of-scope, xếp theo ask_count giảm dần"]
-    E --> F["Biên tập viên mở /editor/out-of-scope"]
-    F --> G["Bấm Thêm bài"]
-    G --> H["POST /api/v1/editor/out-of-scope/log_id/draft"]
-    H --> I["Tạo mục hàng chờ, origin question_log, status draft"]
-    I --> J["Đánh dấu log đã tạo nháp và lưu drafted_item_id"]
-    J --> K["Biên tập viên soạn nội dung ở /editor/queue/:itemId"]
-    K --> L["Duyệt để đưa vào thư viện"]
+    A["Retrieval chạy được nhưng evidence không đủ"] --> B["Agent đi nhánh doctor_referral"]
+    B --> C["Giao diện hiện khối referral"]
+    C --> D["Tạo PatientEditorialQuestion cho đúng bệnh nhân"]
+    C --> E["Gộp OutOfScopeLog làm thống kê content gap"]
+    D --> F["BTV mở /editor/patient-questions và gửi phản hồi"]
+    F --> G["Tạo PatientNotification trong inbox bệnh nhân"]
+    E --> H["BTV mở /editor/out-of-scope và tạo bản nháp"]
+    H --> I["EditorQueueItem: origin question_log, status draft"]
+    I --> J["Soạn, duyệt, index thành công"]
+    J --> K["Tài liệu approved có thể được RAG truy xuất"]
 ```
 
-Cần xác nhận ở bước D: trong `src/` chỉ có mã đọc và cập nhật bảng
-`out_of_scope_logs`, chưa tìm thấy chỗ nào tạo bản ghi mới cho bảng này. Cần
-xác nhận bản ghi được sinh ra ở đâu, hoặc bổ sung bước ghi log vào luồng trả
-lời.
+Luồng này chỉ được tạo khi retrieval hoàn thành (`status = ok`) nhưng agent vẫn
+referral vì evidence không đủ. Red flag, từ chối, ngoài phạm vi và lỗi hạ tầng
+không tạo yêu cầu phản hồi, để BTV không nhận các case không phù hợp. Phản hồi
+trực tiếp phục vụ một bệnh nhân; muốn kiến thức tái sử dụng được, BTV cần đi
+qua nhánh tài liệu, duyệt và index.
 
 ## 6. Các trạng thái trả lời của trợ lý
 
@@ -1248,12 +1305,14 @@ Những việc hệ thống cố ý không làm, theo `docs/gate1/brief.md` mụ
 - Không kê đơn, không đề xuất thuốc, không điều chỉnh liều lượng
 - Không thay thế dịch vụ cấp cứu. Khi phát hiện dấu hiệu nguy cấp, hệ thống
   hướng người dùng gọi 115 chứ không tự xử lý tình huống
-- Không kết nối trực tiếp bệnh nhân với bác sĩ, không làm telemedicine
+- Agent không tự kết nối bệnh nhân với bác sĩ, không thay bác sĩ chẩn đoán/kê đơn
+  và không xử lý cấp cứu. Sản phẩm có phiên tư vấn người-thật tách biệt (chat và
+  WebRTC video); video cần STUN/TURN được cấu hình khi hai phía khác mạng
 - Không tích hợp với hệ thống hồ sơ bệnh án điện tử HIS hoặc EMR của bệnh viện
 - Không lưu trữ hoặc xử lý hồ sơ bệnh án chính thức
 - Không theo dõi chỉ số sinh tồn qua thiết bị đeo
-- Không hỗ trợ toàn bộ các bệnh mãn tính. Giai đoạn này giới hạn ở đái tháo
-  đường típ 2 và tăng huyết áp, đúng hai giá trị của `primaryConditionSchema`
+- Không hỗ trợ toàn bộ các bệnh mãn tính. Danh mục bệnh là dữ liệu do BTV quản
+  lý; một bệnh chỉ có thể được sử dụng trong RAG khi có tài liệu approved
 - Không đa ngôn ngữ. Toàn bộ giao diện và nội dung là tiếng Việt
 
 Những ranh giới do thiết kế sản phẩm đặt ra, đọc từ mã nguồn:

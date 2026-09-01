@@ -1,15 +1,19 @@
 # EduHealth AI — Trợ lý Giáo dục Sức khỏe cho người bệnh mãn tính
 
-Đây là một trợ lý hỏi đáp bằng tiếng Việt, giúp người đã được bác sĩ chẩn đoán mắc
-đái tháo đường típ 2 hoặc tăng huyết áp hiểu đúng về bệnh của mình: ăn uống thế nào,
-vận động ra sao, các chỉ số nghĩa là gì. Mọi câu trả lời đều lấy từ thư viện tài liệu
-y khoa đã được duyệt và luôn kèm nguồn trích dẫn.
+Đây là một trợ lý hỏi đáp bằng tiếng Việt, giúp người đã được bác sĩ chẩn đoán
+bệnh mạn tính hiểu đúng về bệnh của mình: ăn uống thế nào, vận động ra sao, các
+chỉ số nghĩa là gì. Thư viện seed hiện tập trung vào đái tháo đường típ 2 và tăng
+huyết áp; BTV có thể mở rộng danh mục bằng quy trình tài liệu–duyệt–index. Mọi
+câu trả lời đều lấy từ tài liệu y khoa đã được duyệt và luôn kèm nguồn trích dẫn.
 
-Hệ thống phục vụ hai nhóm người dùng:
+Hệ thống phục vụ ba nhóm người dùng:
 
 - Người bệnh và người nhà chăm sóc, chủ yếu trong độ tuổi 45 đến 70, đọc trên điện thoại.
 - Biên tập viên y khoa, người nạp tài liệu nguồn vào thư viện và duyệt trước khi tài liệu
-  được dùng để trả lời.
+  được dùng để trả lời; đồng thời quản lý hồ sơ bác sĩ và phản hồi các câu hỏi thư viện
+  chưa trả lời được.
+- Bác sĩ tư vấn, có hồ sơ công khai để người bệnh lựa chọn, rồi nhắn tin hoặc gọi video
+  trong một phiên tư vấn riêng.
 
 Trợ lý này không chẩn đoán, không kê đơn, không chỉnh liều thuốc.
 
@@ -31,12 +35,13 @@ tập viên duyệt, cá nhân hoá theo hồ sơ bệnh, và có nhiều lớp 
   và kê đơn, từ chối yêu cầu can thiệp vào prompt hệ thống.
 - Tự kiểm tra: một node riêng chấm lại câu trả lời xem có bám tài liệu không; nếu không
   đủ căn cứ thì chuyển sang khuyên đi khám thay vì trả lời bừa.
-- Vòng phản hồi nội dung: những câu hỏi thư viện chưa trả lời được sẽ vào danh sách để
-  biên tập viên bổ sung tài liệu.
+- Vòng phản hồi nội dung: khi retrieval đã chạy nhưng evidence chưa đủ, câu hỏi được tạo
+  thành yêu cầu phản hồi riêng cho BTV; bệnh nhân nhận thông báo khi có phản hồi. BTV vẫn
+  phải nạp tài liệu đã duyệt nếu muốn mở rộng tri thức dùng chung của RAG.
 
 ## 2. Tính năng chính
 
-Hệ thống có 17 màn hình, chia theo vai trò. Nguồn đối chiếu là bảng route trong
+Hệ thống có các màn hình được chia theo vai trò. Nguồn đối chiếu là bảng route trong
 `frontend/src/App.tsx`.
 
 ### Màn hình chung
@@ -58,6 +63,9 @@ Hệ thống có 17 màn hình, chia theo vai trò. Nguồn đối chiếu là b
 | `/learning/:articleId`  | Chi tiết bài học  | Đọc một bài và làm khối ôn tập nhanh hai câu soạn từ chính bài đó                                                |
 | `/quiz`                 | Trắc nghiệm       | Sinh bộ câu hỏi từ bài học, cuộc hội thoại, hồ sơ học tập hoặc câu đã sai; nộp bài và xem điểm                   |
 | `/quiz/mistakes`        | Câu đã sai        | Xem lại những câu từng trả lời sai để học lại                                                                    |
+| `/consultations`        | Tư vấn với bác sĩ | Chọn bác sĩ, tạo và theo dõi các phiên tư vấn của mình                                                           |
+| `/consultations/doctors/:doctorId` | Hồ sơ bác sĩ | Xem chuyên môn, trạng thái và thông tin công khai trước khi tạo phiên                                           |
+| `/consultations/:id`    | Phòng tư vấn      | Nhắn tin trực tiếp; khởi tạo và tham gia cuộc gọi video trong phiên                                              |
 
 ### Dành cho biên tập viên
 
@@ -70,6 +78,19 @@ Hệ thống có 17 màn hình, chia theo vai trò. Nguồn đối chiếu là b
 | `/editor/queue`                 | Hàng chờ duyệt            | Lọc theo trạng thái, xem tài liệu đang chờ xử lý                         |
 | `/editor/queue/:itemId`         | Chi tiết mục chờ duyệt    | Duyệt, từ chối, hoặc chạy lại bước lập chỉ mục khi lỗi                   |
 | `/editor/out-of-scope`          | Câu hỏi chưa trả lời được | Danh sách câu hỏi thư viện chưa đủ tài liệu, tạo bản nháp tài liệu từ đó |
+| `/editor/conditions`            | Danh mục bệnh              | Quản lý bệnh áp dụng cho tài liệu và hồ sơ                                                  |
+| `/editor/doctors`               | Quản lý bác sĩ             | Tạo, duyệt trạng thái hoạt động và cập nhật hồ sơ công khai bác sĩ                           |
+| `/editor/patient-questions`     | Yêu cầu phản hồi           | Trả lời riêng các câu hỏi thiếu evidence và gửi thông báo cho đúng bệnh nhân                 |
+
+### Dành cho bác sĩ
+
+| Đường dẫn | Màn hình | Nội dung |
+| :-- | :-- | :-- |
+| `/doctor` | Tổng quan | Tóm tắt các phiên tư vấn và việc cần xử lý |
+| `/doctor/notifications` | Thông báo | Yêu cầu tư vấn và tin nhắn mới của bệnh nhân |
+| `/doctor/consultations` | Các phiên tư vấn | Nhận, theo dõi và mở các phiên đã được gán |
+| `/doctor/consultations/:id` | Phòng tư vấn | Nhắn tin và gọi video với bệnh nhân trong phiên |
+| `/doctor/profile` | Hồ sơ của tôi | Cập nhật thông tin chuyên môn hiển thị cho bệnh nhân |
 
 Nguồn nội dung của hai màn thư viện học tập: các bài học và lộ trình được nạp bằng
 `scripts/init_db.py`, hoặc bằng `POST /api/v1/editor/seed-database` gọi lại chính
@@ -84,8 +105,8 @@ graph TD
     API["FastAPI<br/>cổng 8000, tiền tố /api/v1"]
     Agent["LangGraph agent v2<br/>11 node, có nhánh an toàn"]
     RAG["Tầng RAG src/rag<br/>parse, chunk, embed, truy xuất"]
-    Chroma[("ChromaDB<br/>data/vectorstore")]
-    PG[("PostgreSQL<br/>người dùng, hồ sơ, hội thoại, quiz")]
+    Vector[("VectorStore<br/>Chroma local / pgvector Postgres")]
+    DB[("SQLite dev / PostgreSQL production<br/>người dùng, hồ sơ, chat, nội dung, tư vấn")]
     Groq["Groq API<br/>sinh câu trả lời, phân loại ý định"]
     Cohere["Cohere API<br/>embed-multilingual-v3.0"]
     OpenAI["OpenAI API<br/>nhận dạng giọng nói và đọc câu trả lời"]
@@ -93,12 +114,12 @@ graph TD
     Browser --> FE
     FE -->|"HTTP và SSE qua proxy /api"| API
     API --> Agent
-    API --> PG
+    API --> DB
     API --> OpenAI
     Agent --> RAG
-    Agent --> PG
+    Agent --> DB
     Agent --> Groq
-    RAG --> Chroma
+    RAG --> Vector
     RAG --> Cohere
 ```
 
@@ -106,7 +127,8 @@ Luồng một câu hỏi: trình duyệt gửi câu hỏi tới FastAPI, FastAPI
 Node đầu tiên phân loại ý định và cờ nguy cấp. Nếu là dấu hiệu nguy cấp, yêu cầu chẩn
 đoán, hoặc câu ngoài phạm vi thì agent dừng ngay ở nhánh an toàn, không chạm tới truy
 xuất và không tốn lượt LLM chất lượng cao. Nếu là câu hỏi kiến thức thật thì agent viết
-lại truy vấn, truy xuất tài liệu từ ChromaDB, sinh câu trả lời, rồi để một node kiểm tra
+lại truy vấn, truy xuất tài liệu từ `VectorStore` (Chroma khi chạy local, pgvector khi
+chạy PostgreSQL), sinh câu trả lời, rồi để một node kiểm tra
 lại mức độ bám tài liệu trước khi lưu vào lịch sử hội thoại. Không tìm được tài liệu phù
 hợp thì agent chuyển sang khuyên đi khám.
 
@@ -134,7 +156,7 @@ Phiên bản ghi ở đây lấy đúng từ `requirements.txt` và `frontend/pa
 | Migration                       | alembic                                        | >=1.14.0                    |
 | Driver Postgres                 | asyncpg, psycopg2-binary                       | >=0.29.0, >=2.9.0           |
 | Driver SQLite                   | aiosqlite                                      | >=0.20.0                    |
-| Vector store                    | chromadb                                       | >=1.5.0                     |
+| Vector store                    | chromadb, pgvector                             | >=1.5.0, >=0.3.0            |
 | Embedding mặc định              | cohere                                         | >=5.13.0                    |
 | Embedding thay thế và giọng nói | openai                                         | >=1.60.0                    |
 | Đếm token khi cắt chunk         | tiktoken                                       | >=0.8.0                     |
@@ -187,7 +209,8 @@ Các biến bắt buộc phải điền trong `.env`:
 | `GROQ_API_KEY`       | Model sinh câu trả lời, khớp với `LLM_PROVIDER=groq`                                                                                 |
 | `OPENAI_API_KEY`     | Nhận dạng giọng nói, đọc câu trả lời, và là phương án embedding thay thế                                                             |
 | `DATABASE_URL`       | Chuỗi kết nối cơ sở dữ liệu. Với `docker compose` mặc định là `postgresql://medical_user:medical_password@localhost:5432/medical_db` |
-| `CHROMA_PERSIST_DIR` | Thư mục lưu kho vector, mặc định `./data/vectorstore`                                                                                |
+| `CHROMA_PERSIST_DIR` | Thư mục lưu Chroma khi chạy local/SQLite, mặc định `./data/vectorstore`. Khi `DATABASE_URL` là PostgreSQL, chunks dùng pgvector. |
+| `WEBRTC_ICE_SERVERS` | JSON cấu hình STUN/TURN cho cuộc gọi tư vấn. Có thể để trống khi chỉ thử cùng mạng/localhost; production nên có TURN. |
 | `CORS_ORIGINS`       | Phải khớp cổng frontend, mặc định `http://localhost:5180`                                                                            |
 
 Các biến nên đặt nhưng không bắt buộc: `MODEL_NAME` và `LLM_PROVIDER` để chọn model,
@@ -228,10 +251,9 @@ npm run dev
 Dev server của Vite ghim cổng 5180 bằng `strictPort`, và tự chuyển tiếp mọi request
 `/api` sang backend ở cổng 8000, nên khi chạy dev không cần đặt `VITE_API_URL`.
 
-Muốn xem giao diện mà không cần backend thì đặt `VITE_ENABLE_MSW=true` trong
-`frontend/.env.local`. Lưu ý MSW mới mock 15 trong 30 endpoint mà frontend gọi, các
-màn thư viện học tập, trắc nghiệm, giọng nói và tài liệu của biên tập viên sẽ không
-chạy ở chế độ này.
+Muốn xem một phần giao diện mà không cần backend thì đặt `VITE_ENABLE_MSW=true` trong
+`frontend/.env.local`. Chế độ này chỉ phục vụ phát triển UI; các luồng cần dữ liệu thật
+(RAG, index tài liệu, thông báo, tư vấn, voice và video) phải chạy cùng backend.
 
 ### 5.5. Chạy bằng Docker
 
@@ -273,9 +295,7 @@ Ba tài khoản được nạp bởi `scripts/init_db.py`. Mật khẩu đều l
 | `benhnhan@demo.vn`     | patient | Hồ sơ bệnh nhân đái tháo đường                     |
 | `nguoicaotuoi@demo.vn` | patient | Hồ sơ người cao tuổi, dùng để thử phần cá nhân hoá |
 | `bientap@demo.vn`      | editor  | Vào được khu vực biên tập                          |
-
-Ở chế độ mock của frontend chỉ có hai tài khoản, khai trong
-`frontend/src/mocks/demoAccounts.ts`: `benhnhan@demo.vn` và `bientap@demo.vn`.
+| `bacsi@demo.vn`        | doctor  | Tài khoản bác sĩ tư vấn mẫu                        |
 
 Lưu ý: đây là các tài khoản demo, không dùng cho môi trường thật.
 
@@ -289,7 +309,7 @@ Lưu ý: đây là các tài khoản demo, không dùng cho môi trường thậ
 | `docs/`                                            | Tài liệu dự án và giáo trình của khoá học                            |
 | `eval/`                                            | Script và kết quả đánh giá chất lượng agent                          |
 | `scripts/`                                         | Script tiện ích: nạp cơ sở dữ liệu, ETL, benchmark, ghi log AI       |
-| `data/`                                            | Tài liệu nguồn, chunk đã xử lý, kho vector Chroma, registry tài liệu |
+| `data/`                                            | Tài liệu nguồn, chunk đã xử lý, kho vector local và registry tài liệu |
 | `presentation/`                                    | Pitch deck và video demo                                             |
 | `scratch/`                                         | Script thử nghiệm nhanh với LLM, nằm ngoài luồng chính               |
 | `.github/`                                         | Workflow CI và hook                                                  |
@@ -341,12 +361,14 @@ Backend có bộ test pytest trong `tests/`, chia theo bốn nhóm: agent, api, 
 Tài liệu của dự án:
 
 - [docs/langgraph-v2.md](docs/langgraph-v2.md) — kiến trúc agent LangGraph v2 đang chạy thật
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — tài liệu kiến trúc giai đoạn đầu của dự án
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — kiến trúc hiện trạng, thành phần và quyết định kỹ thuật
+- [docs/architecture-diagram.md](docs/architecture-diagram.md) — sơ đồ kiến trúc, vòng đời tài liệu và tư vấn bác sĩ
+- [docs/weekly-log.md](docs/weekly-log.md) — nhật ký theo tuần, có đối chiếu commit
 - [docs/api-contract.md](docs/api-contract.md) — hợp đồng API giữa frontend và backend
 - [docs/test-local.md](docs/test-local.md) — hướng dẫn tự đi hết sản phẩm trên máy trong một buổi
 - [docs/gate1/brief.md](docs/gate1/brief.md) — Project Brief: vấn đề, người dùng, phạm vi
 - [docs/gate1/prd.md](docs/gate1/prd.md) — PRD giai đoạn Gate 1
-- [docs/gate1/wireframes/](docs/gate1/wireframes/) — sơ đồ luồng màn hình và wireframe cho hai vai trò
+- [docs/gate1/wireframes/](docs/gate1/wireframes/) — sơ đồ luồng và wireframe Gate 1 (tài liệu lịch sử)
 
 Tài liệu theo từng phần:
 
@@ -370,7 +392,7 @@ lịch sử commit.
 | Thành viên         | Phụ trách chính                                                                 |
 | :----------------- | :------------------------------------------------------------------------------ |
 | Khanh Nguyen       | Tầng dữ liệu và RAG trong `src/rag/`, Project Brief Gate 1, nhật ký dự án       |
-| Anh Đức            | Thiết kế UI flow và wireframe cho hai vai trò, phát triển frontend              |
+| Anh Đức            | Thiết kế UI flow/wireframe, phát triển frontend                                  |
 | Hoàng Minh         | CI/CD và branch protection, bộ đánh giá agent trong `eval/`, hạ tầng ghi log AI |
 | Lê Trọng Việt Dũng | Kiến trúc hệ thống và phát triển backend                                        |
 
