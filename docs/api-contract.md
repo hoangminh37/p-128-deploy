@@ -1,12 +1,11 @@
-# API Contract - Luồng bệnh nhân
+# API contract — EduHealth AI
 
-Phiên bản: v1 (Gate 2)
-Người soạn: Đức (Frontend)
-Trạng thái: đã đối chiếu với code thật ngày 30/08/2026. Những chỗ còn phải chốt được
-đánh dấu bằng cụm "CẦN CHỐT" ngay tại chỗ.
+Phiên bản: v1, cập nhật theo code ngày 31/08/2026.
 
-Tài liệu này định nghĩa hợp đồng giữa Frontend và Backend cho luồng bệnh nhân.
-Frontend dựng mock theo đúng hợp đồng này, nên mọi thay đổi cần thống nhất trước khi sửa.
+Tài liệu này định nghĩa các hợp đồng REST/SSE đang dùng giữa frontend và backend.
+Phần chi tiết chat, nguồn, học tập và quiz giữ cấu trúc v1; mục 2 bổ sung các
+endpoint hiện có cho danh mục bệnh, BTV, thông báo và tư vấn bác sĩ. Nguồn chuẩn
+cuối cùng vẫn là schema/route trong `src/api/v1/`.
 
 Các trường dưới đây ánh xạ trực tiếp sang `AgentState` trong `ARCHITECTURE.md`:
 `citations`, `intent`, `is_red_flag`, `support_level`, `response`.
@@ -23,11 +22,12 @@ Các trường dưới đây ánh xạ trực tiếp sang `AgentState` trong `AR
 ### Xác thực
 
 Backend kiểm tra JWT ở gần như mọi endpoint. `get_current_user` khai trong
-`src/api/v1/auth.py` là dependency của `patients.py`, `chat.py`, `conversations.py`,
-`source_documents.py`, `voice.py`, `learning.py` và `quiz.py`. Nhóm `/editor` qua thêm
-`get_editor_user`, trả 403 khi vai trò không phải `editor`. Bốn endpoint không cần
-token: `GET /api/v1/health`, `GET /api/v1/status`, `POST /api/v1/auth/login` và
-`POST /api/v1/auth/logout`.
+`src/api/v1/auth.py` là dependency của các route bệnh nhân, chat, nguồn, voice,
+learning, quiz và consultations. Nhóm `/editor` qua thêm `get_editor_user`, trả
+403 khi vai trò không phải `editor`; consultations kiểm thêm quyền patient/doctor
+là thành viên của phiên. `GET /api/v1/health`, `GET /api/v1/status`,
+`POST /api/v1/auth/login`, `POST /api/v1/auth/logout` và `GET /api/v1/conditions`
+không cần token.
 
 Token là JWT ký bằng HS256, sống 7 ngày, theo `ACCESS_TOKEN_EXPIRE_MINUTES` trong
 `src/api/v1/auth.py`. Không có refresh token và không có endpoint làm mới token, nên
@@ -67,9 +67,12 @@ trường khác, xem mục 10.
 | Method | Path | Mục đích |
 | :-- | :-- | :-- |
 | POST | `/api/v1/auth/login` | Đăng nhập, trả về token và vai trò của tài khoản |
-| POST | `/api/v1/auth/logout` | Trả 204, không có body. Backend hiện không làm gì với token. CẦN CHỐT, xem mục 12 điểm 12 |
+| POST | `/api/v1/auth/logout` | Trả 204. JWT là stateless, client xoá token cục bộ |
+| GET | `/api/v1/conditions` | Danh mục bệnh đang active và có ít nhất một nguồn approved; không cần token |
 | POST | `/api/v1/patients/profile` | Tạo hoặc cập nhật hồ sơ bệnh nhân |
 | GET | `/api/v1/patients/{patient_id}/profile` | Đọc hồ sơ |
+| GET | `/api/v1/patients/notifications` | Inbox phản hồi BTV của chính bệnh nhân |
+| POST | `/api/v1/patients/notifications/{id}/read` | Đánh dấu một thông báo của chính bệnh nhân đã đọc |
 | GET | `/api/v1/sources/documents/{document_id}?chunk_id={chunk_id}` | Mở tài liệu đã duyệt và đánh dấu đúng đoạn agent đã trích dẫn |
 | POST | `/api/v1/voice/transcriptions` | Chuyển một bản ghi ngắn thành chữ. Form data: `patient_id`, `audio`; âm thanh không được lưu |
 | POST | `/api/v1/voice/chat/stream` | Một lượt chat bằng giọng nói hoàn chỉnh. Form data: `patient_id`, `conversation_id` (tuỳ chọn), `audio`; server tự STT rồi chạy chính luồng Agent/RAG SSE. Event đầu là `transcript`, sau đó là `step`/`token`/`done`/`annotations` như `/chat/stream` |
@@ -90,6 +93,12 @@ trường khác, xem mục 10.
 | POST | `/api/v1/editor/queue/{item_id}/reject` | Từ chối, bắt buộc kèm lý do |
 | GET | `/api/v1/editor/out-of-scope` | Câu hỏi thư viện chưa trả lời được |
 | POST | `/api/v1/editor/out-of-scope/{log_id}/draft` | Tạo mục nháp từ một câu hỏi |
+| GET / POST | `/api/v1/editor/conditions` | BTV xem hoặc tạo danh mục bệnh |
+| POST | `/api/v1/editor/conditions/{id}/status` | BTV đổi trạng thái bệnh |
+| GET / POST | `/api/v1/consultations/admin/doctors` | BTV liệt kê hoặc tạo hồ sơ bác sĩ |
+| PATCH | `/api/v1/consultations/admin/doctors/{id}` | BTV cập nhật hồ sơ bác sĩ |
+| GET | `/api/v1/editor/patient-questions` | BTV xem yêu cầu phản hồi riêng |
+| POST | `/api/v1/editor/patient-questions/{id}/answer` | BTV gửi phản hồi và tạo thông báo cho đúng bệnh nhân |
 | POST | `/api/v1/editor/seed-database` | Nạp lại dữ liệu mẫu bằng cách gọi `scripts/init_db.py`. Yêu cầu vai trò `editor`. Trả `{status, message}` |
 | GET | `/api/v1/learning/daily-lesson` | Bài học của hôm nay kèm số liệu học tập. Xem mục 14 |
 | GET | `/api/v1/learning/library` | Toàn bộ lộ trình học và danh sách bài đã hoàn thành. Xem mục 14 |
@@ -98,8 +107,40 @@ trường khác, xem mục 10.
 | POST | `/api/v1/quiz/{quiz_id}/submit` | Nộp bài trắc nghiệm. Xem mục 13 |
 | GET | `/api/v1/quiz/history` | Lịch sử làm bài. Xem mục 13 |
 | GET | `/api/v1/quiz/mistakes` | Những câu đã trả lời sai. Xem mục 13 |
+| GET | `/api/v1/consultations/doctors`, `/api/v1/consultations/doctors/{id}` | Danh sách và hồ sơ bác sĩ công khai |
+| GET / PATCH | `/api/v1/consultations/me/profile` | Bác sĩ xem hoặc sửa hồ sơ của chính mình |
+| GET | `/api/v1/consultations/dashboard`, `/api/v1/consultations/notifications` | Dashboard và inbox của bác sĩ |
+| POST | `/api/v1/consultations/notifications/{id}/read` | Bác sĩ đánh dấu thông báo đã đọc |
+| POST / GET | `/api/v1/consultations` | Bệnh nhân tạo phiên; patient/doctor liệt kê phiên của mình |
+| GET | `/api/v1/consultations/{id}` | Chi tiết phiên của người tham gia |
+| POST | `/api/v1/consultations/{id}/accept`, `/end`, `/messages` | Bác sĩ nhận/kết thúc phiên; hai bên gửi tin nhắn |
+| POST / GET | `/api/v1/consultations/{id}/calls...` | Tạo/tham gia/kết thúc call và trao đổi WebRTC offer/answer/ICE signal |
 | GET | `/api/v1/health` | Kiểm tra sức khoẻ hệ thống. Trả `{status, env, app, model, rag}`. Không cần token |
 | GET | `/api/v1/status` | Kiểm tra trạng thái agent. Trả `{status, agent, nodes, node_count}`. Không cần token |
+
+---
+
+### 2.1. Contract tư vấn và gọi video
+
+`Consultation` là phiên một bệnh nhân–một bác sĩ; quan hệ nhiều-nhiều được tạo
+bằng nhiều phiên. Bệnh nhân chỉ tạo phiên với bác sĩ đang công khai/khả dụng.
+Bác sĩ phải `POST /accept` trước khi gửi tin hoặc mở video. Cả hai phía chỉ
+được đọc và thao tác với phiên mà họ là thành viên; các endpoint trả 403 nếu
+không thoả điều kiện này.
+
+Video không upload media về FastAPI. `POST /calls` và `/join` trả lifecycle call
+cùng `ice_servers`; client trao đổi `offer`, `answer` và `ice_candidate` qua
+`POST /signals`, polling `GET /signals`, rồi tạo kết nối WebRTC trực tiếp. Khi
+hai mạng không kết nối P2P được, deployment cần TURN trong `WEBRTC_ICE_SERVERS`.
+
+### 2.2. Contract phản hồi BTV cho bệnh nhân
+
+Nếu retrieval hoàn thành nhưng agent `doctor_referral` vì evidence thiếu, backend
+tạo một `PatientEditorialQuestion` và một `OutOfScopeLog` đã gộp. BTV dùng
+`POST /editor/patient-questions/{id}/answer`; backend tạo `PatientNotification`
+cho đúng bệnh nhân. Notification chứa câu hỏi gốc và phản hồi để giao diện hiển
+thị trong modal khi bệnh nhân bấm chuông. Phản hồi này là one-to-one, không được
+chèn vào vector store hay dùng làm citation cho người khác.
 
 ---
 
@@ -148,8 +189,8 @@ Response 200:
 | :-- | :-- | :-- |
 | `user_id` | string | Định danh tài khoản |
 | `email` | string | Email đăng nhập |
-| `role` | enum | `patient` hoặc `editor` |
-| `patient_id` | string hoặc null | Chỉ có giá trị khi `role` là `patient`. Với `editor` thì luôn là `null` |
+| `role` | enum | `patient`, `editor` hoặc `doctor` |
+| `patient_id` | string hoặc null | Chỉ có giá trị khi `role` là `patient`; với `editor` và `doctor` luôn là `null` |
 
 `patient_id` ở đây chính là `patient_id` mà mục 4, 5 và 7 dùng. Tài khoản bệnh nhân không
 cần tự sinh `patient_id` nữa, lấy thẳng từ response đăng nhập.
@@ -312,7 +353,7 @@ Response 200:
 | `status` | enum | Xem mục 6. Quyết định cách hiển thị |
 | `answer` | string | Nội dung hiển thị cho mọi `status`. Marker `[n]` khớp với `citations[].id` |
 | `citations` | Citation[] | Mảng rỗng khi `status` không phải `answered` hoặc `partial` |
-| `support_level` | enum hoặc null | `fully`, `partially`, `no_support`. `null` khi không chạy qua Self-RAG |
+| `support_level` | enum hoặc null | `fully`, `partially`, `no_support`. `null` khi lượt không đi qua generation/verifier |
 | `disclaimer` | string | Luôn có, kể cả khi từ chối. Ràng buộc brief mục 7.5 |
 | `metadata` | object | `latency_ms` int, `cached` bool |
 
@@ -401,8 +442,8 @@ và ngược lại. Frontend validate bằng Zod, lệch thì báo lỗi hiển 
 
 | status | Node sinh ra | citations | Ý nghĩa |
 | :-- | :-- | :-- | :-- |
-| `answered` | `selfrag_verifier` fully | có | Trả lời đầy đủ, bám nguồn |
-| `partial` | `partial_rewrite` hoặc `safety_disclaimer` | có | Trả lời nhưng một phần chưa bám nguồn |
+| `answered` | `generate_and_verify` + `answer_verifier` pass | có | Trả lời đầy đủ, bám nguồn |
+| `partial` | `generate_and_verify` + `answer_verifier` pass | có | Trả lời có phần cảnh báo nhưng vẫn có grounding hợp lệ |
 | `red_flag` | `emergency_handler` | rỗng | Có dấu hiệu nguy hiểm, cần đi khám ngay |
 | `refused` | `refuse_handler` | rỗng | Câu hỏi đòi chẩn đoán, kê đơn, chỉnh liều |
 | `referral` | `doctor_referral` | rỗng | Thư viện chưa có tài liệu phù hợp |
@@ -911,31 +952,29 @@ cũng không báo lỗi. Bấm nhầm hai lần là chuyện thường, mà hai 
 
 ---
 
-## 9. Ngoài phạm vi Gate 2
+## 9. Ghi chú lịch sử của contract v1
 
-Mục này từng liệt kê hai thứ nằm ngoài hợp đồng v1. **Cả hai nay đã có ở cả hai phía**, giữ
-lại dòng gạch để ai đọc bản cũ không hiểu nhầm:
+Mục này ghi lại các phần từng nằm ngoài contract Gate 2. Chúng không còn là giới
+hạn của API hiện tại; các endpoint chuẩn nằm trong mục 2.
 
 - ~~Lộ trình học và theo dõi tiến độ~~ → đã implement: `GET /learning/daily-lesson`,
   `GET /learning/library`, `POST /learning/complete-lesson/{article_id}`. Đặc tả đầy đủ ở mục 14
 - ~~Quiz~~ → đã implement dưới dạng **sinh động bằng LangChain**, đặc tả ở mục 13
 
-### Ba mục từng nằm ngoài phạm vi, nay đã có
+### Các mục đã được bổ sung sau Gate 2
 
 Giữ lại danh sách này thay vì xoá đi, để ai đọc bản cũ của tài liệu không hiểu nhầm rằng chúng
 vẫn còn nằm ngoài.
 
-- **SSE streaming.** Backend đã implement `POST /api/v1/chat/stream`, xem mục 10. Luồng chính
-  của Gate 2 vẫn dùng response một lần qua `POST /chat`
-- **Xác thực và phân quyền.** Đã hoạt động thật, không còn chạy trên mock. Backend có
-  `POST /auth/login` trả JWT ký HS256 hạn 7 ngày, `POST /auth/logout` trả 204, và kiểm header
-  `Authorization` ở gần như mọi endpoint; riêng khu vực biên tập còn chặn thêm theo vai trò
-  `editor` đúng như mục 8 quy định. **Nhưng chưa xong hẳn:** vẫn còn endpoint không kiểm token,
-  và những endpoint có kiểm token thì không kiểm quyền sở hữu `patient_id` — tài khoản này đọc
-  và ghi đè được dữ liệu của tài khoản kia. Hai lỗ hổng đó nêu chi tiết ở điểm 11 mục 12, cần
-  backend chốt trước khi coi phần này là hoàn tất
-- **Luồng biên tập viên.** Đã đặc tả đầy đủ ở mục 8 của chính tài liệu này, backend đã implement
-  đủ tám endpoint của mục đó, frontend đã có bốn màn hình tương ứng
+- **SSE streaming.** `POST /api/v1/chat/stream` là luồng chính của giao diện,
+  còn `POST /chat` là phương án response một lần.
+- **Xác thực và phân quyền.** `POST /auth/login` trả JWT HS256 hạn 7 ngày;
+  endpoint theo người dùng kiểm JWT và quyền sở hữu dữ liệu. `/editor` kiểm thêm
+  role editor, còn consultation kiểm patient/doctor là thành viên của phiên.
+- **Luồng biên tập viên.** Hỗ trợ upload/queue/index, danh mục bệnh, hồ sơ bác
+  sĩ, content gap và phản hồi riêng cho bệnh nhân.
+- **Tư vấn bác sĩ.** Có endpoint profile, notification, consultation message và
+  WebRTC signalling; xem mục 2.1.
 
 ---
 
@@ -1342,10 +1381,10 @@ Request — `source` quyết định lấy ngữ cảnh ở đâu:
 Ba nguồn xử lý khác nhau vì mức tin cậy của nội dung khác nhau:
 
 - `article` — dùng thẳng `articles.full_content`. Nội dung này đã qua ETL rồi qua vòng duyệt
-  của biên tập viên, nên **không** truy xuất lại ChromaDB: làm vậy chỉ mang về những đoạn khác
+  của biên tập viên, nên **không** truy xuất lại `VectorStore`: làm vậy chỉ mang về những đoạn khác
   với thứ người bệnh vừa đọc, và đề sẽ hỏi ra ngoài bài học.
 - `conversation` — lấy tối đa 8 lượt gần nhất làm chủ đề, rồi truy xuất lại tài liệu gốc từ
-  ChromaDB (`top_k = 6`) để ra đề. Lời trợ lý đã qua Self-RAG nhưng vẫn là văn bản do LLM sinh.
+  `VectorStore` (`top_k = 6` mặc định) để ra đề. Lời trợ lý đã qua verifier nhưng vẫn là văn bản do LLM sinh.
 - `profile` — **ôn tập tổng hợp trên hành trình học của chính người đó**, không phải ra đề
   chung theo tên bệnh. Ngữ cảnh ghép từ hai nguồn dấu vết hệ thống đã có:
 
@@ -1522,7 +1561,7 @@ mặt đáp án chứ chưa chắc đã hiểu bài; ra câu mới mới phân b
 
 Nguồn kiến thức lấy lại từ `source_ref` của lượt đã sinh ra câu sai: là
 `article_id` thì đọc lại chính bài đó — sai ở đâu ôn lại đúng chỗ ấy. Không có
-thì truy xuất ChromaDB theo nội dung các câu đã sai.
+thì truy xuất `VectorStore` theo nội dung các câu đã sai.
 
 404 kèm *"Bạn chưa có câu nào trả lời sai"* khi người học chưa nộp bài nào sai.
 
