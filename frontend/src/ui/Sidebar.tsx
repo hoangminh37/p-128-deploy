@@ -1,27 +1,28 @@
 /**
- * Nội dung thanh bên. Dùng chung cho cả hai cách hiển thị: cột thường trực từ
- * 1024px, và ngăn kéo trượt ra ở bản hẹp.
+ * Thanh bên — DỰNG TỪ BẢN MẪU.
  *
- * NỀN NAVY TOÀN PHẦN. Thanh bên là phần DẪN DẮT — nó nói bạn đang ở đâu và đi
- * đâu được, chứ không phải chỗ để đọc. Vùng nội dung bên phải là tấm canvas
- * sáng đặt chồng lên nền này, nên ranh giới giữa hai bên là một vạch navy chứ
- * không phải một đường kẻ.
+ * Bản mẫu không viết thanh bên vào từng section; nó để `<aside class="side">`
+ * rỗng rồi đổ nội dung vào bằng script ở cuối `docs/design/eduhealth-ai.html`.
+ * Script đó CHÍNH LÀ đặc tả, và file này chép lại nó:
  *
- * THỨ TỰ TỪ TRÊN XUỐNG có ý nghĩa:
+ *   BỆNH NHÂN   `.acts` bốn nút hành động (mục đầu mang thêm `.chinh`)
+ *               -> `<nav>` danh sách hội thoại gom theo mốc thời gian
+ *               -> `.hoso` khối hồ sơ, có `.avt` và huy hiệu `.hp`
+ *               -> `.thoat`
  *
- *   1. Dấu hiệu và tên ứng dụng — biết mình đang ở đâu.
- *   2. Câu hỏi mới              — việc chính, nền mint đặc, không phải tìm.
- *   3. Danh sách hội thoại       — phần cuộn được, chiếm hết chỗ còn lại.
- *   4. Hồ sơ                    — ghim ở đáy, có avatar tròn nền coral.
+ *   BIÊN TẬP    `<nav>` bảy mục cố định, mục có số đếm mang `<span class="n">`
+ *               -> `.hoso` (không có `.hp`) -> `.thoat`
  *
- * Đường vào hồ sơ nằm ở đáy thanh bên chứ không nằm trên thanh tiêu đề: nó là
- * việc làm một lần rồi thôi, để cạnh tên hội thoại thì tranh chỗ với thứ người
- * dùng thực sự đang đọc.
+ *   BÁC SỸ      `.hoso` -> `.thoat`. Bản mẫu KHÔNG dựng `<nav>` cho vai này.
+ *               Ở đây có dựng, vì sản phẩm có bốn màn bác sỹ thật phải đi lại
+ *               được; dùng đúng khuôn `<nav>` của vai biên tập.
  *
- * MÀU CHỮ TRÊN NỀN NAVY, và chỉ hai màu này:
- *   `white` 15.39:1 — mục đang mở, tên ứng dụng, dòng nổi của khối hồ sơ.
- *   `mist`   6.80:1 — mục chưa chọn và mọi dòng phụ.
- * Không có bậc thứ ba nào nhạt hơn `mist`.
+ * Bề ngang, nền mờ, thanh cuộn riêng, nét lề trái của mục đang mở — tất cả do
+ * `.side` trong `index.css` lo. File này không đặt một con số nào.
+ *
+ * `.side` của bản mẫu để nền `rgba(251,251,248,.58)` kèm `backdrop-filter`, nên
+ * ảnh giấy trên `<body>` xuyên qua được. Đó là lý do khối bọc ngoài ở
+ * `RootLayout` phải để trống, không sơn nền.
  */
 import { Link, useLocation } from 'react-router-dom'
 
@@ -31,10 +32,38 @@ import { usePatient } from '../patient/context'
 import { useSession } from '../session/context'
 import { ConversationNav } from './ConversationNav'
 import { EditorNav } from './EditorNav'
-import { AppMark, CloseIcon, ConsultationIcon, LibraryIcon, PlusIcon, QuizIcon, UserIcon } from './icons'
+import {
+  AppMark,
+  CloseIcon,
+  ConsultationIcon,
+  LibraryIcon,
+  PlusIcon,
+  QuizIcon,
+  UserIcon,
+} from './icons'
 import { SignOutButton } from './SignOutButton'
 import { useDailyLesson } from '../app/learning'
 import { useDoctorNotifications } from '../app/consultations'
+
+/**
+ * Cụm `.acts` của bản mẫu, đúng bốn mục và đúng thứ tự trong mảng `ACT` của
+ * script dựng khung: Câu hỏi mới (`.chinh`), Thư viện học tập, Test kiến thức,
+ * Tư vấn với bác sỹ.
+ */
+const ACTIONS = [
+  { to: '/chat', label: 'Câu hỏi mới', Icon: PlusIcon, primary: true, match: null },
+  { to: '/learning', label: 'Thư viện học tập', Icon: LibraryIcon, primary: false, match: '/learning' },
+  { to: '/quiz', label: 'Test kiến thức', Icon: QuizIcon, primary: false, match: '/quiz' },
+  { to: '/consultations', label: 'Tư vấn với bác sỹ', Icon: ConsultationIcon, primary: false, match: '/consultations' },
+] as const
+
+/** Bốn màn của vai bác sỹ, dựng bằng đúng khuôn `<nav>` của vai biên tập. */
+const DOCTOR_NAV = [
+  { to: '/doctor', label: 'Tổng quan', exact: true },
+  { to: '/doctor/notifications', label: 'Thông báo', exact: false },
+  { to: '/doctor/consultations', label: 'Các phiên tư vấn', exact: false },
+  { to: '/doctor/profile', label: 'Hồ sơ của tôi', exact: false },
+] as const
 
 export function Sidebar({
   activeConversationId,
@@ -52,101 +81,77 @@ export function Sidebar({
   const { pathname } = useLocation()
   const isPatient = user?.role === 'patient'
 
-  // Lấy dữ liệu điểm số từ hook
   const { data: lessonData } = useDailyLesson(isPatient)
   const notificationsQuery = useDoctorNotifications(user?.role === 'doctor')
   const unreadNotifications = notificationsQuery.data?.unread_count ?? 0
 
-  const isProfileOpen = pathname === '/profile'
-  const isLearningOpen = pathname.startsWith('/learning')
-  const isConsultationsOpen = pathname.startsWith('/consultations')
-  // startsWith chứ không phải ===, để /quiz/mistakes cũng sáng mục Trắc nghiệm.
-  const isQuizOpen = pathname.startsWith('/quiz')
-
-  const profileSubline =
-    profile !== null
-      ? `${conditionLabel(profile.primary_condition, profile.primary_condition_label)} · ${profile.age} tuổi`
-      : 'Chưa khai hồ sơ'
+  /**
+   * Dòng phụ của khối `.hoso`.
+   *
+   * Bản mẫu ghi "đái tháo đường típ 2 · 62 tuổi · 2 ngày liền" — ba mẩu ngăn
+   * bằng dấu chấm giữa. Ở đây cả ba lấy từ dữ liệu thật; mẩu nào chưa có thì
+   * biến mất chứ không để lại một dấu chấm mồ côi.
+   */
+  function profileSubline(): string {
+    const parts: string[] = []
+    if (profile !== null) {
+      parts.push(conditionLabel(profile.primary_condition, profile.primary_condition_label))
+      parts.push(`${profile.age} tuổi`)
+    } else {
+      parts.push('Chưa khai hồ sơ')
+    }
+    if (lessonData !== undefined) {
+      parts.push(`${lessonData.stats.current_streak} ngày liền`)
+    }
+    return parts.join(' · ')
+  }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-ink">
-      {/* ---- Dấu hiệu và tên ứng dụng ---- */}
-      <div className="flex items-center gap-tight px-snug pt-snug">
-        <AppMark className="h-8 w-8 shrink-0 text-mint" />
-        <p className="font-display min-w-0 flex-1 text-app font-bold text-white">
+    <aside className="side">
+      {/* ---- Tên ứng dụng. Bản mẫu:
+              <div style="display:flex;align-items:center;gap:9px">
+                <svg …bông sen…><span …Newsreader 19px…>EduHealth AI</span>
+              </div>
+              Bề ngang svg và cỡ chữ do `.side>div:first-child svg` /
+              `… span` trong `index.css` lo. ---- */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <AppMark className="" />
+        <span style={{ fontFamily: 'var(--f-display)', flex: 1, minWidth: 0 }}>
           {APP_NAME}
-        </p>
+        </span>
 
+        {/* Nút đóng chỉ có ở bản ngăn kéo — bản mẫu không có vì nó không có
+            ngăn kéo, nhưng dưới 1024px `.side` của sản phẩm là một lớp trượt
+            ra và người dùng phải đóng được nó mà không cần bấm ra ngoài. */}
         {onClose !== undefined && (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Đóng thanh bên"
-            className="motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-icon text-white hover:bg-white/10"
-          >
-            <CloseIcon className="h-6 w-6" />
+          <button type="button" onClick={onClose} aria-label="Đóng thanh bên" className="ico">
+            <CloseIcon className="" />
           </button>
         )}
       </div>
 
-      {/* ---- Câu hỏi mới ----
-          Nút duy nhất trong thanh bên có nền đặc, và nó là màu nhấn chính.
-          Mint / ink đạt 7.95:1. */}
+      {/* ---- `.acts`: chỉ vai bệnh nhân ---- */}
       {isPatient && (
-        <div className="flex flex-col gap-tight px-snug pt-snug pb-tight">
-          <Link
-            to="/chat"
-            onClick={onNavigate}
-            className="motion-press font-display flex min-h-touch items-center justify-center gap-tight rounded-pill bg-mint px-cozy text-input font-bold text-ink no-underline hover:bg-mint-press"
-          >
-            <PlusIcon className="h-5 w-5 shrink-0" />
-            Câu hỏi mới
-          </Link>
-
-          <Link
-            to="/learning"
-            onClick={onNavigate}
-            aria-current={isLearningOpen ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-pill px-cozy text-input font-semibold no-underline ${isLearningOpen
-                ? 'bg-white/10 text-white hover:bg-white/15'
-                : 'border-2 border-mist text-mist hover:bg-white/10 hover:text-white'
-              }`}
-          >
-            <LibraryIcon className="h-5 w-5 shrink-0" />
-            Thư viện học tập
-          </Link>
-
-          {/* Cùng ngôn ngữ hình với "Thư viện học tập" ngay trên: hai mục này
-              là hai chặng của cùng một vòng học, tách kiểu là tách nhầm. */}
-          <Link
-            to="/quiz"
-            onClick={onNavigate}
-            aria-current={isQuizOpen ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-pill px-cozy text-input font-semibold no-underline ${isQuizOpen
-                ? 'bg-white/10 text-white hover:bg-white/15'
-                : 'border-2 border-mist text-mist hover:bg-white/10 hover:text-white'
-              }`}
-          >
-            <QuizIcon className="h-5 w-5 shrink-0" />
-            Test kiến thức
-          </Link>
-
-          <Link
-            to="/consultations"
-            onClick={onNavigate}
-            aria-current={isConsultationsOpen ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center justify-center gap-tight rounded-pill px-cozy text-input font-semibold no-underline ${isConsultationsOpen
-                ? 'bg-white/10 text-white hover:bg-white/15'
-                : 'border-2 border-mist text-mist hover:bg-white/10 hover:text-white'
-              }`}
-          >
-            <ConsultationIcon className="h-5 w-5 shrink-0" />
-            Tư vấn với bác sỹ
-          </Link>
+        <div className="acts">
+          {ACTIONS.map(({ to, label, Icon, primary, match }) => {
+            const isActive = match !== null && pathname.startsWith(match)
+            return (
+              <Link
+                key={to}
+                to={to}
+                onClick={onNavigate}
+                aria-current={isActive ? 'page' : undefined}
+                className={primary ? 'act chinh' : 'act'}
+              >
+                <Icon className="" />
+                <span>{label}</span>
+              </Link>
+            )
+          })}
         </div>
       )}
 
-      {/* ---- Danh sách hội thoại ---- */}
+      {/* ---- `<nav>`: phần DUY NHẤT cuộn được ---- */}
       {isPatient ? (
         <ConversationNav
           activeConversationId={activeConversationId}
@@ -155,95 +160,68 @@ export function Sidebar({
       ) : user?.role === 'editor' ? (
         <EditorNav onNavigate={onNavigate} />
       ) : (
-        <nav aria-label="Khu vực bác sỹ" className="min-h-0 flex-1 overflow-y-auto px-tight pt-snug">
-          <Link
-            to="/doctor"
-            onClick={onNavigate}
-            aria-current={pathname === '/doctor' ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center rounded-icon px-snug py-tight text-question no-underline ${pathname === '/doctor' ? 'bg-white/10 font-semibold text-white hover:bg-white/15' : 'text-mist hover:bg-white/10 hover:text-white'}`}
-          >
-            Tổng quan
-          </Link>
-          <Link
-            to="/doctor/notifications"
-            onClick={onNavigate}
-            aria-current={pathname.startsWith('/doctor/notifications') ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center rounded-icon px-snug py-tight text-question no-underline ${pathname.startsWith('/doctor/notifications') ? 'bg-white/10 font-semibold text-white hover:bg-white/15' : 'text-mist hover:bg-white/10 hover:text-white'}`}
-          >
-            <span className="min-w-0 flex-1">Thông báo</span>
-            {unreadNotifications > 0 && <span className="font-mono rounded-pill bg-mint px-snug py-hair text-question font-bold text-ink">{unreadNotifications}</span>}
-          </Link>
-          <Link
-            to="/doctor/consultations"
-            onClick={onNavigate}
-            aria-current={pathname.startsWith('/doctor/consultations') ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center rounded-icon px-snug py-tight text-question no-underline ${pathname.startsWith('/doctor/consultations') ? 'bg-white/10 font-semibold text-white hover:bg-white/15' : 'text-mist hover:bg-white/10 hover:text-white'}`}
-          >
-            Các phiên tư vấn
-          </Link>
-          <Link
-            to="/doctor/profile"
-            onClick={onNavigate}
-            aria-current={pathname.startsWith('/doctor/profile') ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center rounded-icon px-snug py-tight text-question no-underline ${pathname.startsWith('/doctor/profile') ? 'bg-white/10 font-semibold text-white hover:bg-white/15' : 'text-mist hover:bg-white/10 hover:text-white'}`}
-          >
-            Hồ sơ của tôi
-          </Link>
+        <nav aria-label="Khu vực bác sỹ">
+          {DOCTOR_NAV.map(({ to, label, exact }) => {
+            const isActive = exact ? pathname === to : pathname.startsWith(to)
+            const showCount = to.endsWith('/notifications') && unreadNotifications > 0
+            return (
+              <Link
+                key={to}
+                to={to}
+                onClick={onNavigate}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <span>{label}</span>
+                {/* `.n` của bản mẫu: mono, cỡ `--t-mono-s`, màu `--xam`, và
+                    chuyển sang tím khi mục đang mở. Số đếm là SỐ LIỆU nên nó
+                    dùng mono, đúng luật chữ của bản mẫu. */}
+                {showCount && <span className="n">{unreadNotifications}</span>}
+              </Link>
+            )
+          })}
         </nav>
       )}
 
-      {/* ---- Khối hồ sơ và đăng xuất, ghim ở đáy ---- */}
-      <div className="shrink-0 border-t border-white/15">
-        {isPatient ? (
-          <Link
-            to="/profile"
-            onClick={onNavigate}
-            aria-current={isProfileOpen ? 'page' : undefined}
-            className={`font-display flex min-h-touch items-center gap-snug px-snug py-tight no-underline hover:bg-white/10 ${isProfileOpen ? 'bg-white/10' : ''
-              }`}
-          >
-            {/* Avatar tròn nền coral. Đây là chỗ DUY NHẤT màu coral xuất hiện
-                trong thanh bên, nên khối hồ sơ luôn tìm thấy được bằng mắt dù
-                nó nằm ở tận đáy một danh sách dài. Ink trên coral: 6.62:1. */}
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-coral text-ink">
-              <UserIcon className="h-6 w-6" />
-            </span>
-
-            <span className="min-w-0 flex-1">
-              <span className="flex items-center justify-between gap-tight text-question font-semibold text-white">
-                <span>Hồ sơ của bạn</span>
-                {lessonData && (
-                  <span className="shrink-0 rounded-pill bg-mint px-tight py-hair text-note font-bold text-ink">
-                    {lessonData.stats.total_score} HP
-                  </span>
-                )}
-              </span>
-              <span className="mt-hair block line-clamp-2 text-note text-mist">
-                {profileSubline}
-                {lessonData && ` · ${lessonData.stats.current_streak} ngày liền`}
-              </span>
-            </span>
-          </Link>
-        ) : (
-          <div className="font-display flex min-h-touch items-center gap-snug px-snug py-tight">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-coral text-ink">
-              <UserIcon className="h-6 w-6" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-question font-semibold text-white">
-                {user?.role === 'doctor' ? 'Bác sỹ tư vấn' : 'Biên tập viên y khoa'}
-              </span>
-              <span className="mt-hair block line-clamp-2 text-note text-mist">
-                {user?.email ?? ''}
-              </span>
-            </span>
+      {/* ---- `.hoso` ghim dưới đáy ---- */}
+      {isPatient ? (
+        <Link
+          to="/profile"
+          onClick={onNavigate}
+          aria-current={pathname === '/profile' ? 'page' : undefined}
+          className="hoso"
+        >
+          <span className="avt">
+            <UserIcon className="" />
+          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="ten">
+              Hồ sơ của bạn
+              {/* `.hp` — huy hiệu điểm, mono trên nền xanh nhạt viền mảnh.
+                  Bản mẫu ghi cứng "45 HP"; đây là điểm thật. Chưa tải xong thì
+                  huy hiệu chưa xuất hiện, chứ không hiện số 0. */}
+              {lessonData !== undefined && (
+                <span className="hp">{lessonData.stats.total_score} HP</span>
+              )}
+            </div>
+            <div className="duoi">{profileSubline()}</div>
           </div>
-        )}
-
-        <div className="px-snug pb-snug">
-          <SignOutButton />
+        </Link>
+      ) : (
+        <div className="hoso">
+          <span className="avt">
+            <UserIcon className="" />
+          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="ten">
+              {user?.role === 'doctor' ? 'Bác sỹ tư vấn' : 'Biên tập viên y khoa'}
+            </div>
+            <div className="duoi">{user?.email ?? ''}</div>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+
+      {/* ---- `.thoat` ---- */}
+      <SignOutButton />
+    </aside>
   )
 }

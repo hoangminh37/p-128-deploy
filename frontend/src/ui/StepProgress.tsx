@@ -22,26 +22,29 @@ export function StepProgress({
   return (
     <div>
       {/* Thanh tiến trình ĐỨNG TRƯỚC tiêu đề bước: nó trả lời "còn bao xa nữa"
-          — câu người dùng hỏi trước khi hỏi "bước này là gì". */}
-      <div aria-hidden="true" className="flex gap-tight">
+          — câu người dùng hỏi trước khi hỏi "bước này là gì".
+
+          Vạch mảnh 3px, KHÔNG bo góc: ở bản mẫu tiến trình là một dãy GẠCH
+          CHÂN, không phải một dãy viên thuốc. Đoạn đã qua dùng `--xanh` đặc,
+          đoạn chưa tới dùng `--ke-dam`. Cả dãy `aria-hidden`, dòng chữ ngay
+          dưới mới là bản chính. */}
+      <div aria-hidden="true" style={{ display: 'flex', gap: 6 }}>
         {Array.from({ length: total }, (_, index) => (
           <span
             key={index}
-            // Đoạn chưa tới dùng `line` chứ không dùng `white`: nền của màn hồ
-            // sơ là `canvas`, mà trắng trên canvas gần như không thấy. `line`
-            // được phép ở đây vì hai vạch này đã `aria-hidden` và dòng chữ ngay
-            // dưới mới là bản chính — xem ghi chú đầu file.
-            className={`h-2 flex-1 rounded-pill ${
-              index < current ? 'bg-mint' : 'bg-line'
-            }`}
+            style={{
+              height: 3,
+              flex: 1,
+              background: index < current ? 'var(--xanh)' : 'var(--ke-dam)',
+            }}
           />
         ))}
       </div>
 
-      <p role="status" className="font-display mt-snug text-question text-slate">
+      <p role="status" className="lab" style={{ marginTop: 14 }}>
         Bước {current} trên {total}
       </p>
-      <h2 className="mt-hair text-heading font-semibold text-body">{title}</h2>
+      <h2 style={{ fontSize: 'var(--t-h3)', marginTop: 4 }}>{title}</h2>
     </div>
   )
 }

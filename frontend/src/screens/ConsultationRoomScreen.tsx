@@ -1,4 +1,25 @@
-/** Direct, persisted chat and the gated video room for one consultation. */
+/**
+ * Một phòng tư vấn — chat lưu trên máy chủ, và cuộc gọi video có kiểm soát.
+ *
+ * MỘT MÀN, HAI PHÍA. CHÉP TỪ `id="tvpg"` (phía bệnh nhân) và `id="bsphong"`
+ * (phía bác sỹ) của bản mẫu. Hai bản mẫu đó dùng CHUNG một bộ khung —
+ * `.phong-dau` ghim trên, `.phong-luong` cuộn ở giữa, `.phong-soan` ghim dưới —
+ * và chỉ khác nhau ở ba chỗ, đúng ba chỗ mà hai vai thật sự khác nhau:
+ *
+ *   ĐẦU PHÒNG  bệnh nhân đọc tên bác sỹ; bác sỹ chỉ đọc "Trao đổi với bệnh
+ *              nhân", vì danh tính bệnh nhân không phải cái để trưng ở tiêu đề.
+ *   DẢI TÍM    chỉ bác sỹ mới có: tuổi và bệnh nền bệnh nhân cho phép dùng.
+ *   DẢI 115    chỉ bệnh nhân mới có. Người đang đau ngực mà ngồi chờ tin nhắn
+ *              là tình huống nguy hiểm nhất của cả sản phẩm này, nên lối thoát
+ *              cấp cứu nằm NGAY TRÊN ô soạn tin, không nằm cuối trang.
+ *
+ * Ô SOẠN TIN TẮT KHI CHƯA ĐƯỢC PHÉP GỬI, và nói rõ vì sao ngay trong chỗ nhập:
+ * bác sỹ phải nhận phiên trước, hoặc phiên đã đóng. Bản mẫu để sẵn cả trạng
+ * thái mờ đó ở `#bsphong`.
+ *
+ * Khung `.main.phong` do `RootLayout` dựng, nên màn này trả về thẳng các khối
+ * con — chèn thêm một lớp bọc là bố cục ba tầng ghim/cuộn/ghim vỡ ngay.
+ */
 import { useCallback, useState, type FormEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
@@ -21,9 +42,16 @@ import { ErrorNotice } from '../ui/ErrorNotice'
 import { VideoConsultationCall } from '../ui/VideoConsultationCall'
 
 const STATUS_LABEL: Record<ConsultationStatus, string> = {
-  requested: 'Đang chờ bác sỹ nhận phiên',
+  requested: 'Cần nhận phiên',
   active: 'Đang tư vấn',
-  ended: 'Phiên tư vấn đã kết thúc',
+  ended: 'Đã kết thúc',
+}
+
+/** Chip trạng thái: tím là việc đang chờ, xanh là phiên đang chạy, trơn là đã đóng. */
+const STATUS_CHIP: Record<ConsultationStatus, string> = {
+  requested: 'chip cho',
+  active: 'chip duyet',
+  ended: 'chip',
 }
 
 export function ConsultationRoomScreen({ consultationId }: { consultationId: string }) {
@@ -81,8 +109,24 @@ export function ConsultationRoomScreen({ consultationId }: { consultationId: str
     if (message.trim() !== '') send.mutate(message.trim())
   }
 
-  if (detailQuery.isPending) return <p role="status" className="font-display text-notice text-slate">Đang mở phiên tư vấn…</p>
-  if (detailQuery.isError) return <ErrorNotice error={detailQuery.error} retryLabel="Mở lại phiên" onRetry={() => void detailQuery.refetch()} />
+  if (detailQuery.isPending) {
+    return (
+      <p role="status" className="lab" style={{ padding: '20px var(--pad-main)' }}>
+        Đang mở phiên tư vấn…
+      </p>
+    )
+  }
+  if (detailQuery.isError) {
+    return (
+      <div style={{ padding: '20px var(--pad-main)' }}>
+        <ErrorNotice
+          error={detailQuery.error}
+          retryLabel="Mở lại phiên"
+          onRetry={() => void detailQuery.refetch()}
+        />
+      </div>
+    )
+  }
   const consultation = detailQuery.data
   if (consultation === undefined || user === null) return null
 
@@ -94,63 +138,207 @@ export function ConsultationRoomScreen({ consultationId }: { consultationId: str
   const callAction = activeCall === null
     ? { label: startCall.isPending ? 'Đang mở cuộc gọi…' : 'Gọi video', pending: startCall.isPending, action: () => startCall.mutate() }
     : { label: joinCall.isPending ? 'Đang vào cuộc gọi…' : activeCall.initiated_by_user_id === user.user_id ? 'Vào lại cuộc gọi' : 'Tham gia gọi video', pending: joinCall.isPending, action: () => joinCall.mutate({ callId: activeCall.call_id, isInitiator: activeCall.initiated_by_user_id === user.user_id }) }
+  const composerPlaceholder = canSend
+    ? isDoctor
+      ? 'Nhắn cho bệnh nhân'
+      : 'Nhắn cho bác sỹ'
+    : consultation.status === 'ended'
+      ? 'Phiên tư vấn đã kết thúc, không gửi thêm tin nhắn được.'
+      : 'Bác sỹ cần nhận phiên trước khi có thể phản hồi.'
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface" aria-labelledby="consultation-chat-title">
-        <header className="flex flex-wrap items-center justify-between gap-snug border-b border-line bg-surface px-cozy py-snug">
-          <div className="min-w-0">
-            <Link to={participantBackPath} className="font-display inline-flex min-h-touch items-center text-question font-semibold text-slate underline underline-offset-4 hover:text-body">Quay lại danh sách tư vấn</Link>
-            <h1 id="consultation-chat-title" className="truncate text-heading font-semibold text-body">{isDoctor ? 'Trao đổi với bệnh nhân' : consultation.doctor.display_name}</h1>
-            <p className="font-display mt-hair text-question text-slate">{isDoctor ? 'Phiên tư vấn bảo mật' : consultation.doctor.specialty} · {STATUS_LABEL[consultation.status]}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-tight">
-            {consultation.status === 'active' && joinedCall === null && <button type="button" disabled={callAction.pending} onClick={callAction.action} className="motion-press font-display min-h-touch rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body hover:bg-canvas">{callAction.label}</button>}
-            {consultation.status !== 'ended' && <button type="button" disabled={end.isPending} onClick={() => end.mutate()} className="motion-press font-display min-h-touch rounded-pill border-2 border-coral px-snug text-input font-semibold text-coral-deep hover:bg-sand">{end.isPending ? 'Đang kết thúc…' : 'Kết thúc'}</button>}
-          </div>
-        </header>
+    <>
+      <div className="phong-dau">
+        <Link to={participantBackPath} className="btn sm gh">
+          Quay lại danh sách tư vấn
+        </Link>
 
-        {isDoctor && consultation.patient_context !== null && (
-          <section aria-label="Thông tin lâm sàng được bệnh nhân cho phép dùng trong phiên tư vấn" className="border-b border-line bg-canvas px-cozy py-tight">
-            <p className="font-display text-question text-slate"><span className="font-semibold text-body">Thông tin trong phiên:</span> {consultation.patient_context.age} tuổi · {consultation.patient_context.conditions.length > 0 ? consultation.patient_context.conditions.join(' · ') : 'Chưa có bệnh nền'}{consultation.patient_context.diagnosed_at !== null ? ` · Chẩn đoán ${consultation.patient_context.diagnosed_at}` : ''}</p>
-          </section>
-        )}
-
-        {consultation.status === 'requested' && isDoctor && (
-          <div className="border-b border-line bg-sand px-cozy py-snug">
-            <p className="font-display text-input font-semibold text-sand-deep">Bệnh nhân đang chờ bạn nhận phiên tư vấn.</p>
-            <button type="button" disabled={accept.isPending} onClick={() => accept.mutate()} className="motion-press font-display mt-tight min-h-touch rounded-pill bg-ink px-cozy text-input font-bold text-white hover:bg-ink-press">{accept.isPending ? 'Đang nhận phiên…' : 'Nhận phiên tư vấn'}</button>
+        <div
+          style={{
+            display: 'flex',
+            gap: 14,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            marginTop: 12,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <h1 style={{ fontSize: 'var(--t-h3)' }}>
+              {isDoctor ? 'Trao đổi với bệnh nhân' : consultation.doctor.display_name}
+            </h1>
+            <p className="lab">
+              {isDoctor
+                ? 'Phiên tư vấn bảo mật'
+                : `${consultation.doctor.specialty} · Buổi tư vấn riêng tư`}
+            </p>
           </div>
-        )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-canvas px-snug py-cozy sm:px-block">
-          <ol className="flex flex-col gap-snug" aria-live="polite">
-            {consultation.status === 'requested' && !isDoctor && <li className="mx-auto max-w-[34rem] rounded-card bg-sand px-snug py-tight text-center"><p className="font-display text-question text-sand-deep">Bác sỹ đã nhận được yêu cầu. Bạn vẫn có thể để lại tin nhắn; bác sỹ sẽ trả lời sau khi nhận phiên.</p></li>}
-            {consultation.messages.map((item) => {
-              const mine = item.sender_role === (isDoctor ? 'doctor' : 'patient')
-              return <li key={item.message_id} className={`max-w-[84%] sm:max-w-[70%] ${mine ? 'ml-auto' : 'mr-auto'}`}>
-                <div className={`rounded-[1.35rem] px-snug py-tight ${mine ? 'rounded-br-md bg-mint text-ink' : 'rounded-bl-md border border-line bg-surface text-body'}`}>
-                  {!mine && <p className="font-display text-question font-semibold text-slate">{item.sender_role === 'doctor' ? 'Bác sỹ' : 'Bệnh nhân'}</p>}
-                  <p className={`${mine ? '' : 'mt-hair'} whitespace-pre-wrap text-input leading-relaxed`}>{item.content}</p>
-                </div>
-                <p className={`font-display mt-hair px-tight text-note text-slate ${mine ? 'text-right' : 'text-left'}`}>{formatDateTime(item.created_at)}</p>
-              </li>
-          })}
-            {consultation.messages.length === 0 && <li className="mx-auto max-w-[28rem] rounded-card border border-dashed border-line bg-surface px-snug py-tight text-center"><p className="font-display text-question text-slate">Chưa có tin nhắn. Hãy bắt đầu cuộc trò chuyện khi bạn sẵn sàng.</p></li>}
-          </ol>
+          <span className={STATUS_CHIP[consultation.status]}>
+            {STATUS_LABEL[consultation.status]}
+          </span>
+
+          {isDoctor && consultation.status === 'requested' && (
+            <button
+              type="button"
+              disabled={accept.isPending}
+              onClick={() => accept.mutate()}
+              className="btn pri sm"
+            >
+              {accept.isPending ? 'Đang nhận phiên…' : 'Nhận phiên tư vấn'}
+            </button>
+          )}
+
+          {consultation.status === 'active' && joinedCall === null && (
+            <button
+              type="button"
+              disabled={callAction.pending}
+              onClick={callAction.action}
+              className="btn sm"
+            >
+              {callAction.label}
+            </button>
+          )}
+
+          {consultation.status !== 'ended' && (
+            <button
+              type="button"
+              disabled={end.isPending}
+              onClick={() => end.mutate()}
+              className="btn sm gh"
+            >
+              {end.isPending ? 'Đang kết thúc…' : 'Kết thúc'}
+            </button>
+          )}
         </div>
 
-        {canSend ? <form onSubmit={submitMessage} className="border-t border-line bg-surface px-snug py-snug sm:px-cozy">
-          <label htmlFor="consultation-reply" className="sr-only">Nội dung tin nhắn</label>
-          <div className="flex items-end gap-tight">
-            <textarea id="consultation-reply" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={4000} rows={1} placeholder="Nhập tin nhắn…" className="font-body min-h-touch min-w-0 flex-1 resize-y rounded-card border-2 border-slate bg-canvas px-snug py-tight text-input text-body focus:bg-surface" />
-            <button type="submit" disabled={message.trim() === '' || send.isPending} className="motion-press font-display min-h-touch shrink-0 rounded-pill bg-mint px-cozy text-input font-bold text-mint-deep enabled:hover:bg-mint-press disabled:bg-canvas disabled:text-slate">{send.isPending ? 'Đang gửi…' : 'Gửi'}</button>
+        {/* Dải tím của `id="bsphong"` — CHỈ phía bác sỹ, và chỉ những gì bệnh
+            nhân đã cho phép dùng trong phiên. */}
+        {isDoctor && consultation.patient_context !== null && (
+          <div
+            style={{
+              marginTop: 14,
+              padding: '12px 14px',
+              background: 'var(--tim-wash)',
+              borderLeft: '2px solid var(--tim)',
+            }}
+          >
+            <span className="lab" style={{ color: 'var(--tim)' }}>
+              Thông tin lâm sàng bệnh nhân cho phép dùng
+            </span>
+            <p style={{ fontSize: 'var(--t-note)', marginTop: 5 }}>
+              {consultation.patient_context.age} tuổi ·{' '}
+              {consultation.patient_context.conditions.length > 0
+                ? consultation.patient_context.conditions.join(', ')
+                : 'chưa ghi nhận bệnh nền'}
+              {consultation.patient_context.diagnosed_at !== null &&
+                ` · chẩn đoán ${consultation.patient_context.diagnosed_at}`}
+            </p>
           </div>
-        </form> : <p className="font-display border-t border-line bg-surface px-cozy py-snug text-question text-slate">{consultation.status === 'ended' ? 'Phiên tư vấn đã kết thúc. Bạn không thể gửi thêm tin nhắn.' : 'Bác sỹ cần nhận phiên trước khi có thể phản hồi.'}</p>}
-      </section>
+        )}
+      </div>
 
-      {joinedCall !== null && <VideoConsultationCall consultationId={consultationId} call={joinedCall.call} isInitiator={joinedCall.isInitiator} onEnded={handleCallEnded} />}
-      {mutationError !== null && mutationError !== undefined && <div className="absolute inset-x-snug bottom-snug z-30"><ErrorNotice error={mutationError} retryLabel="Thử lại" onRetry={() => void detailQuery.refetch()} /></div>}
-    </div>
+      <div className="phong-luong" aria-live="polite">
+        {consultation.status === 'requested' && !isDoctor && (
+          <p
+            className="lab"
+            style={{
+              alignSelf: 'center',
+              maxWidth: '52ch',
+              textAlign: 'center',
+              lineHeight: 1.6,
+            }}
+          >
+            Bác sỹ đã nhận được yêu cầu. Bạn vẫn có thể để lại tin nhắn; bác sỹ sẽ trả lời sau
+            khi nhận phiên.
+          </p>
+        )}
+
+        {consultation.messages.map((item) => {
+          const mine = item.sender_role === (isDoctor ? 'doctor' : 'patient')
+          return (
+            <div key={item.message_id} className={mine ? 'bb minh' : 'bb ho'}>
+              {/* Bản mẫu ghi vai người nói trên mỗi bóng của phía bên kia. Mốc
+                  giờ đi kèm ngay trên dòng đó — hai người đang chờ nhau trả
+                  lời, nên "gửi lúc nào" là thông tin phải đọc được. */}
+              <span className="lab" style={mine ? { display: 'block', textAlign: 'right' } : undefined}>
+                {mine ? '' : `${item.sender_role === 'doctor' ? 'Bác sỹ' : 'Bệnh nhân'} · `}
+                {formatDateTime(item.created_at)}
+              </span>
+              <div className="bong">{item.content}</div>
+            </div>
+          )
+        })}
+
+        {consultation.messages.length === 0 && (
+          <p
+            className="lab"
+            style={{
+              alignSelf: 'center',
+              maxWidth: '46ch',
+              textAlign: 'center',
+              lineHeight: 1.6,
+            }}
+          >
+            Chưa có tin nhắn. Hãy bắt đầu cuộc trò chuyện khi bạn sẵn sàng.
+          </p>
+        )}
+      </div>
+
+      {/* `.canh-115` của `id="tvpg"` — chỉ phía bệnh nhân, đặt ngay trên ô soạn tin. */}
+      {!isDoctor && (
+        <div className="canh-115">
+          <p>
+            Nếu bạn thấy đau ngực dữ dội, khó thở, méo miệng hay yếu nửa người, hãy gọi cấp cứu
+            ngay, đừng ngồi chờ bác sỹ trả lời.
+          </p>
+          <a className="btn sm" href="tel:115">
+            Gọi 115
+          </a>
+        </div>
+      )}
+
+      {mutationError !== null && mutationError !== undefined && (
+        <div style={{ flex: 'none', padding: '12px var(--pad-main) 0' }}>
+          <ErrorNotice
+            error={mutationError}
+            retryLabel="Thử lại"
+            onRetry={() => void detailQuery.refetch()}
+          />
+        </div>
+      )}
+
+      <form className="phong-soan" onSubmit={submitMessage}>
+        <label htmlFor="consultation-reply" className="sr-only">
+          Nội dung tin nhắn
+        </label>
+        <input
+          id="consultation-reply"
+          className="o"
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          maxLength={4000}
+          disabled={!canSend}
+          autoComplete="off"
+          placeholder={composerPlaceholder}
+        />
+        <button
+          type="submit"
+          className="btn pri"
+          disabled={!canSend || message.trim() === '' || send.isPending}
+          style={!canSend ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+        >
+          {send.isPending ? 'Đang gửi…' : 'Gửi'}
+        </button>
+      </form>
+
+      {joinedCall !== null && (
+        <VideoConsultationCall
+          consultationId={consultationId}
+          call={joinedCall.call}
+          isInitiator={joinedCall.isInitiator}
+          onEnded={handleCallEnded}
+        />
+      )}
+    </>
   )
 }

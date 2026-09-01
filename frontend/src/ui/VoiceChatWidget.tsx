@@ -127,8 +127,13 @@ export function VoiceChatWidget({ onClose, onSubmitAudio, onLoadSpeech }: Props)
     context.clearRect(0, 0, width, height)
     context.lineCap = 'round'
     context.lineWidth = 2.5
+    // Dự phòng là `color` đã tính của chính `<canvas>` — nó luôn giải ra một
+    // màu hợp lệ và luôn đi theo chế độ sáng/tối, khác một mã hex gõ cứng vốn
+    // sẽ sai ở đúng một trong hai chế độ. Mọi mã màu của ứng dụng nằm ở
+    // `index.css`, kể cả những mã chỉ dùng làm dự phòng.
+    const computed = getComputedStyle(canvas)
     context.strokeStyle =
-      getComputedStyle(canvas).getPropertyValue('--voice-wave-color').trim() || '#f4f7f8'
+      computed.getPropertyValue('--voice-wave-color').trim() || computed.color
 
     const bars = Math.max(30, Math.floor(width / 8))
     const gap = width / bars

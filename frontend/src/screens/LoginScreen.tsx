@@ -1,28 +1,20 @@
 /**
- * Màn đăng nhập.
+ * Màn đăng nhập — CHÉP TỪ SECTION `id="dn"` CỦA BẢN MẪU.
  *
- * Nằm NGOÀI khung ứng dụng: không thanh bên, không thanh tiêu đề. Chưa đăng
- * nhập thì chưa có hội thoại nào để liệt kê và chưa có hồ sơ nào để mở, bày cái
- * khung rỗng ra chỉ tổ làm người dùng tưởng ứng dụng hỏng.
+ * `.dn-doi` chia đôi màn. `.dn-trai` là nửa dẫn dắt: bông sen nét mảnh mờ 13%
+ * neo ở góc dưới bên phải, nhãn `.eb solo`, một câu dẫn, và BẢNG BA VĂN BẢN
+ * NGUỒN — ba hàng kẻ ngang, số hiệu mono màu tím ở cột trái. `.dn-phai` là
+ * form. Dưới 1024px `.dn-trai` biến mất hẳn bằng CSS của bản mẫu, không rẽ
+ * nhánh ở đây.
  *
- * CHIA ĐÔI MÀN HÌNH, và hai nửa thuộc hai họ nền khác nhau:
+ * Ba số hiệu ở nửa trái là dữ liệu THẬT của hệ thống, không phải chữ trang trí:
+ * chúng là ba văn bản nguồn mà toàn bộ câu trả lời dựa vào. Khai thành một hằng
+ * có tên để lúc kho tài liệu đổi thì sửa đúng một chỗ.
  *
- *   Nửa trái, nền navy có họa tiết — phần DẪN DẮT. Một tiêu đề Lora lớn và một
- *   câu nói rõ rằng ứng dụng TỰ BIẾT vai trò. Câu đó phải đứng ở đây chứ không
- *   nằm lẫn trong form: người dùng quen với những ứng dụng bắt chọn "tôi là
- *   bệnh nhân / tôi là nhân viên" sẽ đi tìm cái nút đó, và họ phải được trả lời
- *   trước khi kịp đi tìm.
- *
- *   Nửa phải, nền canvas — phần LÀM VIỆC. Đúng hai ô nhập và một nút.
- *
- * Dưới 1024px hai nửa xếp dọc, nửa navy ở trên. Thứ tự đó giữ nguyên nhịp đọc
- * của bản rộng, và nó cũng là thứ tự trong DOM nên người dùng bàn phím đi Tab
- * theo đúng mạch.
- *
- * KHÔNG có chỗ nào cho người dùng chọn vai trò. Vai trò đến từ response đăng
- * nhập, do backend quyết định từ tài khoản (hợp đồng mục 3). Màn chọn vai trò
- * của bản trước đã bị bỏ hẳn vì hỏi "bạn là ai" rồi tin luôn câu trả lời thì
- * bất kỳ ai cũng tự nhận là biên tập viên y khoa được.
+ * GIỮ LẠI TỪ BẢN TRƯỚC, vì bản mẫu là trang tĩnh nên không có: xác thực bằng
+ * `react-hook-form` + zod, phân biệt 401 với sự cố kỹ thuật, câu thông báo
+ * phiên hết hạn. Bản mẫu bày ba tài khoản mẫu bằng lớp `.tkm`; khối đó ở đây
+ * dùng đúng lớp ấy nhưng chỉ dựng khi chạy dev.
  */
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -33,10 +25,10 @@ import { z } from 'zod'
 import { ApiError, login } from '../lib/api'
 import { APP_NAME } from '../lib/appName'
 import { loginRequestSchema, type LoginResponse } from '../lib/schemas'
+import { VAN_BAN_NGUON } from '../lib/vanBanNguon'
 import { DEMO_ACCOUNTS } from '../mocks/demoAccounts'
 import { EXPIRED_SESSION_REASON } from '../session/ExpiredSessionWatcher'
 import { HOME_PATH, useSession } from '../session/context'
-import { Backdrop } from '../ui/Backdrop'
 import { ErrorNotice } from '../ui/ErrorNotice'
 import { AlertIcon, AppMark } from '../ui/icons'
 import { StateBlock } from '../ui/ResponseStates'
@@ -54,19 +46,11 @@ const loginFormSchema = loginRequestSchema.extend({
 
 type LoginFormValues = z.infer<typeof loginFormSchema>
 
-/** Nhãn của một trường. Tối thiểu 17px theo sàn cỡ chữ. */
-const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-body'
-/** Ô nhập nền trắng trên nền canvas: chỗ nền đổi màu chính là ranh giới của ô,
- * cộng thêm một viền `slate` (4.96:1 trên trắng) cho ngưỡng 3:1 của WCAG
- * 1.4.11. `line` KHÔNG dùng được ở đây — xem cảnh báo trong `index.css`. */
-const FIELD_INPUT_CLASS =
-  'font-body mt-snug min-h-touch w-full rounded-card border-2 border-slate bg-surface p-snug text-input text-body'
-
 /** Lỗi hiện ngay dưới trường của nó, không gom về cuối form. */
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (message === undefined) return null
   return (
-    <p id={id} role="alert" className="font-display mt-tight text-question text-alert">
+    <p id={id} role="alert" className="lab" style={{ color: 'var(--do)', marginTop: 7 }}>
       {message}
     </p>
   )
@@ -88,24 +72,20 @@ function DemoAccountsPanel({
   onPick: (account: { email: string; password: string }) => void
 }) {
   return (
-    <div className="mt-block rounded-card bg-sand p-cozy">
-      <p className="font-display text-input font-semibold text-sand-deep">
-        Tài khoản mẫu (Demo)
-      </p>
-      <p className="font-display mt-hair text-question text-sand-deep">
-        Bấm một tài khoản bên dưới để tự động điền thông tin đăng nhập vào hệ thống:
-      </p>
+    <div style={{ marginTop: 26, paddingTop: 16, borderTop: '1px solid var(--ke)' }}>
+      <span className="lab">Tài khoản mẫu</span>
 
-      <ul className="mt-snug space-y-tight">
+      <ul
+        style={{ listStyle: 'none', margin: '9px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}
+      >
         {DEMO_ACCOUNTS.map((account) => (
           <li key={account.email}>
-            <button
-              type="button"
-              onClick={() => onPick(account)}
-              className="motion-lift font-display flex min-h-touch w-full flex-col justify-center rounded-card bg-surface px-snug py-tight text-left text-body"
-            >
-              <span className="text-input font-semibold">{account.label}</span>
-              <span className="font-mono text-question">
+            {/* `.tkm` của bản mẫu: khối kẻ khung, tên vai ở dòng trên, cặp
+                email · mật khẩu ở dòng dưới bằng mono. Viền chuyển tím khi rê
+                chuột — `.tkm:hover{border-color:var(--tim)}`. */}
+            <button type="button" onClick={() => onPick(account)} className="tkm">
+              <span>{account.label}</span>
+              <span className="mono">
                 {account.email} · {account.password}
               </span>
             </button>
@@ -166,66 +146,125 @@ export function LoginScreen() {
     mutation.error instanceof ApiError && mutation.error.status === 401
 
   return (
-    <div className="flex min-h-dvh flex-col bg-ink lg:flex-row">
-      {/* ---- Nửa trái: nền navy, phần dẫn dắt ---- */}
-      <section className="relative isolate flex flex-col justify-center overflow-hidden px-cozy py-block lg:w-1/2 lg:px-block">
-        <Backdrop />
+    <div className="dn-doi">
+      {/* ---- Nửa trái: dẫn dắt. Ẩn hẳn dưới 1024px bằng CSS bản mẫu ---- */}
+      <div className="dn-trai">
+        {/* `.dn-sen` — bông sen nét mảnh, `opacity:.13`, neo góc dưới bên phải
+            và cố ý tràn ra ngoài khung. Chép nguyên bốn path của bản mẫu. */}
+        <svg className="dn-sen" viewBox="0 0 100 100" aria-hidden="true">
+          <g fill="none" stroke="var(--tim)" strokeWidth="1.5" strokeLinecap="round">
+            <path d="M50 20c11 9 17 20 17 30.5C67 63 59 71.5 50 71.5S33 63 33 50.5C33 40 39 29 50 20Z" />
+            <path d="M28 36c-8 10-9.5 23-3.5 31.5C30 76 40 79 50 78M72 36c8 10 9.5 23 3.5 31.5C70 76 60 79 50 78" />
+            <path d="M13 52c-3 11 1 22 9.5 27.5M87 52c3 11-1 22-9.5 27.5" />
+            <path d="M50 78v9" />
+          </g>
+        </svg>
 
-        <div className="relative z-10 mx-auto w-full max-w-answer">
+        <div className="eb solo">Bộ Y tế · Ba văn bản nguồn</div>
+        <h2 style={{ marginTop: 18 }}>Chào bạn quay lại.</h2>
+        <p
+          style={{
+            marginTop: 18,
+            maxWidth: '38ch',
+            color: 'var(--xam)',
+            fontSize: 'var(--t-note)',
+            lineHeight: 1.75,
+            position: 'relative',
+          }}
+        >
+          Trợ lý giải thích về đái tháo đường típ 2 và tăng huyết áp, và luôn dẫn về văn
+          bản gốc để bạn mở ra đọc.
+        </p>
+
+        {/* Ba hàng kẻ ngang, số hiệu mono TÍM ở cột trái. Hàng cuối thêm nét
+            dưới để bảng đóng lại — đúng như bản mẫu. */}
+        <div style={{ marginTop: 34, maxWidth: '34ch', position: 'relative' }}>
+          {VAN_BAN_NGUON.map((item, index) => (
+            <div
+              key={item.code}
+              style={{
+                display: 'flex',
+                gap: 14,
+                alignItems: 'baseline',
+                padding: '11px 0',
+                borderTop: '1px solid var(--ke)',
+                borderBottom:
+                  index === VAN_BAN_NGUON.length - 1 ? '1px solid var(--ke)' : undefined,
+              }}
+            >
+              <span
+                className="mono"
+                style={{ color: 'var(--tim)', fontSize: 'var(--t-mono-s)', flex: 'none' }}
+              >
+                {item.code}
+              </span>
+              <span style={{ fontSize: 'var(--t-note)', color: 'var(--xam)' }}>
+                {item.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ---- Nửa phải: form ---- */}
+      <main className="dn-phai">
+        <div style={{ width: '100%', maxWidth: 400 }}>
           <Link
             to="/"
-            className="flex w-fit items-center gap-tight no-underline"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              textDecoration: 'none',
+              width: 'fit-content',
+            }}
           >
-            <AppMark className="h-8 w-8 shrink-0 text-mint" />
-            <span className="font-display text-app font-bold text-white">
-              {APP_NAME}
-            </span>
+            <AppMark className="dn-mark" />
+            <span style={{ fontFamily: 'var(--f-display)', fontSize: 20 }}>{APP_NAME}</span>
           </Link>
 
-          <h1 className="mt-block text-hero font-semibold text-white">
-            Chào bạn quay lại.
+          <h1 style={{ fontSize: 'var(--t-h2)', lineHeight: 1.2, marginTop: 26 }}>
+            Đăng nhập
           </h1>
-          <p className="mt-cozy text-answer text-mist">
-            Học tập và làm chủ sức khỏe mỗi ngày cùng trợ lý giáo dục cá nhân hóa.
-            Hệ thống tự động điều chỉnh lộ trình học theo vai trò của bạn.
+          <p
+            style={{
+              fontSize: 'var(--t-note)',
+              color: 'var(--xam)',
+              marginTop: 8,
+              lineHeight: 1.65,
+              maxWidth: '40ch',
+            }}
+          >
+            Hệ thống tự đưa bạn vào đúng khu vực theo vai trò của tài khoản.
           </p>
-        </div>
-      </section>
-
-      {/* ---- Nửa phải: nền canvas, form ---- */}
-      <main className="relative isolate flex flex-1 flex-col justify-center overflow-hidden bg-canvas px-cozy py-block text-body lg:w-1/2 lg:px-block">
-        <Backdrop tone="canvas" />
-
-        <div className="relative z-10 mx-auto w-full max-w-answer">
-          <h2 className="text-ask font-semibold text-body">Đăng nhập</h2>
 
           {/* Phiên hết hạn không phải lỗi của người dùng và cũng không phải sự cố
               kỹ thuật, nên chỉ một dòng `role="status"` chứ không dùng khối cảnh
               báo — dành khối đó cho việc gõ sai mật khẩu ngay bên dưới. */}
           {isSessionExpired && (
-            <p role="status" className="font-display mt-block text-notice text-slate">
+            <p role="status" className="lab" style={{ marginTop: 20, lineHeight: 1.6 }}>
               Phiên đăng nhập của bạn đã hết hạn. Bạn hãy đăng nhập lại để tiếp tục.
             </p>
           )}
 
           {isBadCredentials && (
-            <div className="mt-block">
+            <div style={{ marginTop: 20 }}>
               <StateBlock
                 tone="fault"
                 role="alert"
                 heading="Email hoặc mật khẩu không đúng"
-                icon={<AlertIcon className="h-7 w-7" />}
+                icon={<AlertIcon className="" />}
               >
-                <p className="font-display text-notice text-body">
-                  Bạn hãy kiểm tra lại rồi thử lần nữa. Vì lý do an toàn, hệ thống
-                  không cho biết địa chỉ email này đã có tài khoản hay chưa.
+                <p>
+                  Bạn hãy kiểm tra lại rồi thử lần nữa. Vì lý do an toàn, hệ thống không
+                  cho biết địa chỉ email này đã có tài khoản hay chưa.
                 </p>
               </StateBlock>
             </div>
           )}
 
           {mutation.isError && !isBadCredentials && (
-            <div className="mt-block">
+            <div style={{ marginTop: 20 }}>
               <ErrorNotice
                 error={mutation.error}
                 retryLabel="Đăng nhập lại"
@@ -234,35 +273,40 @@ export function LoginScreen() {
             </div>
           )}
 
-          <form onSubmit={onSubmit} noValidate className="mt-block">
-            <div>
-              <label htmlFor="email" className={FIELD_LABEL_CLASS}>
+          <form onSubmit={onSubmit} noValidate>
+            <div style={{ marginTop: 26 }}>
+              <label htmlFor="email" className="lab">
                 Email
               </label>
               <input
                 id="email"
                 type="email"
+                inputMode="email"
                 autoComplete="username"
+                placeholder="ten@example.com"
                 aria-invalid={errors.email !== undefined}
                 aria-describedby={errors.email ? 'email-error' : undefined}
                 {...register('email')}
-                className={FIELD_INPUT_CLASS}
+                className="o"
+                style={{ marginTop: 7 }}
               />
               <FieldError id="email-error" message={errors.email?.message} />
             </div>
 
-            <div className="mt-block">
-              <label htmlFor="password" className={FIELD_LABEL_CLASS}>
+            <div style={{ marginTop: 16 }}>
+              <label htmlFor="password" className="lab">
                 Mật khẩu
               </label>
               <input
                 id="password"
                 type="password"
                 autoComplete="current-password"
+                placeholder="Nhập mật khẩu"
                 aria-invalid={errors.password !== undefined}
                 aria-describedby={errors.password ? 'password-error' : undefined}
                 {...register('password')}
-                className={FIELD_INPUT_CLASS}
+                className="o"
+                style={{ marginTop: 7 }}
               />
               <FieldError id="password-error" message={errors.password?.message} />
             </div>
@@ -270,13 +314,14 @@ export function LoginScreen() {
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="motion-press font-display mt-block min-h-call w-full rounded-pill bg-mint px-cozy text-input font-bold text-ink enabled:hover:bg-mint-press disabled:bg-surface disabled:font-normal disabled:text-slate"
+              className="btn pri"
+              style={{ width: '100%', marginTop: 24 }}
             >
               {mutation.isPending ? 'Đang đăng nhập…' : 'Đăng nhập'}
             </button>
 
             {mutation.isPending && (
-              <p role="status" className="font-display mt-tight text-question text-slate">
+              <p role="status" className="lab" style={{ marginTop: 9 }}>
                 Đang kiểm tra tài khoản…
               </p>
             )}

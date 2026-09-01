@@ -4,11 +4,16 @@
  * Không còn màn chọn vai trò đứng trước. Vai trò phải đến từ tài khoản, không
  * phải từ việc người dùng tự khai, nên bước đó đã bỏ hẳn (xem `app/guards.tsx`).
  *
- * BỐ CỤC:
+ * BỐ CỤC, dựng theo `id="hs"` của bản mẫu — `.co` hai cột:
  *
- *   1. Ba điều cần nói  — giới hạn của công cụ, đọc trước khi khai bất cứ gì.
- *   2. Form ba bước      — tuổi và thể trạng, rồi bệnh đã được chẩn đoán, rồi
- *                        thời điểm chẩn đoán. Xem `STEP_TITLES`.
+ *   cột chính — form ba bước: tuổi và thể trạng, rồi bệnh đã được chẩn đoán,
+ *               rồi thời điểm chẩn đoán. Xem `STEP_TITLES`.
+ *   cột phụ   — `ProfileIntro`, ba giới hạn của công cụ, cộng bảng điểm học
+ *               tập với người quay lại sửa hồ sơ.
+ *
+ * Ba điều cần nói trước đây nằm CHẮN NGANG đầu cột chính và đẩy ô nhập đầu tiên
+ * xuống dưới màn hình đầu. Sang cột phụ thì trên màn rộng chúng đứng song song
+ * với form; dưới 1162px `.co` tự về một cột và form vẫn lên trước.
  *
  * VÌ SAO CHIA BA BƯỚC: bốn trường hỏi dồn một lúc là một trang dài đặc chữ, và
  * người 45–70 tuổi đang lo lắng nhìn thấy nó thì bỏ giữa chừng. Chia ra thì mỗi
@@ -37,7 +42,6 @@ import {
 import { patientProfileQueryKey, usePatient } from '../patient/context'
 import { useDailyLesson } from '../app/learning'
 import { ErrorNotice } from '../ui/ErrorNotice'
-import { CheckIcon } from '../ui/icons'
 import { ProfileIntro } from '../ui/ProfileIntro'
 import { StepProgress } from '../ui/StepProgress'
 
@@ -327,88 +331,75 @@ const LAST_STEP = STEP_TITLES.length - 1
 // ---------------------------------------------------------------------------
 
 /**
- * Một lựa chọn bấm được, dùng chung cho cả chọn một và chọn nhiều.
+ * Một bệnh trong danh mục, dựng đúng `.chon` của `id="hs"`.
  *
- * Bên trong vẫn là `input` thật (radio hoặc checkbox) nhưng ẩn đi, chỉ hiện
- * phần `span` đã tạo dáng. Giữ input thật để được miễn phí toàn bộ hành vi bàn
- * phím gốc: nhóm radio đi bằng phím mũi tên, checkbox bật tắt bằng phím cách,
- * và trình đọc màn hình đọc đúng "đã chọn / chưa chọn".
+ * ĐỔI TỪ CHECKBOX ẨN SANG NÚT `aria-pressed`. Bản trước giấu một `input` thật
+ * dưới một `span` đã tạo dáng để mượn hành vi bàn phím gốc. Bản mẫu không dựng
+ * như thế: nó dùng `button` với `aria-pressed`, và mọi dáng của `.chon` — viền
+ * tím, nền `--tim-wash`, ô `.box` tô đặc — đều móc vào đúng thuộc tính đó
+ * (`.chon[aria-pressed="true"]`). Giữ checkbox ẩn thì thuộc tính kia không bao
+ * giờ được đặt và cả ô đứng im một dáng.
  *
- * `peer-focus-visible` cần thiết vì input bị `sr-only` — viền focus toàn cục ở
- * `index.css` sẽ vẽ lên một phần tử vô hình, nên phải chuyển sang phần nhìn thấy.
+ * Không mất gì về bàn phím hay trình đọc màn hình: `button` vẫn nhận tiêu điểm
+ * theo thứ tự tài liệu, vẫn bật tắt bằng phím cách và Enter, và `aria-pressed`
+ * được đọc thành "đã chọn / chưa chọn" đúng như checkbox. Cái mất là hành vi đi
+ * bằng phím mũi tên của một NHÓM RADIO — nhưng đây chưa bao giờ là nhóm radio:
+ * người mắc cả hai bệnh chọn được cả hai ô.
+ *
+ * Viền focus lấy thẳng từ `.btn:focus-visible` của bản mẫu, không phải một quy
+ * tắc riêng: `.chon` là một nút, và mọi nút trong hệ này viền tím dày 3px.
+ *
+ * Ô `.box` để TRỐNG khi chưa chọn, tô đặc `--tim` khi đã chọn — hai trạng thái
+ * khác hẳn nhau nhìn lướt cũng thấy. Không vẽ dấu tick mờ sẵn trong ô chưa
+ * chọn: đó là tín hiệu ngược hẳn với nghĩa của nó.
  */
-function ChoiceOption({
-  type,
-  name,
-  value,
+function ConditionChoice({
   label,
+  sublabel,
   checked,
   onChange,
 }: {
-  type: 'radio' | 'checkbox'
-  name: string
-  value: string
   label: string
+  /** Tên khác của bệnh, nếu danh mục có. Bỏ trống thì không dựng dòng thứ hai. */
+  sublabel: string | null
   checked: boolean
   onChange: (checked: boolean) => void
 }) {
   return (
-    <label className="block cursor-pointer">
-      <input
-        type={type}
-        name={name}
-        value={value}
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="peer sr-only"
-      />
-      {/* Mọi biến thể `peer-*` phải nằm trên chính thẻ ANH EM của input — biến
-          thể sinh ra selector `.peer:checked ~ &`, nên đặt xuống thẻ con bên
-          trong là không bao giờ khớp. Vì vậy cả nền, màu chữ lẫn độ đậm đều gom
-          hết lên thẻ này rồi để thẻ con thừa kế; khối biểu tượng bên trong đổi
-          màu bằng `peer-checked:` viết trên chính nó, và nó vẫn là em của input
-          nên selector khớp.
-
-          ĐÃ CHỌN: nền navy, chữ trắng (15.39:1), khối biểu tượng mint.
-          CHƯA CHỌN: nền trắng, chữ ink (15.39:1), khối biểu tượng sand.
-          Hai trạng thái đảo ngược hẳn sáng tối, nên nhìn lướt cũng ra ngay ô
-          nào đang được chọn — không phải dò một nét viền. */}
-      <span
-        className="
-          motion-lift font-display flex min-h-touch items-center gap-snug rounded-card-lg bg-surface p-cozy text-body
-          peer-checked:bg-ink peer-checked:font-semibold peer-checked:text-white
-          peer-checked:hover:bg-ink-press
-          peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-mint
-        "
-      >
-        {/* Khối biểu tượng tô màu bằng PROP `checked`, không bằng `peer-checked:`.
-            Biến thể `peer-*` sinh ra selector `.peer:checked ~ &`, tức nó chỉ
-            khớp với thẻ ANH EM của input — mà khối này là thẻ CON của span bên
-            ngoài, nên viết `peer-checked:` ở đây sẽ không bao giờ khớp và khối
-            đứng im một màu.
-
-            Dùng prop được vì đây là input có kiểm soát: `checked` truyền vào
-            chính là trạng thái thật của nó, không phải một bản sao có thể lệch.
-            Còn `peer-checked:` ở span ngoài thì vẫn đúng — nó là anh em. */}
-        <span
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-icon ${
-            checked ? 'bg-mint text-mint-deep' : 'bg-sand text-sand-deep'
-          }`}
-        >
-          {/* Ô chưa chọn để TRỐNG chứ không hiện dấu tick mờ: một dấu tick nằm
-              sẵn trong ô chưa chọn là tín hiệu ngược hẳn với nghĩa của nó. */}
-          {checked && <CheckIcon className="h-6 w-6" />}
+    <button
+      type="button"
+      className="chon"
+      aria-pressed={checked}
+      onClick={() => onChange(!checked)}
+      style={{ width: '100%' }}
+    >
+      <span className="box" aria-hidden="true" />
+      <span>
+        <span style={{ display: 'block', fontWeight: 500, fontSize: 'var(--t-lead)' }}>
+          {label}
         </span>
-        <span className="block text-notice">{label}</span>
+        {sublabel !== null && (
+          <span style={{ display: 'block', fontSize: 'var(--t-note)', color: 'var(--xam)' }}>
+            {sublabel}
+          </span>
+        )}
       </span>
-    </label>
+    </button>
   )
 }
 
-/** Dòng giải thích ngắn dưới nhãn: vì sao ứng dụng cần thông tin này. */
+/**
+ * Dòng giải thích ngắn dưới nhãn: vì sao ứng dụng cần thông tin này.
+ *
+ * Cỡ `--t-note` chứ không phải cỡ chữ thân bài: nhãn `.lab` ngay trên mới là
+ * câu hỏi, dòng này là chú thích cho nhãn đó.
+ */
 function FieldHint({ id, children }: { id: string; children: ReactNode }) {
   return (
-    <p id={id} className="font-display mt-hair text-question text-slate">
+    <p
+      id={id}
+      style={{ fontSize: 'var(--t-note)', color: 'var(--xam)', marginTop: 6, lineHeight: 1.6 }}
+    >
       {children}
     </p>
   )
@@ -418,21 +409,18 @@ function FieldHint({ id, children }: { id: string; children: ReactNode }) {
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (message === undefined) return null
   return (
-    <p id={id} role="alert" className="font-display mt-tight text-question text-alert">
+    <p
+      id={id}
+      role="alert"
+      style={{ marginTop: 8, color: 'var(--do)', fontSize: 'var(--t-note)', lineHeight: 1.6 }}
+    >
       {message}
     </p>
   )
 }
 
-/** Nhãn của một trường. Tối thiểu 17px theo sàn cỡ chữ. */
-const FIELD_LABEL_CLASS = 'font-display block text-input font-semibold text-body'
-
-/** Ô nhập một dòng: số, tháng năm. Cao tối thiểu 44px như mọi vùng chạm khác.
- * Viền `slate` (4.96:1 trên trắng) cho ngưỡng 3:1 của WCAG 1.4.11 — `line`
- * KHÔNG dùng được ở đây, xem cảnh báo trong `index.css`. */
-const FIELD_INPUT_CLASS =
-  'font-body mt-snug min-h-touch w-full rounded-card border-2 border-slate bg-surface p-snug text-input text-body'
-
+/** Khoảng cách từ nhãn `.lab` xuống ô `.o`, theo đúng nhịp của bản mẫu. */
+const INPUT_STYLE = { marginTop: 7 } as const
 /**
  * Ô số để trống trả về chuỗi rỗng, mà hợp đồng chờ `null` — đổi ngay ở đây.
  *
@@ -649,364 +637,406 @@ export function ProfileScreen() {
   // Đang đọc hồ sơ cũ thì chưa dựng form, tránh cảnh ô trống rồi nhảy số.
   if (profileState === 'loading') {
     return (
-      <p
-        role="status"
-        className="font-display mx-auto max-w-answer text-notice text-slate"
-      >
+      <p role="status" className="lab">
         Đang mở hồ sơ của bạn…
       </p>
     )
   }
 
   return (
-    // `mx-auto`: đây là một cột form hẹp nằm trong vùng nội dung rộng 878px.
-    // Dính lề trái thì hơn 300px bên phải bỏ trống, và mắt phải nhảy chéo từ
-    // cuối một dòng nhãn sang đầu ô nhập tiếp theo.
-    <div className="mx-auto w-full max-w-answer">
-      {isEditing && lessonData?.stats && (
-        <div className="mb-block flex gap-snug">
-          <div className="flex-1 rounded-card bg-mint p-cozy text-center">
-            <p className="text-metric font-semibold text-mint-deep">
-              {lessonData.stats.total_score}
-            </p>
-            <p className="font-display mt-hair text-question font-semibold text-mint-deep">
-              Điểm đã tích được
-            </p>
-          </div>
-          <div className="flex-1 rounded-card bg-coral p-cozy text-center">
-            <p className="text-metric font-semibold text-coral-deep">
-              {lessonData.stats.current_streak}
-            </p>
-            <p className="font-display mt-hair text-question font-semibold text-coral-deep">
-              Ngày học liền nhau
-            </p>
-          </div>
-        </div>
-      )}
+    /* CHÉP TỪ `id="hs"`: nhãn chặng `.eb`, tiêu đề `--t-h1` bó trong 18ch, rồi
+       `.co` hai cột — trái là form, phải là `.phu` dính trên đỉnh.
 
-      <h1 className="text-ask font-semibold text-body">
-        {isEditing ? 'Sửa hồ sơ sức khỏe' : 'Trước khi bắt đầu'}
+       Bản trước là một cột `max-w-answer` căn giữa. Cột phụ nay đã có nội dung
+       thật (lời dặn, và với người quay lại sửa hồ sơ là cả bảng điểm), nên chỗ
+       trống bên phải biến mất mà không phải căn giữa gì cả. Dưới 1162px `.co`
+       tự về một cột và form lên trước, đúng thứ tự cần làm. */
+    <div>
+      <div className="eb">Hồ sơ sức khoẻ</div>
+      <h1 style={{ fontSize: 'var(--t-h1)', lineHeight: 1.16, marginTop: 16, maxWidth: '18ch' }}>
+        {isEditing ? 'Sửa hồ sơ sức khoẻ' : 'Trước khi bắt đầu'}
       </h1>
 
-      {/* Ba điều này là giới hạn của công cụ, không phải lời chào một lần rồi
-          thôi, nên người quay lại sửa hồ sơ thấy y hệt người khai lần đầu. */}
-      <div className="mt-block">
-        <ProfileIntro />
-      </div>
-
-      {profileState === 'error' && (
-        <div className="mt-block">
-          <ErrorNotice
-            error={profileError}
-            retryLabel="Đọc lại hồ sơ"
-            onRetry={reloadProfile}
-          />
-        </div>
-      )}
-
-      <div className="mt-block">
-        <StepProgress
-          current={step + 1}
-          total={STEP_TITLES.length}
-          title={STEP_TITLES[step]}
-        />
-      </div>
-
-      <form onSubmit={onFormSubmit} noValidate className="mt-block">
-        {/* ---- Bước 1: tuổi, chiều cao, cân nặng ----
-            Ba con số dễ trả lời nhất, hỏi trước để người dùng vào guồng. */}
-        {step === 0 && (
-          <>
-            <div>
-              <label htmlFor="age" className={FIELD_LABEL_CLASS}>
-                {LABELS.age}
-              </label>
-              <FieldHint id="age-hint">{LABELS.ageHint}</FieldHint>
-              <input
-                id="age"
-                type="number"
-                inputMode="numeric"
-                min={MIN_AGE}
-                max={MAX_AGE}
-                step={1}
-                aria-describedby={errors.age ? 'age-hint age-error' : 'age-hint'}
-                aria-invalid={errors.age !== undefined}
-                {...register('age', { valueAsNumber: true })}
-                className={FIELD_INPUT_CLASS}
+      <div className="co" style={{ marginTop: 30 }}>
+        <div>
+          {profileState === 'error' && (
+            <div style={{ marginBottom: 22 }}>
+              <ErrorNotice
+                error={profileError}
+                retryLabel="Đọc lại hồ sơ"
+                onRetry={reloadProfile}
               />
-              <FieldError id="age-error" message={errors.age?.message} />
             </div>
+          )}
 
-            {/* ---- Chiều cao và cân nặng ----
-                Hỏi chung một nhóm vì chúng được dùng chung một việc: chọn tài
-                liệu hợp thể trạng. Cả hai bỏ trống được, và dòng nhắc nói thẳng
-                điều đó — người không nhớ số của mình không nên bị kẹt ở đây.
+          <StepProgress
+            current={step + 1}
+            total={STEP_TITLES.length}
+            title={STEP_TITLES[step]}
+          />
 
-                Không tính và không hiện BMI, cũng không gợi ý cân nặng nên có.
-                Hợp đồng mục 4 xếp việc đó vào tư vấn dinh dưỡng cá nhân hoá,
-                nằm ngoài phạm vi giáo dục của sản phẩm. */}
-            <fieldset className="mt-block">
-              <legend className={FIELD_LABEL_CLASS}>{LABELS.body}</legend>
-              <FieldHint id="body-hint">{LABELS.bodyHint}</FieldHint>
-
-              <div className="mt-snug">
-                <label htmlFor="height_cm" className={FIELD_LABEL_CLASS}>
-                  {LABELS.height}
-                </label>
-                <input
-                  id="height_cm"
-                  type="number"
-                  inputMode="numeric"
-                  min={MIN_HEIGHT_CM}
-                  max={MAX_HEIGHT_CM}
-                  step={1}
-                  aria-describedby={
-                    errors.height_cm ? 'body-hint height-error' : 'body-hint'
-                  }
-                  aria-invalid={errors.height_cm !== undefined}
-                  {...register('height_cm', { setValueAs: toOptionalNumber })}
-                  className={FIELD_INPUT_CLASS}
-                />
-                <FieldError id="height-error" message={errors.height_cm?.message} />
-              </div>
-
-              <div className="mt-snug">
-                <label htmlFor="weight_kg" className={FIELD_LABEL_CLASS}>
-                  {LABELS.weight}
-                </label>
-                <input
-                  id="weight_kg"
-                  type="number"
-                  inputMode="decimal"
-                  min={MIN_WEIGHT_KG}
-                  max={MAX_WEIGHT_KG}
-                  // Một chữ số thập phân là KHUYẾN NGHỊ của hợp đồng chứ không
-                  // phải ràng buộc: `step` chỉ đặt nhịp cho nút tăng giảm, form
-                  // đã `noValidate` nên trình duyệt không chặn số lẻ hơn.
-                  step={0.1}
-                  aria-describedby={
-                    errors.weight_kg ? 'body-hint weight-error' : 'body-hint'
-                  }
-                  aria-invalid={errors.weight_kg !== undefined}
-                  {...register('weight_kg', { setValueAs: toOptionalNumber })}
-                  className={FIELD_INPUT_CLASS}
-                />
-                <FieldError id="weight-error" message={errors.weight_kg?.message} />
-              </div>
-            </fieldset>
-          </>
-        )}
-
-        {/* ---- Bước 2: bệnh đã được chẩn đoán ----
-            MỘT câu cho cả hai bệnh, dùng hộp kiểm chứ không phải ô chọn một.
-            Người mắc đồng thời đái tháo đường và tăng huyết áp không tự xếp
-            bệnh nào là chính, mà hỏi họ điều đó cũng không giúp gì cho câu trả
-            lời — việc tách `primary_condition` với `comorbidities` là yêu cầu
-            của hợp đồng API, và nó được xử lý ở `splitConditions` lúc gửi. */}
-        {step === 1 && (
-          <fieldset>
-            <legend className={FIELD_LABEL_CLASS}>{LABELS.conditions}</legend>
-            <FieldHint id="conditions-hint">{LABELS.conditionsHint}</FieldHint>
-
-            {conditionCatalog.isPending && (
-              <p role="status" className="font-display mt-snug text-question text-slate">
-                Đang đọc danh mục bệnh được hệ thống hỗ trợ…
-              </p>
-            )}
-            {conditionCatalog.isError && (
-              <div className="mt-snug">
-                <ErrorNotice
-                  error={conditionCatalog.error}
-                  retryLabel="Đọc lại danh mục"
-                  onRetry={() => void conditionCatalog.refetch()}
-                />
-              </div>
-            )}
-
-            {conditionCatalog.data !== undefined && (
-            <div
-              className="mt-snug space-y-snug"
-              aria-describedby={
-                errors.conditions ? 'conditions-hint conditions-error' : 'conditions-hint'
-              }
-            >
-              {conditionCatalog.data.conditions.map((condition) => (
-                <ChoiceOption
-                  key={condition.condition_id}
-                  type="checkbox"
-                  name="conditions"
-                  value={condition.condition_id}
-                  label={condition.label_vi}
-                  checked={conditions.includes(condition.condition_id)}
-                  onChange={(isChecked) => toggleCondition(condition.condition_id, isChecked)}
-                />
-              ))}
-            </div>
-            )}
-            <FieldError id="conditions-error" message={errors.conditions?.message} />
-          </fieldset>
-        )}
-
-        {/* ---- Bước 3: thời điểm chẩn đoán ----
-            Câu khó nhớ nhất để cuối, và nó bỏ trống được. */}
-        {step === 2 && (
-          <>
-            <div>
-              <p className={FIELD_LABEL_CLASS}>
-                {LABELS.diagnosed}
-              </p>
-              <FieldHint id="diagnosed-hint">{LABELS.diagnosedHint}</FieldHint>
-              {/* Giá trị chuẩn YYYY-MM vẫn là một field của React Hook Form;
-                  hai control bên dưới chỉ là cách nhập dễ chỉnh hơn input
-                  month mặc định của từng trình duyệt. */}
-              <input type="hidden" {...register('diagnosed_at')} />
-              <div className="mt-snug grid grid-cols-2 gap-snug">
+          <form onSubmit={onFormSubmit} noValidate style={{ marginTop: 26 }}>
+            {/* ---- Bước 1: tuổi, chiều cao, cân nặng ----
+                Ba con số dễ trả lời nhất, hỏi trước để người dùng vào guồng. */}
+            {step === 0 && (
+              <>
                 <div>
-                  <label htmlFor="diagnosed_month" className={FIELD_LABEL_CLASS}>
-                    Tháng
+                  <label htmlFor="age" className="lab" style={{ display: 'block' }}>
+                    {LABELS.age}
                   </label>
-                  <select
-                    id="diagnosed_month"
-                    value={diagnosisMonth}
-                    onChange={(event) => updateDiagnosisDate(event.target.value, diagnosisYear)}
-                    aria-describedby={
-                      diagnosisError ? 'diagnosed-hint diagnosed-error' : 'diagnosed-hint'
-                    }
-                    aria-invalid={diagnosisError !== undefined}
-                    className={FIELD_INPUT_CLASS}
-                  >
-                    <option value="">Chọn tháng</option>
-                    {DIAGNOSIS_MONTHS.map((month) => (
-                      <option key={month.value} value={month.value}>
-                        {month.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="diagnosed_year" className={FIELD_LABEL_CLASS}>
-                    Năm
-                  </label>
+                  <FieldHint id="age-hint">{LABELS.ageHint}</FieldHint>
                   <input
-                    id="diagnosed_year"
-                    type="text"
+                    id="age"
+                    type="number"
                     inputMode="numeric"
-                    autoComplete="off"
-                    maxLength={4}
-                    placeholder="Ví dụ 2025"
-                    value={diagnosisYear}
-                    onChange={(event) =>
-                      updateDiagnosisDate(diagnosisMonth, event.target.value.replace(/\D/g, '').slice(0, 4))
-                    }
-                    aria-describedby={
-                      diagnosisError ? 'diagnosed-hint diagnosed-error' : 'diagnosed-hint'
-                    }
-                    aria-invalid={diagnosisError !== undefined}
-                    className={FIELD_INPUT_CLASS}
+                    min={MIN_AGE}
+                    max={MAX_AGE}
+                    step={1}
+                    aria-describedby={errors.age ? 'age-hint age-error' : 'age-hint'}
+                    aria-invalid={errors.age !== undefined}
+                    {...register('age', { valueAsNumber: true })}
+                    className="o"
+                    style={INPUT_STYLE}
                   />
+                  <FieldError id="age-error" message={errors.age?.message} />
                 </div>
-              </div>
-              <FieldError id="diagnosed-error" message={diagnosisError} />
+
+                {/* ---- Chiều cao và cân nặng ----
+                    Hỏi chung một nhóm vì chúng được dùng chung một việc: chọn
+                    tài liệu hợp thể trạng. Cả hai bỏ trống được, và dòng nhắc
+                    nói thẳng điều đó — người không nhớ số của mình không nên bị
+                    kẹt ở đây.
+
+                    Không tính và không hiện BMI, cũng không gợi ý cân nặng nên
+                    có. Hợp đồng mục 4 xếp việc đó vào tư vấn dinh dưỡng cá nhân
+                    hoá, nằm ngoài phạm vi giáo dục của sản phẩm.
+
+                    `.auto` xếp hai ô cạnh nhau khi còn chỗ và tự xuống dòng khi
+                    hết, không cần điểm ngắt nào. */}
+                <fieldset style={{ border: 0, margin: '26px 0 0', padding: 0 }}>
+                  <legend className="lab" style={{ padding: 0 }}>
+                    {LABELS.body}
+                  </legend>
+                  <FieldHint id="body-hint">{LABELS.bodyHint}</FieldHint>
+
+                  <div className="auto" style={{ marginTop: 14 }}>
+                    <div>
+                      <label htmlFor="height_cm" className="lab" style={{ display: 'block' }}>
+                        {LABELS.height}
+                      </label>
+                      <input
+                        id="height_cm"
+                        type="number"
+                        inputMode="numeric"
+                        min={MIN_HEIGHT_CM}
+                        max={MAX_HEIGHT_CM}
+                        step={1}
+                        aria-describedby={
+                          errors.height_cm ? 'body-hint height-error' : 'body-hint'
+                        }
+                        aria-invalid={errors.height_cm !== undefined}
+                        {...register('height_cm', { setValueAs: toOptionalNumber })}
+                        className="o"
+                        style={INPUT_STYLE}
+                      />
+                      <FieldError id="height-error" message={errors.height_cm?.message} />
+                    </div>
+
+                    <div>
+                      <label htmlFor="weight_kg" className="lab" style={{ display: 'block' }}>
+                        {LABELS.weight}
+                      </label>
+                      <input
+                        id="weight_kg"
+                        type="number"
+                        inputMode="decimal"
+                        min={MIN_WEIGHT_KG}
+                        max={MAX_WEIGHT_KG}
+                        // Một chữ số thập phân là KHUYẾN NGHỊ của hợp đồng chứ
+                        // không phải ràng buộc: `step` chỉ đặt nhịp cho nút tăng
+                        // giảm, form đã `noValidate` nên trình duyệt không chặn
+                        // số lẻ hơn.
+                        step={0.1}
+                        aria-describedby={
+                          errors.weight_kg ? 'body-hint weight-error' : 'body-hint'
+                        }
+                        aria-invalid={errors.weight_kg !== undefined}
+                        {...register('weight_kg', { setValueAs: toOptionalNumber })}
+                        className="o"
+                        style={INPUT_STYLE}
+                      />
+                      <FieldError id="weight-error" message={errors.weight_kg?.message} />
+                    </div>
+                  </div>
+                </fieldset>
+              </>
+            )}
+
+            {/* ---- Bước 2: bệnh đã được chẩn đoán ----
+                MỘT câu cho cả hai bệnh, chọn được nhiều ô. Người mắc đồng thời
+                đái tháo đường và tăng huyết áp không tự xếp bệnh nào là chính,
+                mà hỏi họ điều đó cũng không giúp gì cho câu trả lời — việc tách
+                `primary_condition` với `comorbidities` là yêu cầu của hợp đồng
+                API, và nó được xử lý ở `splitConditions` lúc gửi. */}
+            {step === 1 && (
+              <fieldset style={{ border: 0, margin: 0, padding: 0 }}>
+                <legend className="lab" style={{ padding: 0 }}>
+                  {LABELS.conditions}
+                </legend>
+                <FieldHint id="conditions-hint">{LABELS.conditionsHint}</FieldHint>
+
+                {conditionCatalog.isPending && (
+                  <p role="status" className="lab" style={{ marginTop: 14 }}>
+                    Đang đọc danh mục bệnh được hệ thống hỗ trợ…
+                  </p>
+                )}
+                {conditionCatalog.isError && (
+                  <div style={{ marginTop: 14 }}>
+                    <ErrorNotice
+                      error={conditionCatalog.error}
+                      retryLabel="Đọc lại danh mục"
+                      onRetry={() => void conditionCatalog.refetch()}
+                    />
+                  </div>
+                )}
+
+                {conditionCatalog.data !== undefined && (
+                  <div
+                    style={{ display: 'grid', gap: 10, marginTop: 14 }}
+                    aria-describedby={
+                      errors.conditions
+                        ? 'conditions-hint conditions-error'
+                        : 'conditions-hint'
+                    }
+                  >
+                    {conditionCatalog.data.conditions.map((condition) => (
+                      <ConditionChoice
+                        key={condition.condition_id}
+                        label={condition.label_vi}
+                        // Dòng phụ là tên tiếng Anh của bệnh, đúng thứ danh mục
+                        // có thật. Bản mẫu để chỗ này là các tên gọi khác trong
+                        // tiếng Việt; ngày nào hợp đồng trả về chúng thì thay
+                        // vào đây, chứ không bịa sẵn một danh sách.
+                        sublabel={condition.label_en}
+                        checked={conditions.includes(condition.condition_id)}
+                        onChange={(isChecked) =>
+                          toggleCondition(condition.condition_id, isChecked)
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+                <FieldError id="conditions-error" message={errors.conditions?.message} />
+              </fieldset>
+            )}
+
+            {/* ---- Bước 3: thời điểm chẩn đoán ----
+                Câu khó nhớ nhất để cuối, và nó bỏ trống được. */}
+            {step === 2 && (
+              <>
+                <div>
+                  <p className="lab">{LABELS.diagnosed}</p>
+                  <FieldHint id="diagnosed-hint">{LABELS.diagnosedHint}</FieldHint>
+                  {/* Giá trị chuẩn YYYY-MM vẫn là một field của React Hook Form;
+                      hai control bên dưới chỉ là cách nhập dễ chỉnh hơn input
+                      month mặc định của từng trình duyệt. */}
+                  <input type="hidden" {...register('diagnosed_at')} />
+                  <div className="auto" style={{ marginTop: 14 }}>
+                    <div>
+                      <label
+                        htmlFor="diagnosed_month"
+                        className="lab"
+                        style={{ display: 'block' }}
+                      >
+                        Tháng
+                      </label>
+                      <select
+                        id="diagnosed_month"
+                        value={diagnosisMonth}
+                        onChange={(event) =>
+                          updateDiagnosisDate(event.target.value, diagnosisYear)
+                        }
+                        aria-describedby={
+                          diagnosisError ? 'diagnosed-hint diagnosed-error' : 'diagnosed-hint'
+                        }
+                        aria-invalid={diagnosisError !== undefined}
+                        className="o"
+                        style={INPUT_STYLE}
+                      >
+                        <option value="">Chọn tháng</option>
+                        {DIAGNOSIS_MONTHS.map((month) => (
+                          <option key={month.value} value={month.value}>
+                            {month.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="diagnosed_year"
+                        className="lab"
+                        style={{ display: 'block' }}
+                      >
+                        Năm
+                      </label>
+                      <input
+                        id="diagnosed_year"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={4}
+                        placeholder="Ví dụ 2025"
+                        value={diagnosisYear}
+                        onChange={(event) =>
+                          updateDiagnosisDate(
+                            diagnosisMonth,
+                            event.target.value.replace(/\D/g, '').slice(0, 4),
+                          )
+                        }
+                        aria-describedby={
+                          diagnosisError ? 'diagnosed-hint diagnosed-error' : 'diagnosed-hint'
+                        }
+                        aria-invalid={diagnosisError !== undefined}
+                        className="o"
+                        style={INPUT_STYLE}
+                      />
+                    </div>
+                  </div>
+                  <FieldError id="diagnosed-error" message={diagnosisError} />
+                </div>
+
+                {mutation.isError && (
+                  <div style={{ marginTop: 22 }}>
+                    <ErrorNotice
+                      error={mutation.error}
+                      retryLabel="Lưu lại"
+                      onRetry={() => void submitProfile()}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ---- Đi lui, đi tới ----
+                Hàng nút của `id="hs"`: `.btn` thường cho "Quay lại", `.btn.pri`
+                cho việc chính, `flex-wrap` để hai nút tự xuống dòng khi hẹp.
+                Bước 1 không có nút lui vì không có chỗ nào để lui về.
+
+                HAI NÚT CHÍNH LÀ HAI Ô CON RIÊNG BIỆT. ĐỪNG GỘP LẠI THÀNH MỘT
+                BIỂU THỨC BA NGÔI. Đây là nguyên nhân của một lỗi thật, không
+                phải sở thích trình bày:
+
+                Viết `{cond ? <button type="button"/> : <button type="submit"/>}`
+                thì hai nhánh nằm cùng MỘT ô con và cùng loại phần tử `button`,
+                nên React không dựng nút mới mà dùng lại đúng node DOM cũ, chỉ vá
+                thuộc tính — trong đó có `type`. Bấm "Tiếp tục" ở bước áp chót thì
+                `goNext` chạy `await trigger(...)` rồi `setStep`, mà microtask lại
+                chạy xong ngay khi listener trả về, tức TRƯỚC lúc trình duyệt thực
+                thi activation behavior của nút vừa bấm. React kịp đổi `type` của
+                chính node đó thành `submit`, trình duyệt thấy một nút submit và
+                gửi form. Lúc ấy `step` đã bằng `LAST_STEP` nên chốt trong
+                `onFormSubmit` cũng cho qua: hồ sơ bị lưu và người dùng bị đẩy
+                sang `/chat` giữa chừng.
+
+                Tách làm hai ô con thì mỗi nút có vị trí riêng: React THÁO hẳn nút
+                "Tiếp tục" và GẮN một nút "Lưu" mới. Node vừa được bấm rời khỏi
+                tài liệu nên không còn form owner, không submit được gì; còn nút
+                submit là node mới toanh, chưa hề nhận cú bấm nào. */}
+            <div style={{ display: 'flex', gap: 11, marginTop: 32, flexWrap: 'wrap' }}>
+              {step > 0 && (
+                <button type="button" onClick={goBack} className="btn">
+                  Quay lại
+                </button>
+              )}
+
+              {step < LAST_STEP && (
+                <button type="button" onClick={() => void goNext()} className="btn pri">
+                  Tiếp tục
+                </button>
+              )}
+
+              {/* `type="submit"` giữ nguyên: ở bước cuối, Enter trong ô nhập phải
+                  lưu được hồ sơ như mọi form khác. */}
+              {step === LAST_STEP && (
+                <button type="submit" disabled={mutation.isPending} className="btn pri">
+                  {mutation.isPending
+                    ? 'Đang lưu…'
+                    : isEditing
+                      ? 'Lưu thay đổi'
+                      : 'Lưu và bắt đầu hỏi'}
+                </button>
+              )}
             </div>
 
-            {mutation.isError && (
-              <div className="mt-block">
-                <ErrorNotice
-                  error={mutation.error}
-                  retryLabel="Lưu lại"
-                  onRetry={() => void submitProfile()}
-                />
+            {mutation.isPending && (
+              <p role="status" className="lab" style={{ marginTop: 12 }}>
+                Đang lưu hồ sơ…
+              </p>
+            )}
+
+            {/* ---- Đường thoát, chỉ ở bước 1 ---- */}
+            {step === 0 && !isEditing && (
+              <div style={{ marginTop: 32, borderTop: '1px solid var(--ke)', paddingTop: 18 }}>
+                <button type="button" onClick={skipProfile} className="btn sm gh">
+                  Bỏ qua, tôi muốn thử hỏi một câu trước
+                </button>
+                <p
+                  style={{
+                    marginTop: 10,
+                    fontSize: 'var(--t-note)',
+                    color: 'var(--xam)',
+                    lineHeight: 1.66,
+                    maxWidth: '56ch',
+                  }}
+                >
+                  Bạn vẫn hỏi được ngay. Chỉ là câu trả lời chưa đặt được vào bệnh và
+                  tuổi của bạn, nên sẽ chung chung hơn. Khai hồ sơ lúc nào cũng được.
+                </p>
               </div>
             )}
-          </>
-        )}
-
-        {/* ---- Đi lui, đi tới ----
-            "Quay lại" giữ bề ngang vừa đủ chữ, nút chính ăn hết chỗ còn lại —
-            trên điện thoại nó là mảng lớn nhất, khó bấm nhầm sang nút lui. Bước
-            1 không có nút lui vì không có chỗ nào để lui về.
-
-            HAI NÚT CHÍNH LÀ HAI Ô CON RIÊNG BIỆT. ĐỪNG GỘP LẠI THÀNH MỘT BIỂU
-            THỨC BA NGÔI. Đây là nguyên nhân của một lỗi thật, không phải sở
-            thích trình bày:
-
-            Viết `{cond ? <button type="button"/> : <button type="submit"/>}` thì
-            hai nhánh nằm cùng MỘT ô con và cùng loại phần tử `button`, nên React
-            không dựng nút mới mà dùng lại đúng node DOM cũ, chỉ vá thuộc tính —
-            trong đó có `type`. Bấm "Tiếp tục" ở bước áp chót thì `goNext` chạy
-            `await trigger(...)` rồi `setStep`, mà microtask lại chạy xong ngay
-            khi listener trả về, tức TRƯỚC lúc trình duyệt thực thi activation
-            behavior của nút vừa bấm. React kịp đổi `type` của chính node đó
-            thành `submit`, trình duyệt thấy một nút submit và gửi form. Lúc ấy
-            `step` đã bằng `LAST_STEP` nên chốt trong `onFormSubmit` cũng cho
-            qua: hồ sơ bị lưu và người dùng bị đẩy sang `/chat` giữa chừng.
-
-            Tách làm hai ô con thì mỗi nút có vị trí riêng: React THÁO hẳn nút
-            "Tiếp tục" và GẮN một nút "Lưu" mới. Node vừa được bấm rời khỏi tài
-            liệu nên không còn form owner, không submit được gì; còn nút submit
-            là node mới toanh, chưa hề nhận cú bấm nào. */}
-        <div className="mt-block flex gap-snug">
-          {step > 0 && (
-            <button
-              type="button"
-              onClick={goBack}
-              className="motion-press font-display min-h-touch rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
-            >
-              Quay lại
-            </button>
-          )}
-
-          {step < LAST_STEP && (
-            <button
-              type="button"
-              onClick={() => void goNext()}
-              className="motion-press font-display min-h-call flex-1 rounded-pill bg-ink px-cozy text-input font-bold text-white enabled:hover:bg-ink-press"
-            >
-              Tiếp tục
-            </button>
-          )}
-
-          {/* `type="submit"` giữ nguyên: ở bước cuối, Enter trong ô nhập phải
-              lưu được hồ sơ như mọi form khác. */}
-          {step === LAST_STEP && (
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="motion-press font-display min-h-call flex-1 rounded-pill bg-ink px-cozy text-input font-bold text-white enabled:hover:bg-ink-press disabled:bg-surface disabled:font-normal disabled:text-slate"
-            >
-              {mutation.isPending
-                ? 'Đang lưu…'
-                : isEditing
-                  ? 'Lưu thay đổi'
-                  : 'Lưu và bắt đầu hỏi'}
-            </button>
-          )}
+          </form>
         </div>
 
-        {mutation.isPending && (
-          <p role="status" className="font-display mt-tight text-question text-slate">
-            Đang lưu hồ sơ…
-          </p>
-        )}
+        {/* Cột phụ của `id="hs"`. Bản mẫu để ở đây một thẻ "trợ lý sẽ dùng" liệt
+            kê văn bản đang mở — màn này chưa có nguồn dữ liệu nào cho danh sách
+            đó, nên không dựng một thẻ rỗng để giữ chỗ. Thay vào là hai thứ đã có
+            thật: lời dặn, và với người quay lại sửa hồ sơ thì cả việc học. */}
+        <div className="phu">
+          <ProfileIntro />
 
-        {/* ---- Đường thoát, chỉ ở bước 1 ---- */}
-        {step === 0 && !isEditing && (
-          <div className="mt-block border-t border-line pt-snug">
-            <button
-              type="button"
-              onClick={skipProfile}
-              className="font-display flex min-h-touch items-center text-input font-semibold text-body underline underline-offset-4"
-            >
-              Bỏ qua, tôi muốn thử hỏi một câu trước
-            </button>
-            <p className="font-display mt-hair text-question text-slate">
-              Bạn vẫn hỏi được ngay. Chỉ là câu trả lời chưa đặt được vào bệnh và
-              tuổi của bạn, nên sẽ chung chung hơn. Khai hồ sơ lúc nào cũng được.
-            </p>
-          </div>
-        )}
-      </form>
+          {isEditing && lessonData?.stats && (
+            <div className="phieu" style={{ marginTop: 16 }}>
+              <div className="phieu-top">
+                <span>Việc học của bạn</span>
+              </div>
+              <div style={{ padding: '16px 18px' }}>
+                {/* Hai con số mono cỡ lớn, đúng lối thẻ đếm ở cột phụ của bản
+                    mẫu. Điểm dùng `--xanh` vì nó là thứ đã tích được; chuỗi ngày
+                    dùng `--tim` để hai con số không đọc thành một cặp. */}
+                <div
+                  className="mono"
+                  style={{ fontSize: 'clamp(30px,3vw,40px)', color: 'var(--xanh)', lineHeight: 1.1 }}
+                >
+                  {lessonData.stats.total_score}
+                </div>
+                <div className="lab">Điểm đã tích được</div>
+
+                <div style={{ height: 1, background: 'var(--ke)', margin: '14px 0' }} />
+
+                <div
+                  className="mono"
+                  style={{ fontSize: 'clamp(30px,3vw,40px)', color: 'var(--tim)', lineHeight: 1.1 }}
+                >
+                  {lessonData.stats.current_streak}
+                </div>
+                <div className="lab">Ngày học liền nhau</div>
+              </div>
+              <div className="rangcua" />
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

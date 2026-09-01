@@ -1,6 +1,10 @@
 /**
  * Câu hỏi chưa trả lời được, đường dẫn `/editor/out-of-scope`.
  *
+ * CHÉP TỪ `id="btn"` của bản mẫu: nhãn `.eb` "Thiếu nguồn", tiêu đề "Câu ngoài
+ * phạm vi", một đoạn dẫn, rồi `.phieu` chứa bảng bốn cột — Câu hỏi · Số lượt ·
+ * Gần nhất · nút hành động — và dải `.rangcua` khép lại.
+ *
  * Đây là đầu vào của việc mở rộng thư viện: những gì bệnh nhân đã hỏi mà trợ lý
  * phải trả `referral` vì không có tài liệu nào để trích. Xếp theo số lượt hỏi
  * giảm dần, và thứ tự đó chính là thứ tự ưu tiên soạn bài — nên nó do máy chủ
@@ -16,10 +20,63 @@ import { Link } from 'react-router-dom'
 import { useInvalidateEditorData, useOutOfScopeLogs } from '../app/editor'
 import { createDraftFromLog } from '../lib/api'
 import { formatDateTime } from '../lib/datetime'
+import type { OutOfScopeLog } from '../lib/schemas'
 import { EmptyState } from '../ui/EmptyState'
 import { DocumentStack } from '../ui/illustrations'
 import { ErrorNotice } from '../ui/ErrorNotice'
-import { PlusIcon } from '../ui/icons'
+
+/**
+ * Một dòng của bảng.
+ *
+ * Ô "Số lượt" là chữ mono theo bản mẫu, và số đếm là thứ tự ưu tiên của cả màn
+ * gói vào một ô — quét dọc cột ấy là biết thư viện thiếu chỗ nào nặng nhất.
+ * Dòng ĐÃ TẠO BÀI lùi màu: việc của nó đã chuyển sang hàng đợi duyệt, nó không
+ * còn là chỗ trống nữa.
+ */
+function LogRow({
+  log,
+  isDrafting,
+  onDraft,
+}: {
+  log: OutOfScopeLog
+  isDrafting: boolean
+  onDraft: () => void
+}) {
+  return (
+    <tr>
+      <td style={{ color: log.drafted ? 'var(--xam)' : 'var(--ink)' }}>{log.question}</td>
+
+      <td className="mono" style={{ color: log.drafted ? 'var(--xam)' : 'var(--tim)' }}>
+        {String(log.ask_count).padStart(2, '0')}
+      </td>
+
+      <td className="mono" style={{ color: 'var(--xam)', whiteSpace: 'nowrap' }}>
+        {formatDateTime(log.last_asked_at)}
+      </td>
+
+      <td>
+        {log.drafted && log.drafted_item_id !== null ? (
+          <Link
+            to={`/editor/queue/${encodeURIComponent(log.drafted_item_id)}`}
+            className="btn sm gh"
+          >
+            Mở bản nháp
+          </Link>
+        ) : (
+          <button
+            type="button"
+            className="btn sm"
+            disabled={isDrafting}
+            style={isDrafting ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+            onClick={onDraft}
+          >
+            {isDrafting ? 'Đang tạo…' : 'Tạo bản nháp'}
+          </button>
+        )}
+      </td>
+    </tr>
+  )
+}
 
 export function OutOfScopeScreen() {
   const { data, isPending, isError, error, refetch } = useOutOfScopeLogs()
@@ -40,31 +97,37 @@ export function OutOfScopeScreen() {
   const logs = data?.logs ?? []
 
   return (
-    <div className="max-w-reading">
-      <h1 className="text-ask font-semibold text-body">Câu hỏi chưa trả lời được</h1>
-      <p className="mt-snug max-w-answer text-notice text-body">
-        Bệnh nhân đã hỏi những câu này nhưng thư viện chưa có tài liệu để trích
-        dẫn. Xếp theo số lượt hỏi giảm dần — trên cùng là chỗ thiếu nhiều nhất.
+    <div>
+      <div className="eb">Thiếu nguồn</div>
+
+      <h1 style={{ fontSize: 'var(--t-h2)', lineHeight: 1.22, marginTop: 12 }}>Câu ngoài phạm vi</h1>
+
+      <p
+        style={{
+          fontSize: 'var(--t-note)',
+          color: 'var(--xam)',
+          marginTop: 12,
+          maxWidth: '62ch',
+        }}
+      >
+        Những câu người bệnh hỏi mà trợ lý chưa có văn bản để trả lời, xếp theo số lượt hỏi. Danh
+        sách không kèm thông tin nhận dạng người hỏi.
       </p>
 
       {isPending && (
-        <p role="status" className="font-display mt-block text-notice text-slate">
+        <p role="status" className="lab" style={{ marginTop: 22 }}>
           Đang đọc danh sách…
         </p>
       )}
 
       {isError && (
-        <div className="mt-block">
-          <ErrorNotice
-            error={error}
-            retryLabel="Đọc lại danh sách"
-            onRetry={() => void refetch()}
-          />
+        <div style={{ marginTop: 22 }}>
+          <ErrorNotice error={error} retryLabel="Đọc lại danh sách" onRetry={() => void refetch()} />
         </div>
       )}
 
       {draft.isError && (
-        <div className="mt-block">
+        <div style={{ marginTop: 22 }}>
           <ErrorNotice
             error={draft.error}
             retryLabel="Thử lại"
@@ -83,7 +146,7 @@ export function OutOfScopeScreen() {
           ghi log chưa chạy. Câu thứ hai chỉ mô tả phạm vi của danh sách, không
           suy ra điều gì từ việc nó rỗng. */}
       {!isPending && !isError && logs.length === 0 && (
-        <div className="mt-block">
+        <div style={{ marginTop: 22 }}>
           <EmptyState
             illustration={<DocumentStack size={128} />}
             title="Danh sách hiện không có mục nào"
@@ -93,62 +156,31 @@ export function OutOfScopeScreen() {
       )}
 
       {logs.length > 0 && (
-        <ul className="mt-block space-y-snug">
-          {logs.map((log) => {
-            const isDrafting = draft.isPending && draft.variables === log.log_id
-
-            return (
-              <li
-                key={log.log_id}
-                className="flex items-start gap-snug rounded-card bg-surface p-cozy"
-              >
-                {/* Khối số lượt hỏi, vuông bo góc, số bằng Lora.
-                    NỀN CORAL khi chưa ai tạo bài, NỀN SAND khi đã tạo. Đây là
-                    thứ tự ưu tiên của cả màn hình gói vào một ô: quét dọc cột
-                    trái, ô nào còn coral là ô còn việc. Cùng cặp màu với khối
-                    nguồn gốc ở hàng đợi duyệt, và cùng một nghĩa — coral là
-                    "có người đang chờ". */}
-                <span
-                  className={`flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-chip ${
-                    log.drafted ? 'bg-sand text-sand-deep' : 'bg-coral text-coral-deep'
-                  }`}
-                >
-                  <span className="text-heading font-semibold">{log.ask_count}</span>
-                  <span className="font-display text-note">lượt</span>
-                </span>
-
-                <div className="min-w-0 flex-1">
-                  <p className="text-notice text-body">{log.question}</p>
-
-                  <p className="font-display mt-snug text-question text-slate">
-                    Gần nhất {formatDateTime(log.last_asked_at)}
-                  </p>
-
-                  <div className="mt-snug">
-                    {log.drafted && log.drafted_item_id !== null ? (
-                      <Link
-                        to={`/editor/queue/${encodeURIComponent(log.drafted_item_id)}`}
-                        className="motion-press font-display inline-flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body no-underline hover:bg-canvas"
-                      >
-                        Đã tạo bài · mở mục nháp
-                      </Link>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={isDrafting}
-                        onClick={() => draft.mutate(log.log_id)}
-                        className="motion-press font-display flex min-h-touch items-center gap-tight rounded-pill bg-ink px-cozy text-input font-bold text-white enabled:hover:bg-ink-press disabled:bg-canvas disabled:font-normal disabled:text-slate"
-                      >
-                        <PlusIcon className="h-5 w-5 shrink-0" />
-                        {isDrafting ? 'Đang tạo…' : 'Thêm bài'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <div className="phieu" style={{ marginTop: 22 }}>
+          <div style={{ padding: 'clamp(14px,2vw,22px)', overflowX: 'auto' }}>
+            <table style={{ minWidth: 620 }}>
+              <thead>
+                <tr>
+                  <th>Câu hỏi</th>
+                  <th>Số lượt</th>
+                  <th>Gần nhất</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log) => (
+                  <LogRow
+                    key={log.log_id}
+                    log={log}
+                    isDrafting={draft.isPending && draft.variables === log.log_id}
+                    onDraft={() => draft.mutate(log.log_id)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="rangcua" />
+        </div>
       )}
     </div>
   )

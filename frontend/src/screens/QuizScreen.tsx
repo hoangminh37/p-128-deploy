@@ -40,7 +40,7 @@ export function QuizScreen() {
         </nav>
 
         <header className="mb-block">
-          <h1 className="text-ask font-semibold text-body">Trắc nghiệm kiến thức</h1>
+          <h1 className="font-title text-ask text-body">Trắc nghiệm kiến thức</h1>
           <p className="mt-snug max-w-answer text-notice text-body">
             Đây là chặng cuối của vòng học: đọc bài trong Thư viện, hỏi trợ lý những
             chỗ chưa rõ, rồi tự kiểm tra lại xem mình đã nắm chưa. Đề được soạn riêng

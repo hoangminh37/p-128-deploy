@@ -98,7 +98,7 @@ function Cell({
   rowSpan?: number
   columnSpan?: number
 }) {
-  const className = `border-b border-line px-snug py-tight align-top leading-relaxed ${
+  const className = `${
     column + columnSpan < columnCount ? 'border-r' : ''
   } ${isHeader ? 'bg-ink font-display font-semibold text-white' : ''}`
   if (isHeader || isRowHeader) {
@@ -130,14 +130,14 @@ function StructuredSourceTable({ table }: { table: SourceTable }) {
   }
 
   return (
-    <div className="mt-snug overflow-x-auto rounded-card border-2 border-line bg-surface">
-      <table className="min-w-full border-collapse text-left text-question text-body">
+    <div style={{ marginTop: 14, overflowX: 'auto', border: '1px solid var(--ke)' }}>
+      <table>
         <caption className="sr-only">Bảng thông tin trong tài liệu nguồn</caption>
         <tbody>
           {Array.from({ length: table.rows }, (_, rowIndex) => {
             const cells = (cellsByRow.get(rowIndex) ?? []).sort((a, b) => a.column - b.column)
             return (
-              <tr key={`structured-row-${rowIndex}`} className={rowIndex % 2 === 1 ? 'bg-canvas' : ''}>
+              <tr key={`structured-row-${rowIndex}`}>
                 {cells.map((cell) => (
                   <Cell
                     key={`structured-${cell.row}-${cell.column}`}
@@ -162,13 +162,13 @@ function StructuredSourceTable({ table }: { table: SourceTable }) {
 
 function MarkdownSourceTable({ table }: { table: PipeTable }) {
   return (
-    <div className="mt-snug overflow-x-auto rounded-card border-2 border-line bg-surface">
-      <table className="min-w-full border-collapse text-left text-question text-body">
-        <caption className={table.caption === null ? 'sr-only' : 'bg-ink px-snug py-tight text-left font-display font-semibold text-white'}>
+    <div style={{ marginTop: 14, overflowX: 'auto', border: '1px solid var(--ke)' }}>
+      <table>
+        <caption className={table.caption === null ? 'sr-only' : 'lab'} style={table.caption === null ? undefined : { textAlign: 'left', padding: '10px 12px' }}>
           {table.caption ?? 'Bảng thông tin trong tài liệu nguồn'}
         </caption>
         {table.headerRows.length > 0 && (
-          <thead className="bg-ink text-white">
+          <thead>
           {table.headerRows.map((row, rowIndex) => (
             <tr key={`header-${rowIndex}`}>
               {row.map((cell, cellIndex) => (
@@ -176,7 +176,7 @@ function MarkdownSourceTable({ table }: { table: PipeTable }) {
                   key={`header-${rowIndex}-${cellIndex}`}
                   scope={rowIndex === table.headerRows.length - 1 ? 'col' : undefined}
                   colSpan={row.length === 1 ? table.columnCount : 1}
-                  className={`border-b border-slate px-snug py-tight font-display font-semibold ${
+                  className={`${
                     cellIndex < table.columnCount - 1 ? 'border-r' : ''
                   }`}
                 >
@@ -189,11 +189,11 @@ function MarkdownSourceTable({ table }: { table: PipeTable }) {
         )}
         <tbody>
           {table.rows.map((row, rowIndex) => (
-            <tr key={`row-${rowIndex}`} className="odd:bg-canvas">
+            <tr key={`row-${rowIndex}`}>
               {Array.from({ length: table.columnCount }, (_, cellIndex) => (
                 <td
                   key={`row-${rowIndex}-${cellIndex}`}
-                  className={`border-b border-line px-snug py-tight align-top leading-relaxed ${
+                  className={`${
                     cellIndex < table.columnCount - 1 ? 'border-r' : ''
                   }`}
                 >
@@ -216,7 +216,9 @@ function SourceChunkContent({ content, table }: { content: string; table: Source
   const markdownTable = parsePipeTable(content)
   if (markdownTable !== null) return <MarkdownSourceTable table={markdownTable} />
 
-  return <p className="mt-snug whitespace-pre-wrap text-notice leading-relaxed">{content}</p>
+  return (
+    <p style={{ marginTop: 14, whiteSpace: 'pre-wrap', lineHeight: 1.75 }}>{content}</p>
+  )
 }
 
 export function SourceDocumentScreen() {
@@ -244,10 +246,7 @@ export function SourceDocumentScreen() {
         title="Liên kết tài liệu chưa đầy đủ"
         body="Hãy mở lại nguồn từ câu trả lời để xem đúng đoạn đã được trích dẫn."
         action={
-          <Link
-            to="/chat"
-            className="motion-press font-display flex min-h-touch items-center rounded-pill bg-ink px-cozy text-input font-bold text-white no-underline hover:bg-ink-press"
-          >
+          <Link to="/chat" className="btn pri">
             Về hỏi đáp
           </Link>
         }
@@ -257,7 +256,7 @@ export function SourceDocumentScreen() {
 
   if (sourceQuery.isPending) {
     return (
-      <p role="status" className="font-display text-notice text-slate">
+      <p role="status" className="lab">
         Đang mở tài liệu nguồn…
       </p>
     )
@@ -277,88 +276,197 @@ export function SourceDocumentScreen() {
   if (source === undefined) return null
 
   return (
-    <article className="mx-auto w-full max-w-reading">
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="motion-press font-display flex min-h-touch items-center rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body hover:bg-canvas"
-      >
-        Về câu trả lời
+    /* CHÉP TỪ `id="vb"`: nút quay lại, nhãn `.eb`, tên tài liệu, SỐ HIỆU mono
+       tím một dòng riêng, rồi `.co` hai cột — trái là `.phieu` chứa `.doc` có
+       CỘT LỀ TRÁI, phải là `.phu` chứa thẻ "Xuất xứ".
+
+       ĐÂY LÀ MÀN DUY NHẤT GIỮ `.doc-rail`. Bản mẫu tắt cột lề ở `#hd`, `#bh`
+       và `#btm` nhưng để nguyên ở đây, và lý do nằm ở chính nội dung: không có
+       thẻ nguồn nào bên phải để trỏ tới đoạn, mà người đọc đang lần theo một
+       tài liệu dài — cột số điều bên trái chính là thứ cho họ biết mình đang
+       đứng ở đâu. */
+    <article>
+      <button type="button" onClick={() => navigate(-1)} className="btn sm gh">
+        Quay lại câu trả lời
       </button>
 
-      <p className="font-display mt-block text-question font-semibold text-slate">
-        Tài liệu nguồn đã duyệt
+      <div className="eb" style={{ marginTop: 18 }}>
+        Văn bản gốc · {source.issuer}
+      </div>
+
+      <h1 style={{ fontSize: 'var(--t-h2)', lineHeight: 1.22, marginTop: 12, maxWidth: '26ch' }}>
+        {source.title}
+      </h1>
+
+      {/* SỐ HIỆU VĂN BẢN một dòng riêng, mono TÍM — chỗ đầu tiên mắt tìm khi
+          đang cầm một tờ văn bản thật để đối chiếu. Đây là chỗ thứ nhất trong
+          bốn chỗ được dùng tím.
+
+          Thiếu số hiệu thì nói thẳng là thiếu, không in một giá trị thay thế
+          trông như thật — nguyên tắc bản mẫu nêu ở màn `id="xc"`. */}
+      <p
+        className="mono"
+        style={{
+          fontSize: 'clamp(15px,1.2vw,18px)',
+          color: source.doc_code !== null ? 'var(--tim)' : 'var(--xam)',
+          marginTop: 10,
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {source.doc_code ?? 'Chưa có số hiệu văn bản'}
       </p>
-      <h1 className="mt-hair text-ask font-semibold text-body">{source.title}</h1>
 
-      <div className="mt-snug flex flex-wrap gap-tight">
-        <span className="font-display rounded-pill bg-canvas px-snug py-hair text-question text-body">
-          {source.issuer}
-        </span>
-        <span className="font-display rounded-pill bg-canvas px-snug py-hair text-question text-body">
-          Ban hành {source.published}
-        </span>
-        {source.doc_code !== null && (
-          <span className="font-mono rounded-pill bg-canvas px-snug py-hair text-question text-body">
-            {source.doc_code}
-          </span>
-        )}
-      </div>
+      <div className="co" style={{ marginTop: 26 }}>
+        {/* ---- Cột trái: toàn văn ---- */}
+        <div>
+          <div className="phieu">
+            <div className="phieu-top">
+              <span>Toàn văn đã biên tập</span>
+              <span>{source.total_chunks} đoạn</span>
+            </div>
 
-      <section className="mt-block rounded-card bg-mint p-cozy text-mint-deep">
-        <h2 className="font-display text-input font-semibold">Đoạn được trích trong câu trả lời</h2>
-        <p className="font-display mt-hair text-question">
-          Phần nền xanh bên dưới là đoạn hệ thống đã tìm thấy và dùng làm nguồn. Các phần còn lại
-          giúp bạn đọc thêm ngữ cảnh gần đoạn đó trong cùng tài liệu. Tài liệu này có{' '}
-          {source.total_chunks} đoạn đã được biên tập.
-        </p>
-      </section>
+            <div style={{ padding: '0 clamp(16px,2vw,24px)' }}>
+              <div className="doc">
+                {/* Cột lề: một `.ref` cho mỗi đoạn — tên mục ở dòng trên, số
+                    trang ở dòng dưới. `aria-current="true"` ở đoạn đang được
+                    trích, và `.ref[aria-current]` của bản mẫu vẽ một nét tím
+                    14×2px trước nó. */}
+                <div className="doc-rail">
+                  {source.chunks.map((chunk) => (
+                    <button
+                      key={`ref-${chunk.chunk_id}`}
+                      type="button"
+                      className="ref"
+                      style={{ background: 'none', border: 0, cursor: 'pointer', minHeight: 0 }}
+                      aria-current={
+                        chunk.chunk_id === source.highlighted_chunk_id ? 'true' : undefined
+                      }
+                      onClick={() => {
+                        document
+                          .getElementById(`source-chunk-${chunk.chunk_id}`)
+                          ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+                      }}
+                    >
+                      {chunk.section_path ?? `Đoạn ${chunk.chunk_id}`}
+                      <span>{pageLabel(chunk.page_start, chunk.page_end) ?? '—'}</span>
+                    </button>
+                  ))}
+                </div>
 
-      <div className="mt-block space-y-snug">
-        {source.chunks.map((chunk) => {
-          const isHighlighted = chunk.chunk_id === source.highlighted_chunk_id
-          const pages = pageLabel(chunk.page_start, chunk.page_end)
-          return (
-            <section
-              id={`source-chunk-${chunk.chunk_id}`}
-              key={chunk.chunk_id}
-              aria-label={isHighlighted ? 'Đoạn được trích dẫn' : undefined}
-              className={`scroll-mt-block rounded-card p-cozy ${
-                isHighlighted
-                  ? 'border-2 border-mint-deep bg-mint text-mint-deep'
-                  : 'border-2 border-line bg-surface text-body'
-              }`}
-            >
-              <div className="flex flex-wrap items-center gap-tight">
-                {isHighlighted && (
-                  <span className="font-display rounded-pill bg-mint-deep px-snug py-hair text-question font-semibold text-mint">
-                    Đoạn đã trích
-                  </span>
-                )}
-                {chunk.section_path !== null && (
-                  <p className="font-display text-question font-semibold">{chunk.section_path}</p>
-                )}
-                {pages !== null && <p className="font-mono text-question">{pages}</p>}
+                <div className="doc-body">
+                  {source.chunks.map((chunk) => {
+                    const isHighlighted = chunk.chunk_id === source.highlighted_chunk_id
+                    const pages = pageLabel(chunk.page_start, chunk.page_end)
+
+                    return (
+                      <section
+                        id={`source-chunk-${chunk.chunk_id}`}
+                        key={chunk.chunk_id}
+                        aria-label={isHighlighted ? 'Đoạn được trích dẫn' : undefined}
+                        style={{
+                          scrollMarginTop: 80,
+                          marginBottom: 26,
+                          // Đoạn được trích tách ra bằng NÉT LỀ TRÁI TÍM 3px,
+                          // không bằng một mảng nền. Tím là màu của xuất xứ, và
+                          // đây đúng là đoạn mà câu trả lời lấy làm căn cứ.
+                          ...(isHighlighted
+                            ? { borderLeft: '3px solid var(--tim)', paddingLeft: 14 }
+                            : {}),
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 9,
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {isHighlighted && <span className="chip cho">Đoạn đã trích</span>}
+                          {chunk.section_path !== null && (
+                            <span className="lab">{chunk.section_path}</span>
+                          )}
+                          {pages !== null && (
+                            <span className="mono" style={{ fontSize: 'var(--t-mono-s)', color: 'var(--xam)' }}>
+                              {pages}
+                            </span>
+                          )}
+                        </div>
+
+                        <SourceChunkContent content={chunk.content} table={chunk.table} />
+                      </section>
+                    )
+                  })}
+
+                  <p
+                    style={{
+                      fontSize: 'var(--t-note)',
+                      color: 'var(--xam)',
+                      borderLeft: '2px solid var(--ke-dam)',
+                      paddingLeft: 12,
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    Đoạn có nét lề tím là đoạn trích mà trợ lý đã dẫn trong câu trả lời
+                    của bạn.
+                  </p>
+                </div>
               </div>
-              <SourceChunkContent content={chunk.content} table={chunk.table} />
-            </section>
-          )
-        })}
-      </div>
+            </div>
 
-      {source.url !== null && (
-        <p className="font-display mt-block border-t border-line pt-snug text-question text-slate">
-          Muốn đối chiếu bản công bố?{' '}
-          <a
-            href={source.url}
-            target="_blank"
-            rel="noreferrer"
-            className="font-semibold text-body underline underline-offset-4"
-          >
-            Mở tài liệu gốc
-          </a>
-        </p>
-      )}
+            <div className="rangcua" />
+          </div>
+        </div>
+
+        {/* ---- Cột phải: xuất xứ ---- */}
+        <aside className="phu">
+          <div className="phieu">
+            <div
+              className="phieu-top"
+              style={{
+                background: 'var(--tim-wash)',
+                color: 'var(--tim)',
+                borderBottomColor: 'var(--tim)',
+              }}
+            >
+              <span>Xuất xứ</span>
+            </div>
+
+            <div style={{ padding: '16px 18px' }}>
+              <span className="lab">Cơ quan ban hành</span>
+              <p style={{ fontSize: 'var(--t-note)', marginTop: 2 }}>{source.issuer}</p>
+
+              <span className="lab" style={{ display: 'block', marginTop: 12 }}>
+                Năm ban hành
+              </span>
+              <p style={{ fontSize: 'var(--t-note)', marginTop: 2 }}>{source.published}</p>
+
+              <span className="lab" style={{ display: 'block', marginTop: 12 }}>
+                Số đoạn đã biên tập
+              </span>
+              <p style={{ fontSize: 'var(--t-note)', marginTop: 2 }}>{source.total_chunks}</p>
+
+              {source.url !== null && (
+                <>
+                  <div style={{ height: 1, background: 'var(--ke)', margin: '14px 0' }} />
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn sm gh"
+                    style={{ width: '100%' }}
+                  >
+                    Mở bản công bố
+                    <span className="sr-only"> — mở ở tab mới</span>
+                  </a>
+                </>
+              )}
+            </div>
+
+            <div className="rangcua" />
+          </div>
+        </aside>
+      </div>
     </article>
   )
 }

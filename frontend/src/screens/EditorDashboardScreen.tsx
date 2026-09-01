@@ -1,183 +1,286 @@
 /**
  * Màn tổng quan của biên tập viên, đường dẫn `/editor`.
  *
- * Chỉ hai con số, và cả hai đều bấm được. Đây là thứ người dùng nhìn đầu tiên
- * mỗi buổi, nên nó phải trả lời đúng một câu: hôm nay còn bao nhiêu việc.
+ * DỰNG TỪ `id="bt"` CỦA BẢN MẪU (`docs/design/eduhealth-ai.html`): nhãn `.eb`
+ * kèm ngày, tiêu đề `--t-h1`, một lưới `.auto-w` hai ô số liệu ngăn nhau bằng
+ * nét 1px, rồi `.co` hai cột — trái là bảng hàng chờ duyệt trong một `.phieu`,
+ * phải là `.phu` một thẻ số liệu dính theo màn hình.
  *
- * Hai con số cố ý KHÔNG gộp thành một "tổng việc cần làm": chúng là hai loại
- * việc khác nhau. `pending_count` là việc đang chờ người duyệt bấm nút, còn
- * `out_of_scope_count` là việc chưa ai bắt đầu soạn. Gộp lại sẽ giấu mất chuyện
- * cái nào đang tắc. Hai màu nhấn khác nhau — mint và coral — nói ra điều đó
- * trước cả khi người đọc kịp đọc nhãn.
+ * NỀN GIẤY, KHÔNG CÒN MẢNG MỰC ĐẶC. Bản trước đặt cả màn này lên một tấm navy
+ * để tách nó khỏi ba màn làm việc còn lại; bản mẫu cho cả bốn màn biên tập đứng
+ * trên cùng một tờ giấy và để `.phieu` với đường kẻ lo việc phân tầng.
  *
- * NỀN NAVY CÓ HỌA TIẾT, khác hẳn ba màn còn lại của khu vực biên tập. Đây là
- * màn DẪN DẮT: người dùng mở nó để nhìn hai con số rồi đi tiếp, không đọc gì
- * lâu ở đó. Ba màn kia — hàng đợi, duyệt chi tiết, log — là chỗ làm việc thật
- * nên chúng ở nền canvas. `RootLayout` đọc đường dẫn để chọn nền; xem ghi chú
- * `isDarkContent` ở đó.
+ * HAI CON SỐ Ở `.auto-w` KHÔNG GỘP LÀM MỘT. `pending_count` là việc đang chờ
+ * người duyệt bấm nút, `out_of_scope_count` là việc chưa ai bắt đầu soạn. Gộp
+ * lại sẽ giấu mất chuyện cái nào đang tắc; nét lề trái — xanh cho hàng chờ, đỏ
+ * cho chỗ thư viện còn thiếu — nói ra điều đó trước cả khi kịp đọc nhãn.
  *
- * KHÔNG CÓ BIỂU ĐỒ BẢY NGÀY. Bản vẽ có một khối biểu đồ cột, nhưng
- * `editorDashboardSchema` (mục 8 hợp đồng) chỉ trả về đúng hai số đếm —
- * `pending_count` và `out_of_scope_count`. Không có chuỗi thời gian nào để vẽ,
- * và một biểu đồ dựng từ số bịa trên màn quản trị nội dung y khoa thì tệ hơn
- * hẳn việc không có biểu đồ. Ngày nào hợp đồng thêm trường đó thì dựng khối này
- * lại, cột bằng `div` cao theo phần trăm.
+ * BẢNG HÀNG CHỜ đọc `useEditorQueues(['pending','failed'])`, đúng khóa cache mà
+ * màn hàng đợi dùng, nên mở tiếp sang đó không tốn thêm request nào. Bản mẫu
+ * còn một cột "Số hiệu" dạng mono, nhưng `editorQueueItemSchema` (mục 8) không
+ * trả `doc_code` cho danh sách — chỉ chi tiết một mục mới có. Thà bỏ hẳn cột đó
+ * còn hơn in một giá trị thay thế trông như thật.
  *
  * GIỌNG CHỮ ở khu vực này khác hẳn luồng bệnh nhân: người đọc là dược sĩ hoặc
  * bác sĩ, dùng thẳng thuật ngữ được, không phải giải thích "vector store là gì".
  */
-import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
-import { useEditorDashboard } from '../app/editor'
-import { useSession } from '../session/context'
-import { Backdrop } from '../ui/Backdrop'
+import { useEditorDashboard, useEditorQueues } from '../app/editor'
+import { formatDate } from '../lib/datetime'
+import { ORIGIN_LABEL } from '../lib/editorLabels'
+import { StatusBadge } from '../ui/EditorBadges'
 import { ErrorNotice } from '../ui/ErrorNotice'
-import { LibraryIcon, PlusIcon, SearchIcon } from '../ui/icons'
 
-/**
- * Tên gọi cho lời chào, suy từ email tài khoản.
- *
- * Hợp đồng mục 3 KHÔNG có trường tên người dùng — `UserInfo` chỉ có `user_id`,
- * `email`, `role` và `patient_id`. Nên phần trước dấu `@` là tất cả những gì
- * giao diện biết chắc về cách gọi người đang đăng nhập. Không đoán thêm gì từ
- * nó: không viết hoa chữ cái đầu, không tách họ tên, không đổi dấu chấm thành
- * khoảng trắng — mọi phép đó đều có thể biến một địa chỉ hợp lệ thành một cái
- * tên sai.
- */
-function accountName(email: string | undefined): string {
-  if (email === undefined || email === '') return 'bạn'
-  const [local] = email.split('@')
-  return local === '' ? 'bạn' : local
+/** Bản mẫu đệm số về hai chữ số (`07`, `23`) cho cột số thẳng hàng khi quét dọc. */
+function padded(value: number): string {
+  return String(value).padStart(2, '0')
 }
 
 /**
- * Một thẻ số liệu.
- *
- * Con số dùng bậc `metric` 44px và font Lora — cỡ lớn nhất trên màn này. Lora
- * chứ không phải mono: ở 44px con số đóng vai TIÊU ĐỀ của thẻ, không phải một
- * giá trị để đối chiếu từng chữ số, nên nó thuộc họ chữ của tiêu đề.
+ * Một ô của lưới `.auto-w`.
  *
  * `hint` là dòng ngữ cảnh bắt buộc: một con số trần không nói được nó đang là
  * tin tốt hay tin xấu, mà "12" ở hàng chờ duyệt với "12" ở log ngoài phạm vi là
  * hai tình huống đòi hai việc khác nhau.
  */
-function MetricCard({
+function MetricTile({
   to,
   value,
   label,
   hint,
-  icon,
-  tone,
+  accent,
 }: {
   to: string
   value: number
   label: string
   hint: string
-  icon: ReactNode
-  /** `mint` cho hàng chờ duyệt, `coral` cho log. Mỗi màu một loại việc. */
-  tone: 'mint' | 'coral'
+  /** `--xanh` cho hàng chờ duyệt, `--do` cho chỗ thư viện còn thiếu. */
+  accent: string
 }) {
-  // Cặp nền / chữ của mỗi màu nhấn là cố định, khai ở một chỗ. Mint đi với
-  // mint-deep (6.72:1), coral đi với coral-deep (5.04:1). Đừng trộn chéo.
-  const skin =
-    tone === 'mint'
-      ? {
-          card: 'bg-mint hover:bg-mint-lift',
-          text: 'text-mint-deep',
-          box: 'bg-mint-deep text-mint',
-        }
-      : {
-          card: 'bg-coral hover:bg-coral-lift',
-          text: 'text-coral-deep',
-          box: 'bg-coral-deep text-coral',
-        }
-
   return (
     <Link
       to={to}
-      className={`motion-lift flex flex-col rounded-card-lg p-cozy no-underline ${skin.card} ${skin.text}`}
+      style={{
+        background: 'var(--paper)',
+        padding: 20,
+        display: 'block',
+        borderLeft: '3px solid ' + accent,
+        textDecoration: 'none',
+        color: 'inherit',
+      }}
     >
-      <span
-        className={`flex h-12 w-12 items-center justify-center rounded-icon ${skin.box}`}
+      <div className="lab">{label}</div>
+      <div
+        className="mono"
+        style={{
+          fontSize: 'clamp(32px,3.4vw,46px)',
+          lineHeight: 1.1,
+          color: accent,
+          marginTop: 5,
+        }}
       >
-        {icon}
-      </span>
-
-      <span className="mt-cozy text-metric font-semibold">{value}</span>
-      <span className="font-display mt-hair text-input font-semibold">{label}</span>
-      <span className="font-display mt-tight text-question">{hint}</span>
+        {padded(value)}
+      </div>
+      <p className="lab" style={{ marginTop: 6 }}>
+        {hint}
+      </p>
     </Link>
   )
 }
 
 export function EditorDashboardScreen() {
   const { data, isPending, isError, error, refetch } = useEditorDashboard()
-  const { user } = useSession()
+
+  // Hai trạng thái "còn việc phải làm" của hàng đợi. `failed` đi cùng `pending`
+  // ở đây vì cả hai đều đang chờ một con người mở ra, chỉ khác nhau ở chỗ một
+  // cái chờ quyết định còn một cái chờ bấm chạy lại.
+  const queues = useEditorQueues(['pending', 'failed'])
+  const isQueuePending = queues.some((result) => result.isPending)
+  const queueFailure = queues.find((result) => result.isError)
+  // Mỗi request đã sắp riêng phần của nó, nhưng nối hai mảng đã sắp lại với
+  // nhau thì không còn đúng thứ tự nữa.
+  const queueItems = queues
+    .flatMap((result) => result.data?.items ?? [])
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .slice(0, 6)
 
   return (
-    <div className="relative isolate -mx-cozy -my-cozy overflow-hidden px-cozy py-block">
-      <Backdrop />
+    <div>
+      <div className="eb">Bảng công việc · {formatDate(new Date().toISOString())}</div>
 
-      <div className="relative z-10">
-        <div className="flex flex-wrap items-start justify-between gap-snug">
-          <div className="min-w-0">
-            <h1 className="text-hero font-semibold text-white">
-              Chào {accountName(user?.email)}.
-            </h1>
-            <p className="mt-snug max-w-answer text-answer text-mist">
-              Hai hàng việc của khu vực kiểm duyệt. Nội dung chỉ vào được thư
-              viện mà trợ lý trích dẫn sau khi có người ở đây duyệt.
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          gap: 18,
+          flexWrap: 'wrap',
+          marginTop: 16,
+        }}
+      >
+        <h1 style={{ fontSize: 'var(--t-h1)', lineHeight: 1.16 }}>Hôm nay cần bạn xử lý</h1>
+
+        {/* Đường duy nhất tới màn tải tài liệu — thanh bên không có mục đó. */}
+        <Link to="/editor/upload" className="btn sm">
+          Tải lên tài liệu
+        </Link>
+      </div>
+
+      {isPending && (
+        <p role="status" className="lab" style={{ marginTop: 26 }}>
+          Đang đọc số liệu…
+        </p>
+      )}
+
+      {isError && (
+        <div style={{ marginTop: 26 }}>
+          <ErrorNotice
+            error={error}
+            retryLabel="Đọc lại số liệu"
+            onRetry={() => void refetch()}
+          />
+        </div>
+      )}
+
+      {data !== undefined && (
+        <div className="auto-w" style={{ marginTop: 26 }}>
+          <MetricTile
+            to="/editor/queue"
+            value={data.pending_count}
+            label="Mục chờ duyệt"
+            hint="Đã soạn xong, đang đợi người duyệt quyết định."
+            accent="var(--xanh)"
+          />
+          <MetricTile
+            to="/editor/out-of-scope"
+            value={data.out_of_scope_count}
+            label="Câu hỏi chưa trả lời được"
+            hint="Bệnh nhân đã hỏi nhưng thư viện chưa có tài liệu."
+            accent="var(--do)"
+          />
+        </div>
+      )}
+
+      <div className="co" style={{ marginTop: 34 }}>
+        <div>
+          <span className="lab">Hàng chờ duyệt</span>
+
+          {isQueuePending && (
+            <p role="status" className="lab" style={{ marginTop: 12 }}>
+              Đang đọc hàng chờ…
             </p>
-          </div>
+          )}
 
-          <Link
-            to="/editor/upload"
-            className="motion-press font-display flex min-h-touch shrink-0 items-center gap-tight rounded-pill bg-mint px-cozy text-input font-bold text-ink no-underline hover:bg-mint-press"
-          >
-            <PlusIcon className="h-5 w-5 shrink-0" />
-            Tải lên tài liệu
-          </Link>
+          {queueFailure !== undefined && (
+            <div style={{ marginTop: 12 }}>
+              <ErrorNotice
+                error={queueFailure.error}
+                retryLabel="Đọc lại hàng chờ"
+                onRetry={() => void queueFailure.refetch()}
+              />
+            </div>
+          )}
+
+          {!isQueuePending && queueFailure === undefined && queueItems.length === 0 && (
+            <p style={{ marginTop: 12, fontSize: 'var(--t-note)', color: 'var(--xam)' }}>
+              Lần đọc này không có mục nào đang chờ duyệt hoặc cần chạy lại index.
+            </p>
+          )}
+
+          {queueItems.length > 0 && (
+            <>
+              <div
+                className="phieu"
+                style={{ marginTop: 8, borderTop: '2px solid var(--ink)', overflowX: 'auto' }}
+              >
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ minWidth: 240 }}>Tiêu đề</th>
+                      <th style={{ minWidth: 120 }}>Gửi lúc</th>
+                      <th style={{ minWidth: 110 }}>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {queueItems.map((item) => (
+                      <tr key={item.item_id}>
+                        <td>
+                          <Link
+                            to={'/editor/queue/' + encodeURIComponent(item.item_id)}
+                            style={{ color: 'var(--tim)' }}
+                          >
+                            {item.title}
+                          </Link>
+                          <div style={{ fontSize: 'var(--t-note)', color: 'var(--xam)' }}>
+                            {ORIGIN_LABEL[item.origin]}
+                          </div>
+                        </td>
+                        <td className="mono" style={{ fontSize: 'var(--t-note)' }}>
+                          {formatDate(item.created_at)}
+                        </td>
+                        <td>
+                          <StatusBadge status={item.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <Link to="/editor/queue" className="btn sm gh" style={{ marginTop: 14 }}>
+                Mở toàn bộ hàng đợi
+              </Link>
+            </>
+          )}
         </div>
 
-        {isPending && (
-          <p role="status" className="font-display mt-block text-notice text-mist">
-            Đang đọc số liệu…
-          </p>
-        )}
-
-        {isError && (
-          // `ErrorNotice` là một khối nền trắng, nên nó đứng được trên nền navy
-          // mà không phải có thêm một biến thể tối riêng.
-          <div className="mt-block">
-            <ErrorNotice
-              error={error}
-              retryLabel="Đọc lại số liệu"
-              onRetry={() => void refetch()}
-            />
+        <div className="phu">
+          <div className="phieu" style={{ borderLeft: '3px solid var(--tim)' }}>
+            <div
+              className="phieu-top"
+              style={{
+                background: 'var(--tim-wash)',
+                color: 'var(--tim)',
+                borderBottomColor: 'var(--tim)',
+              }}
+            >
+              <span>Yêu cầu phản hồi bệnh nhân</span>
+            </div>
+            <div style={{ padding: '16px 18px' }}>
+              {data === undefined ? (
+                // Hiện `0` trong lúc đang tải là nói dối: biên tập viên nhìn
+                // thấy số không rồi bỏ đi làm việc khác, trong khi thật ra đang
+                // có mấy chục yêu cầu chờ trả lời.
+                <p className="lab">Chưa đọc được số liệu</p>
+              ) : (
+                <div
+                  className="mono"
+                  style={{
+                    fontSize: 'clamp(30px,3vw,40px)',
+                    color: 'var(--tim)',
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {padded(data.patient_question_count)}
+                </div>
+              )}
+              <p style={{ fontSize: 'var(--t-note)', marginTop: 8, lineHeight: 1.66 }}>
+                Câu hỏi người bệnh gửi thẳng cho biên tập viên và đang chờ một
+                người trả lời. Mỗi câu là một chỗ thiếu trong kho văn bản, không
+                phải lỗi của người hỏi.
+              </p>
+              <Link
+                to="/editor/patient-questions"
+                className="btn sm"
+                style={{ width: '100%', marginTop: 16 }}
+              >
+                Xem danh sách
+              </Link>
+            </div>
+            <div className="rangcua" />
           </div>
-        )}
-
-        {data !== undefined && (
-          <div className="mt-block grid gap-cozy sm:grid-cols-2">
-            <MetricCard
-              to="/editor/queue"
-              tone="mint"
-              value={data.pending_count}
-              label="Mục chờ duyệt"
-              hint="Đã soạn xong, đang đợi người duyệt quyết định."
-              icon={<LibraryIcon className="h-7 w-7 shrink-0" />}
-            />
-            <MetricCard
-              to="/editor/out-of-scope"
-              tone="coral"
-              value={data.out_of_scope_count}
-              label="Câu hỏi chưa trả lời được"
-              hint="Bệnh nhân đã hỏi nhưng thư viện chưa có tài liệu, và chưa ai tạo bài."
-              icon={<SearchIcon className="h-7 w-7 shrink-0" />}
-            />
-          </div>
-        )}
+        </div>
       </div>
     </div>
   )

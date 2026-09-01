@@ -144,17 +144,14 @@ export function ErrorNotice({
     <StateBlock
       tone="fault"
       role="alert"
+      label="Thử lại được"
       heading={advice.heading}
-      icon={<AlertIcon className="h-7 w-7" />}
+      icon={<AlertIcon className="" />}
     >
-      <p className="font-display text-notice text-body">{advice.action}</p>
+      <p style={{ maxWidth: '60ch', lineHeight: 1.7 }}>{advice.action}</p>
 
       {advice.retryable && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="motion-press font-display mt-cozy min-h-touch rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body enabled:hover:bg-canvas"
-        >
+        <button type="button" onClick={onRetry} className="btn sm" style={{ marginTop: 16 }}>
           {retryLabel}
         </button>
       )}

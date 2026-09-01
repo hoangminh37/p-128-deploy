@@ -1,7 +1,7 @@
 /**
  * Khuôn chung của MỌI trạng thái rỗng trong ứng dụng.
  *
- * Ba phần, không hơn: linh vật bản `muted` ở giữa, một dòng tiêu đề 18px, và
+ * Ba phần, không hơn: nét sen ở giữa, một dòng tiêu đề 18px, và
  * một đoạn giải thích. Gom về một component để không chỗ nào tự nghĩ ra một
  * kiểu trống riêng — danh sách hội thoại trống, hàng đợi trống và log trống
  * phải nhìn ra ngay là cùng một loại tình huống.
@@ -18,27 +18,23 @@
  */
 import type { ReactNode } from 'react'
 
-import { Mascot } from './Mascot'
+import { Sen } from './Sen'
 
 /**
- * Hai họ nền của ứng dụng đòi hai cặp màu chữ khác nhau. Đây là chỗ duy nhất
- * trạng thái rỗng được phép rẽ nhánh — mọi thứ khác giống hệt nhau.
+ * MỘT cặp màu chữ duy nhất, không còn rẽ nhánh theo họ nền.
  *
- *   light: ink 14.22:1 và slate 4.58:1 trên canvas.
- *   dark:  white 15.39:1 và mist 6.80:1 trên ink.
+ * Bản trước có hai bản `light` / `dark` vì ứng dụng có hai họ nền — giấy sáng
+ * và navy đặc. Hướng "Hồ sơ / Công báo" chỉ còn một họ nền là giấy, kể cả ở
+ * thanh bên, nên nhánh thứ hai không còn chỗ nào gọi tới. Giữ tham số `tone`
+ * để chỗ gọi không phải sửa, nhưng cả hai giá trị nay trỏ về cùng một cặp:
+ * `body` 15.79:1 và `slate` 4.93:1 trên giấy nền.
  */
-const TONE = {
-  light: { title: 'text-body', body: 'text-slate' },
-  dark: { title: 'text-white', body: 'text-mist' },
-} as const
-
 export function EmptyState({
   title,
   body,
   action,
   illustration,
-  tone = 'light',
-  /** `true` cho những khoảng hẹp như thanh bên, nơi linh vật 96px không vừa. */
+  /** `true` cho những khoảng hẹp như thanh bên, nơi nét sen 96px không vừa. */
   compact = false,
 }: {
   title: string
@@ -46,42 +42,57 @@ export function EmptyState({
   /** Nút hoặc liên kết đặt dưới đoạn giải thích. Phần lớn chỗ không cần. */
   action?: ReactNode
   /**
-   * Hình thay cho linh vật.
+   * Hình thay cho nét sen.
    *
-   * Mặc định là linh vật Sen bản `muted` — trạng thái rỗng là một trong bốn chỗ
-   * nó được phép xuất hiện (xem `Mascot.tsx`). Nhưng linh vật là nhân vật của
-   * LUỒNG BỆNH NHÂN; ở khu vực biên tập nó lạc chỗ, vì người đọc màn đó là dược
-   * sĩ hoặc bác sĩ đang làm việc chứ không phải người bệnh đang lo lắng. Những
-   * chỗ đó truyền vào một minh họa từ `ui/illustrations` thay thế.
+   * Mặc định là nét sen của bản mẫu — trạng thái rỗng là một trong hai chỗ nó
+   * được phép xuất hiện (xem `Sen.tsx`). Nhưng sen là hình của LUỒNG BỆNH
+   * NHÂN; ở khu vực biên tập nó lạc chỗ, vì người đọc màn đó là dược sĩ hoặc
+   * bác sĩ đang làm việc chứ không phải người bệnh đang lo lắng. Những chỗ đó
+   * truyền vào một minh họa từ `ui/illustrations` thay thế.
    *
    * TUYỆT ĐỐI KHÔNG truyền hình nào vào một trạng thái rỗng đứng cạnh cảnh báo
-   * cấp cứu — cùng một luật với linh vật.
+   * cấp cứu — cùng một luật với nét sen.
    */
   illustration?: ReactNode
-  tone?: keyof typeof TONE
   compact?: boolean
 }) {
-  const colors = TONE[tone]
-
   return (
+    /* Trạng thái rỗng của bản mẫu: nét sen mờ ở giữa, một dòng đề mục chữ có
+       chân, một dòng giải thích `.lab`, rồi việc làm tiếp theo. Bản mẫu dùng
+       đúng nhịp này ở `#tt` (khối "chưa đủ căn cứ") và `#hdt`. */
     <div
-      className={`mx-auto flex max-w-answer flex-col items-center text-center ${
-        compact ? 'px-snug py-cozy' : 'px-cozy py-block'
-      }`}
+      style={{
+        margin: '0 auto',
+        maxWidth: '52ch',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        textAlign: 'center',
+        padding: compact ? '14px 10px' : 'clamp(24px,4vw,44px) 16px',
+      }}
     >
-      {illustration ?? <Mascot variant="muted" size={compact ? 64 : 96} />}
+      {illustration ?? (
+        <div style={{ opacity: 0.55 }}>
+          <Sen size={compact ? 64 : 96} />
+        </div>
+      )}
 
       <p
-        className={`font-display font-semibold ${colors.title} ${
-          compact ? 'mt-snug text-question' : 'mt-cozy text-empty'
-        }`}
+        style={{
+          fontFamily: 'var(--f-display)',
+          fontSize: compact ? 'var(--t-note)' : 'var(--t-h3)',
+          lineHeight: 1.35,
+          marginTop: compact ? 12 : 16,
+        }}
       >
         {title}
       </p>
 
-      <p className={`font-display mt-tight text-question ${colors.body}`}>{body}</p>
+      <p className="lab" style={{ marginTop: 8, lineHeight: 1.6 }}>
+        {body}
+      </p>
 
-      {action !== undefined && <div className="mt-cozy">{action}</div>}
+      {action !== undefined && <div style={{ marginTop: 18 }}>{action}</div>}
     </div>
   )
 }

@@ -36,40 +36,31 @@ import { useLearningLibrary } from '../app/learning'
 import type { LearningPathItem } from '../lib/schemas'
 import { EmptyState } from '../ui/EmptyState'
 import { ErrorNotice } from '../ui/ErrorNotice'
-import { CheckIcon, LibraryIcon } from '../ui/icons'
-import { DocumentStack, ReadingPerson } from '../ui/illustrations'
+import { ReadingPerson } from '../ui/illustrations'
 
 /**
- * Ba bộ mặt của khối biểu tượng đầu thẻ.
+ * Ba trạng thái của một chặng, ánh xạ sang lớp của bản mẫu.
  *
- * Khai một chỗ để khối "bài học hôm nay" và thẻ trong lưới không bao giờ tô
- * khác nhau cho cùng một trạng thái.
+ * `id="tv"` dựng "toàn bộ lộ trình" bằng những hàng `.hang` — một dải kẻ ngang
+ * chứ không phải một lưới thẻ. Mỗi hàng có ba phần: số chặng mono ở cột `.ma`,
+ * tên bài ở cột `.noi`, và một `.chip` trạng thái đẩy sang mép phải.
+ *
+ * Ba trạng thái phân biệt bằng CẢ MÀU LẪN CHỮ:
+ *
+ *   done  số XANH   · chip `.duyet` "Đã xong"
+ *   next  số TÍM    · chip `.cho`   "Đang học" · cả hàng nền tím nhạt
+ *   todo  số XÁM    · nhãn `.lab`   "Chưa mở"  · tên bài lùi về `--xam`
  */
-const STATE_SKIN = {
-  done: 'bg-mint text-mint-deep',
-  next: 'bg-ink text-mint',
-  todo: 'bg-canvas text-slate',
-} as const
+type ChapterState = 'done' | 'next' | 'todo'
 
-type ChapterState = keyof typeof STATE_SKIN
-
-/** Khối biểu tượng vuông đầu thẻ: dấu tick khi đã xong, số chặng khi chưa. */
-function ChapterMark({ state, day }: { state: ChapterState; day: number }) {
-  return (
-    <span
-      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-icon ${STATE_SKIN[state]}`}
-    >
-      {state === 'done' ? (
-        <CheckIcon className="h-6 w-6" />
-      ) : (
-        <span className="font-mono text-question font-semibold">{day}</span>
-      )}
-    </span>
-  )
+const STATE_COLOR: Record<ChapterState, string> = {
+  done: 'var(--xanh)',
+  next: 'var(--tim)',
+  todo: 'var(--ke-dam)',
 }
 
-/** Một thẻ trong lưới lộ trình. */
-function ChapterCard({
+/** Một hàng trong danh sách lộ trình. */
+function ChapterRow({
   item,
   state,
   onOpen,
@@ -83,33 +74,40 @@ function ChapterCard({
       <button
         type="button"
         onClick={onOpen}
-        // `h-full` để mọi thẻ trong một hàng của lưới cao bằng nhau, bất kể
-        // tiêu đề dài ngắn — thiếu nó thì hàng nào cũng so le.
-        className="motion-lift flex h-full w-full flex-col rounded-card bg-surface p-cozy text-left"
+        className="hang"
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          background: state === 'next' ? 'var(--tim-wash)' : 'none',
+          border: 0,
+          borderBottom: '1px solid var(--ke)',
+          font: 'inherit',
+          color: 'inherit',
+          cursor: 'pointer',
+        }}
       >
-        <span className="flex items-center gap-snug">
-          <ChapterMark state={state} day={item.day_number} />
-
-          <span className="font-display min-w-0 flex-1 text-note font-semibold text-slate">
-            Chặng {item.day_number}
-            {state === 'next' && ' · học tiếp'}
-            {state === 'done' && ' · đã xong'}
-          </span>
+        <span className="ma mono" style={{ fontSize: 18, color: STATE_COLOR[state], width: 42 }}>
+          {String(item.day_number).padStart(2, '0')}
         </span>
 
-        <span className="mt-cozy block text-empty font-semibold text-body">
+        <span
+          className="noi"
+          style={{
+            fontSize: 'var(--t-lead)',
+            color: state === 'todo' ? 'var(--xam)' : 'var(--ink)',
+          }}
+        >
           {item.article.title}
+          {item.article.quiz_data && (
+            <span className="pill-quiz" style={{ marginLeft: 10 }}>
+              Có bài trắc nghiệm, +10 điểm
+            </span>
+          )}
         </span>
 
-        <span className="font-display mt-tight block line-clamp-3 text-question text-slate">
-          {item.article.content}
-        </span>
-
-        {item.article.quiz_data && (
-          <span className="font-display mt-cozy flex w-fit items-center rounded-pill bg-sand px-snug py-hair text-question font-semibold text-sand-deep">
-            Có bài trắc nghiệm, +10 điểm
-          </span>
-        )}
+        {state === 'done' && <span className="chip duyet">Đã xong</span>}
+        {state === 'next' && <span className="chip cho">Đang học</span>}
+        {state === 'todo' && <span className="lab">Chưa mở</span>}
       </button>
     </li>
   )
@@ -156,16 +154,49 @@ export function LearningLibraryScreen() {
   const nextIndex = paths.findIndex((path) => !completed.includes(path.article.id))
   const featured = nextIndex >= 0 ? paths[nextIndex] : null
 
+  const doneCount = completed.length
+
   return (
-    <div className="w-full">
-      <h1 className="text-ask font-semibold text-body">Lộ trình của bạn</h1>
-      <p className="mt-snug max-w-answer text-notice text-body">
-        Đã hoàn thành {completed.length} trên {paths.length} chặng. Mỗi chặng là
-        một bài ngắn, đọc trong vài phút.
-      </p>
+    /* CHÉP TỪ `id="tv"`: nhãn `.eb`, tiêu đề cùng dòng với bộ đếm mono, một
+       thanh tiến trình ba đoạn, rồi `.co` hai cột — trái là `.phieu` "bài học
+       hôm nay" cộng danh sách `.hang`, phải là `.phu` thẻ ôn tập. */
+    <div>
+      <div className="eb">Lộ trình học của bạn</div>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          gap: 18,
+          flexWrap: 'wrap',
+          marginTop: 16,
+        }}
+      >
+        <h1 style={{ fontSize: 'var(--t-h1)', lineHeight: 1.16 }}>Bài học hôm nay</h1>
+        <div className="mono" style={{ fontSize: 'var(--t-note)', color: 'var(--xam)' }}>
+          Đã học {doneCount} trên {paths.length} bài
+        </div>
+      </div>
+
+      {/* Thanh tiến trình ba đoạn: đã xong (xanh) · đang học (tím) · chưa mở
+          (xám). `aria-hidden` vì bộ đếm ngay trên đã nói đúng con số đó bằng
+          chữ. Đoạn nào bằng 0 thì `flex:0` và nó biến mất, không để lại một
+          vạch mồ côi. */}
+      <div aria-hidden="true" style={{ display: 'flex', gap: 4, marginTop: 14, maxWidth: 640 }}>
+        <span style={{ height: 6, flex: doneCount, background: 'var(--xanh)' }} />
+        <span style={{ height: 6, flex: featured !== null ? 1 : 0, background: 'var(--tim)' }} />
+        <span
+          style={{
+            height: 6,
+            flex: Math.max(0, paths.length - doneCount - (featured !== null ? 1 : 0)),
+            background: 'var(--ke-dam)',
+          }}
+        />
+      </div>
 
       {paths.length === 0 ? (
-        <div className="mt-block">
+        <div style={{ marginTop: 26 }}>
           {/* Chỉ mô tả điều màn này biết chắc: danh sách trả về không có chặng
               nào. KHÔNG suy ra rằng "hệ thống đang chuẩn bị giáo trình" — giao
               diện không có cơ sở nào cho khẳng định đó. */}
@@ -174,92 +205,116 @@ export function LearningLibraryScreen() {
             title="Chưa có chặng nào trong lộ trình"
             body="Danh sách bài học trả về hiện không có mục nào. Bạn vẫn hỏi đáp bình thường ở màn Câu hỏi mới."
             action={
-              <Link
-                to="/chat"
-                className="motion-press font-display flex min-h-touch items-center rounded-pill bg-mint px-cozy text-input font-bold text-ink no-underline hover:bg-mint-press"
-              >
+              <Link to="/chat" className="btn pri">
                 Về màn hỏi đáp
               </Link>
             }
           />
         </div>
       ) : (
-        <>
-          {/* ---- Bài học hôm nay ---- */}
-          {featured !== null && (
-            <section
-              aria-labelledby="hom-nay-heading"
-              className="mt-block flex flex-col items-start gap-cozy rounded-card-lg bg-surface p-cozy sm:flex-row sm:items-center"
-            >
-              <DocumentStack size={112} className="mx-auto shrink-0 sm:mx-0" />
+        <div className="co" style={{ marginTop: 26 }}>
+          <div>
+            {/* ---- Bài học hôm nay ---- */}
+            {featured !== null && (
+              <section aria-labelledby="hom-nay-heading" className="phieu">
+                <div className="phieu-top">
+                  <span id="hom-nay-heading">
+                    Bài {String(featured.day_number).padStart(2, '0')} · hôm nay
+                  </span>
+                  <span>Đọc vài phút</span>
+                </div>
 
-              <div className="min-w-0 flex-1">
-                <p
-                  id="hom-nay-heading"
-                  className="font-display text-note font-semibold text-slate"
+                <div
+                  style={{
+                    padding: '22px clamp(16px,2vw,24px)',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit,minmax(min(220px,100%),1fr))',
+                    gap: 20,
+                    alignItems: 'center',
+                  }}
                 >
-                  Bài học hôm nay · chặng {featured.day_number}
-                </p>
-                <h2 className="mt-hair text-heading font-semibold text-body">
-                  {featured.article.title}
-                </h2>
-                <p className="font-display mt-tight line-clamp-2 text-question text-slate">
-                  {featured.article.content}
-                </p>
+                  <div>
+                    <h2 style={{ fontSize: 'var(--t-h3)', lineHeight: 1.3 }}>
+                      {featured.article.title}
+                    </h2>
+                    <p style={{ color: 'var(--xam)', marginTop: 9, maxWidth: '48ch', lineHeight: 1.7 }}>
+                      {featured.article.content}
+                    </p>
+                  </div>
 
-                <div className="mt-cozy flex flex-wrap gap-snug">
                   <button
                     type="button"
                     onClick={() => navigate(`/learning/${featured.article.id}`)}
-                    className="motion-press font-display flex min-h-touch items-center rounded-pill bg-mint px-cozy text-input font-bold text-ink enabled:hover:bg-mint-press"
+                    className="btn pri"
+                    style={{ whiteSpace: 'nowrap', alignSelf: 'center' }}
                   >
-                    Đọc bài này
+                    Đọc bài
                   </button>
-
-                  {/* Bài trắc nghiệm CHẤM ĐIỂM nằm ở màn hỏi đáp, không ở đây —
-                      xem dòng lưu ý cuối `ArticleDetailScreen`. */}
-                  <Link
-                    to="/chat"
-                    className="motion-press font-display flex min-h-touch items-center rounded-pill border-2 border-slate px-cozy text-input font-semibold text-body no-underline hover:bg-canvas"
-                  >
-                    Làm bài trắc nghiệm
-                  </Link>
                 </div>
-              </div>
+
+                <div className="rangcua" />
+              </section>
+            )}
+
+            {/* ---- Toàn bộ lộ trình ---- */}
+            <section aria-labelledby="lo-trinh-heading" style={{ marginTop: 34 }}>
+              <span className="lab" id="lo-trinh-heading">
+                Toàn bộ lộ trình · {paths.length} bài
+              </span>
+
+              <ul
+                style={{
+                  listStyle: 'none',
+                  margin: '10px 0 0',
+                  padding: 0,
+                  borderTop: '1px solid var(--ke-dam)',
+                }}
+              >
+                {paths.map((path, index) => (
+                  <ChapterRow
+                    key={path.article.id}
+                    item={path}
+                    state={
+                      completed.includes(path.article.id)
+                        ? 'done'
+                        : index === nextIndex
+                          ? 'next'
+                          : 'todo'
+                    }
+                    onOpen={() => navigate(`/learning/${path.article.id}`)}
+                  />
+                ))}
+              </ul>
             </section>
-          )}
+          </div>
 
-          {/* ---- Toàn bộ lộ trình ---- */}
-          <section aria-labelledby="lo-trinh-heading" className="mt-block">
-            <h2
-              id="lo-trinh-heading"
-              className="font-display flex items-center gap-tight text-input font-semibold text-body"
-            >
-              <LibraryIcon className="h-6 w-6 shrink-0 text-slate" />
-              Tất cả {paths.length} chặng
-            </h2>
+          {/* ---- Cột phải: ôn tập ---- */}
+          <aside className="phu">
+            <div className="phieu">
+              <div className="phieu-top">
+                <span>Ôn tập</span>
+              </div>
 
-            {/* Ba cột từ `rail:` (1162px) — cùng mốc mà màn hỏi đáp dùng để nhả
-                dải nguồn ra lề phải, nên hai màn đổi bố cục cùng một lúc thay vì
-                mỗi màn nhảy ở một chỗ khác nhau. */}
-            <ul className="mt-cozy grid gap-cozy md:grid-cols-2 rail:grid-cols-3">
-              {paths.map((path, index) => (
-                <ChapterCard
-                  key={path.article.id}
-                  item={path}
-                  state={
-                    completed.includes(path.article.id)
-                      ? 'done'
-                      : index === nextIndex
-                        ? 'next'
-                        : 'todo'
-                  }
-                  onOpen={() => navigate(`/learning/${path.article.id}`)}
-                />
-              ))}
-            </ul>
-          </section>
-        </>
+              <div style={{ padding: '16px 18px' }}>
+                <div
+                  className="mono"
+                  style={{ fontSize: 'clamp(30px,3vw,40px)', color: 'var(--tim)', lineHeight: 1.1 }}
+                >
+                  {String(paths.length - doneCount).padStart(2, '0')}
+                </div>
+                <div className="lab">Bài chưa học</div>
+
+                <div style={{ height: 1, background: 'var(--ke)', margin: '14px 0' }} />
+
+                <Link to="/quiz/mistakes" className="btn sm" style={{ width: '100%' }}>
+                  Xem câu sai
+                </Link>
+              </div>
+
+              <div className="rangcua" />
+            </div>
+          </aside>
+        </div>
       )}
     </div>
   )

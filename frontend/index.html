@@ -8,6 +8,34 @@
     <title>EduHealth AI — Trợ lý Giáo Dục Sức Khỏe Cá Nhân Hóa</title>
 
     <!--
+      BA HỌ CHỮ CỦA HƯỚNG "HỒ SƠ / CÔNG BÁO", nạp thẳng từ Google Fonts đúng
+      như bản mẫu `docs/design/eduhealth-ai.html`:
+
+        Newsreader     tiêu đề và nhãn nhỏ nghiêng — giọng chữ có chân.
+        Be Vietnam Pro mọi chữ giao diện và nội dung.
+        IBM Plex Mono  số hiệu văn bản và số liệu.
+
+      Nạp ở đây chứ không qua `@fontsource` như bản trước: Newsreader không có
+      trong danh sách gói đã cài, mà mục "không thêm thư viện mới" của yêu cầu
+      cấm cài thêm gói. Một thẻ `<link>` không phải là một thư viện.
+
+      `preconnect` tới cả hai tên miền là bắt buộc: `fonts.googleapis.com` trả
+      về file CSS, còn file `.woff2` thật thì nằm ở `fonts.gstatic.com`. Thiếu
+      cái thứ hai thì trình duyệt phải bắt tay TLS lần nữa giữa lúc đang chờ
+      chữ, và người dùng thấy một nhịp trang không có chữ.
+
+      `display=swap`: chữ dự phòng hiện ngay, chữ thật thay vào khi tải xong.
+      Với người đọc 45–70 tuổi trên mạng chậm thì đọc được bằng phông dự phòng
+      vẫn hơn hẳn nhìn một trang trắng chờ phông đúng.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Be+Vietnam+Pro:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!--
       Chọn chế độ sáng/tối TRƯỚC khi trình duyệt vẽ khung hình đầu tiên.
 
       Phải là script ĐỒNG BỘ và nằm trong `<head>`, không phải `type="module"`:

@@ -63,72 +63,60 @@ export type Turn = {
  * Câu dẫn và câu hỏi làm tiêu đề.
  *
  * Dùng `h1` cho mỗi lượt: mỗi lượt là một trang tra cứu độc lập nằm trong
- * `article` của nó, và tên của trang đó chính là câu hỏi. Font body (Lora) chứ
- * không phải font display, để tiêu đề nối liền mạch đọc với đoạn văn bên dưới.
+ * `article` của nó, và tên của trang đó chính là câu hỏi. Newsreader weight
+ * 400 — chữ có chân ở cỡ 23–31px đã đủ nặng để dẫn mắt, và nó nối liền mạch
+ * đọc với đoạn văn bên dưới thay vì đứng tách ra như một nhãn giao diện.
  *
  * Dùng chung cho cả lượt đã xong, lượt đang chờ và lượt bị lỗi — ba trạng thái
  * đó khác nhau ở phần THÂN, còn phần đề mục thì y hệt.
  */
 export function QuestionHeading({ question }: { question: string }) {
   return (
-    // KHÔNG nằm trong thẻ nào, và không có nét kẻ dưới. Câu hỏi đặt thẳng lên
-    // nền canvas là cách nói rằng nó là TÊN CỦA TRANG, không phải một khối nội
-    // dung ngang hàng với câu trả lời bên dưới. Thẻ trắng bọc câu trả lời mới
-    // là thứ tách hai phần ra khỏi nhau.
-    <header className="max-w-answer">
-      <p className="font-display text-note font-semibold text-slate">
-        Câu hỏi của bạn
-      </p>
-      <h1 className="mt-hair text-ask font-semibold text-body">{question}</h1>
+    // Bản mẫu mở mọi màn bằng `<div class="eb">` rồi tới `<h1>`; ở màn `hd` là
+    // "Câu hỏi hôm nay · Tăng huyết áp" và câu hỏi. `.eb` là nhãn mono giãn
+    // chữ màu TÍM kèm một nét kẻ chạy hết chỗ trống bên phải.
+    //
+    // Câu hỏi đặt thẳng lên nền trang, KHÔNG nằm trong thẻ nào: nó là TÊN CỦA
+    // TRANG, không phải một khối nội dung ngang hàng với câu trả lời. `.phieu`
+    // bọc câu trả lời mới là thứ tách hai phần ra khỏi nhau.
+    <header>
+      <div className="eb">Câu hỏi của bạn</div>
+      <h1 style={{ fontSize: 'var(--t-h2)', lineHeight: 1.22, marginTop: 14, maxWidth: '24ch' }}>
+        {question}
+      </h1>
     </header>
   )
 }
 
 /**
- * Nhãn số tài liệu, dạng viên thuốc ngay dưới tiêu đề.
+ * Ghi chú mức độ chắc chắn, CHỈ cho trạng thái `partial`.
  *
- * Đặt TRƯỚC câu trả lời chứ không phải sau: người bệnh cần biết mình sắp đọc
- * thứ dựa trên mấy văn bản, trước khi đọc chứ không phải sau khi đã tin.
+ * Bản mẫu để số trích dẫn ở mẩu phải của `.phieu-top` ("2 trích dẫn"), nên
+ * nhãn "Dựa trên N tài liệu" của bản trước đã có chỗ và không dựng lại. Còn
+ * lại đúng một điều `.phieu-top` không nói được: một PHẦN của câu trả lời
+ * không có tài liệu nào nói rõ.
  *
- * NỀN MINT, CHỮ INK (7.95:1) — cùng cặp màu với marker `[n]` trong dòng chữ, và
- * đó là chủ ý: nhãn này với marker nói về cùng một thứ, nên chúng phải nhìn ra
- * là cùng một họ.
- *
- * Trạng thái `partial` và trạng thái không trích nguồn nào đổi sang nền
- * `canvas` chữ `slate` (4.58:1) — trung tính, KHÔNG dùng `alert` và không dùng
- * `coral`. Đây là ghi chú về mức độ chắc chắn, không phải cảnh báo nguy hiểm;
- * tô nóng chỗ này sẽ làm người đang lo lắng tưởng mình vừa đọc phải điều đáng
- * sợ. Tín hiệu "kém chắc chắn hơn" nằm ở chỗ nó MẤT màu nhấn, không ở chỗ nó
- * đổi sang một màu nhấn khác.
+ * Nét lề trái `--ke-dam` và chữ `--xam` — trung tính, KHÔNG dùng đỏ. Đây là ghi
+ * chú về mức độ chắc chắn, không phải cảnh báo nguy hiểm; tô nóng chỗ này sẽ
+ * làm người đang lo lắng tưởng mình vừa đọc phải điều đáng sợ. Bản mẫu dùng
+ * đúng kiểu này cho dòng "Con số này là mức chung…" ở cuối `.doc-body`.
  */
-function SourceBadge({ count, status }: { count: number; status: ChatStatus }) {
-  const isPartial = status === 'partial'
-
-  function label(): string {
-    if (isPartial && count === 0) return 'Chưa có tài liệu nào nói rõ phần này'
-    if (isPartial) {
-      return `Dựa trên ${count} tài liệu đã duyệt · một phần chưa có tài liệu nói rõ`
-    }
-    if (count === 0) return 'Câu trả lời này không trích tài liệu nào'
-    return `Dựa trên ${count} tài liệu đã duyệt`
-  }
-
-  const tone =
-    isPartial || count === 0
-      ? 'bg-canvas text-slate'
-      : 'bg-mint text-ink font-semibold'
-
-  // `w-fit` chứ KHÔNG phải `inline-block`. Tên bậc khoảng cách `--spacing-block`
-  // của dự án làm Tailwind đọc được `inline-block` theo hai nghĩa: vừa là
-  // `display: inline-block`, vừa là tiện ích `inline-<bậc>` đặt `inline-size`.
-  // Rule thứ hai sinh ra sau nên nó thắng, và viên thuốc bị ép còn 32px — chữ
-  // rơi xuống dòng từng chữ một. Xem cảnh báo ở `--spacing-block` trong
-  // `index.css`. `w-fit` cho đúng bề ngang vừa nội dung mà không đụng tên nào.
+function PartialNote({ count }: { count: number }) {
   return (
     <p
-      className={`font-display mt-cozy w-fit max-w-answer rounded-pill px-snug py-hair text-question ${tone}`}
+      style={{
+        fontSize: 'var(--t-note)',
+        color: 'var(--xam)',
+        borderLeft: '2px solid var(--ke-dam)',
+        paddingLeft: 12,
+        marginTop: 14,
+        maxWidth: '60ch',
+        lineHeight: 1.7,
+      }}
     >
-      {label()}
+      {count === 0
+        ? 'Chưa có tài liệu nào trong thư viện nói rõ phần này.'
+        : 'Một phần câu trả lời chưa có tài liệu nào nói rõ. Bạn nên hỏi lại bác sĩ điều trị về phần đó.'}
     </p>
   )
 }
@@ -145,7 +133,7 @@ function SourceBadge({ count, status }: { count: number; status: ChatStatus }) {
  * `partial` không có khối riêng: nhãn số tài liệu ở trên đã nói đúng điều đó,
  * bằng một dòng, ngay chỗ mắt nhìn tới đầu tiên.
  */
-function ResponseBody({ turn }: { turn: Turn }) {
+function ResponseBody({ turn, actions }: { turn: Turn; actions: ReactNode }) {
   switch (turn.status) {
     case 'red_flag':
       return <RedFlagBlock answer={turn.answer} />
@@ -160,6 +148,7 @@ function ResponseBody({ turn }: { turn: Turn }) {
           answer={turn.answer}
           citations={turn.citations}
           annotations={turn.annotations}
+          actions={actions}
         />
       )
   }
@@ -202,12 +191,7 @@ function ActionButton({
   disabled?: boolean
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="motion-press font-display flex min-h-touch items-center gap-tight rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body enabled:hover:bg-canvas disabled:text-slate"
-    >
+    <button type="button" onClick={onClick} disabled={disabled} className="btn sm gh">
       {children}
       {label}
     </button>
@@ -246,29 +230,29 @@ function TurnActions({
   }
 
   return (
-    <div className="mt-snug max-w-answer">
-      <div className="flex flex-wrap gap-snug">
-        {onListen !== undefined && (
-          <ActionButton
-            label={isListening ? 'Đang đọc câu trả lời…' : 'Nghe câu trả lời'}
-            onClick={onListen}
-            disabled={isListening}
-          />
-        )}
+    <>
+      {onListen !== undefined && (
+        <ActionButton
+          label={isListening ? 'Đang đọc câu trả lời…' : 'Nghe câu trả lời'}
+          onClick={onListen}
+          disabled={isListening}
+        />
+      )}
 
-        <ActionButton label="Sao chép" onClick={() => void handleCopy()}>
-          <CopyIcon className="h-6 w-6 shrink-0" />
-        </ActionButton>
+      <ActionButton label="Sao chép" onClick={() => void handleCopy()}>
+        <CopyIcon className="" />
+      </ActionButton>
 
-        <ActionButton label="Tải xuống" onClick={handleSave}>
-          <SaveIcon className="h-6 w-6 shrink-0" />
-        </ActionButton>
-      </div>
+      <ActionButton label="Tải xuống" onClick={handleSave}>
+        <SaveIcon className="" />
+      </ActionButton>
 
-      <p role="status" className="font-display mt-tight text-question text-slate">
+      {/* Luôn có mặt trong DOM để `aria-live` báo được thay đổi. Rỗng thì nó
+          không chiếm chỗ nào trong hàng nút. */}
+      <p role="status" className="lab" style={{ flexBasis: '100%', margin: 0 }}>
         {notice}
       </p>
-    </div>
+    </>
   )
 }
 
@@ -282,44 +266,36 @@ export function AnswerTurn({
   isListening?: boolean
 }) {
   const isRedFlag = turn.status === 'red_flag'
+  const isPartial = turn.status === 'partial'
 
   /**
-   * Nhãn số tài liệu chỉ có nghĩa ở hai trạng thái có tra cứu thật.
-   *
-   * Ba trạng thái còn lại luôn có `citations` rỗng, nên nhãn sẽ luôn đọc là
-   * "không trích tài liệu nào" — đúng nhưng vô ích, và ở `red_flag` thì nó còn
-   * chen vào đúng chỗ mà cảnh báo cấp cứu phải chiếm. Mỗi khối trong ba khối đó
-   * đã tự nói ra tình trạng nguồn của mình bằng lời rồi.
+   * Ba trạng thái `red_flag` / `refused` / `referral` là một `.phieu` tự chứa
+   * (xem `ResponseStates.tsx`), nên chúng KHÔNG nhận cụm nút: chân phiếu của
+   * chúng đã có việc làm tiếp theo của riêng mình, và ở `red_flag` thì việc
+   * cần làm bây giờ là gọi 115, không phải sắp xếp giấy tờ.
    */
-  const showSourceBadge = turn.status === 'answered' || turn.status === 'partial'
+  const wantsActions = turn.status === 'answered' || turn.status === 'partial'
 
   return (
-    // KHÔNG hoạt ảnh ở lượt `red_flag`. Mọi lượt khác hiện dần từ dưới lên trong
-    // 250ms, đúng một lần; riêng lượt báo dấu hiệu cấp cứu thì có mặt ngay từ
-    // khung hình đầu. Người có thể đang đau ngực không cần chờ một hiệu ứng
-    // chạy xong mới đọc được dòng đầu tiên, và cũng không cần xem gì nhúc nhích.
-    <article className={`mb-turn ${isRedFlag ? '' : 'animate-answer-in'}`}>
+    // KHÔNG hoạt ảnh ở lượt `red_flag`. Mọi lượt khác hiện dần từ dưới lên
+    // trong 340ms bằng `.hien` của bản mẫu, đúng một lần; riêng lượt báo dấu
+    // hiệu cấp cứu thì có mặt ngay từ khung hình đầu. Người có thể đang đau
+    // ngực không cần chờ một hiệu ứng chạy xong mới đọc được dòng đầu tiên.
+    <article style={{ marginBottom: 'clamp(40px,2.6vw,62px)' }} className={isRedFlag ? undefined : 'hien'}>
       <QuestionHeading question={turn.question} />
 
-      {showSourceBadge && (
-        <SourceBadge count={turn.citations.length} status={turn.status} />
-      )}
-
-      {/* `red_flag` bám sát tiêu đề hơn các trạng thái khác: một bậc `cozy` thay
-          vì `block`. Khoảng nghỉ để thở là thứ xa xỉ khi người đọc đang đau ngực.
-
-          KHÔNG bọc thêm thẻ nào ở đây. Mỗi nhánh của `ResponseBody` tự mang nền
-          của nó: `AnswerDocument` dựng thẻ trắng của riêng mình vì chính nó mới
-          biết bố cục đang là hai cột hay xếp dưới — mà hai bố cục đó cần hai bề
-          ngang khác nhau. Ba khối trạng thái kia cũng đã là thẻ có nền riêng
-          (xem `ResponseStates.tsx`). */}
-      <div className={isRedFlag ? 'mt-cozy' : 'mt-block'}>
-        <ResponseBody turn={turn} />
+      <div style={{ marginTop: 26 }}>
+        <ResponseBody
+          turn={turn}
+          actions={
+            wantsActions ? (
+              <TurnActions turn={turn} onListen={onListen} isListening={isListening} />
+            ) : undefined
+          }
+        />
       </div>
 
-      {/* Không mời sao chép hay lưu ở `red_flag`. Việc cần làm bây giờ là gọi
-          115, không phải sắp xếp giấy tờ. */}
-      {!isRedFlag && <TurnActions turn={turn} onListen={onListen} isListening={isListening} />}
+      {isPartial && <PartialNote count={turn.citations.length} />}
 
       {turn.disclaimer !== null && <Disclaimer text={turn.disclaimer} />}
     </article>

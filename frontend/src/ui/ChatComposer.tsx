@@ -8,7 +8,7 @@
 import { useId, useRef, type FormEvent } from 'react'
 
 import { MIN_QUERY_LENGTH } from '../lib/schemas'
-import { MicrophoneIcon, SearchIcon, SendIcon } from './icons'
+import { MicrophoneIcon, SendIcon } from './icons'
 
 export function ChatComposer({
   value,
@@ -39,18 +39,28 @@ export function ChatComposer({
   }
 
   return (
+    /* Bản mẫu đặt ô soạn ở cuối `.main` bằng
+       `<div style="display:flex;gap:9px"><input class="o"><button class="btn pri">`.
+       Ở đây thêm `sticky` để ô luôn với tới được trong một hội thoại dài — bản
+       mẫu là trang tĩnh nên không gặp vấn đề đó. Nền `--page` đục để chữ cuộn
+       qua phía dưới không lẫn vào ô nhập. */
     <form
       onSubmit={handleSubmit}
-      className="sticky bottom-0 bg-canvas pt-snug pb-[calc(var(--spacing-snug)+env(safe-area-inset-bottom))]"
+      style={{
+        position: 'sticky',
+        bottom: 0,
+        background: 'var(--page)',
+        paddingTop: 14,
+        paddingBottom: 'calc(14px + env(safe-area-inset-bottom))',
+        marginTop: 26,
+      }}
     >
-      <div className="border-t border-line pt-snug">
+      <div style={{ borderTop: '1px solid var(--ke)', paddingTop: 14 }}>
         <label htmlFor={inputId} className="sr-only">
           Hỏi tiếp về bệnh của bạn
         </label>
 
-        <div className="flex items-center gap-tight rounded-pill bg-surface pr-tight pl-cozy focus-within:outline-3 focus-within:outline-mint focus-within:outline-offset-2">
-          <SearchIcon className="h-6 w-6 shrink-0 text-slate" />
-
+        <div style={{ display: 'flex', gap: 9, alignItems: 'stretch' }}>
           <input
             id={inputId}
             ref={inputRef}
@@ -62,7 +72,8 @@ export function ChatComposer({
             autoComplete="off"
             placeholder="Hỏi tiếp về bệnh của bạn"
             aria-describedby={showHint ? hintId : undefined}
-            className="font-body min-h-touch w-full min-w-0 flex-1 bg-transparent text-input text-body placeholder:text-slate focus:outline-none disabled:text-slate"
+            className="o"
+            style={{ flex: 1, minWidth: 0 }}
           />
 
           {onStartVoice !== undefined && (
@@ -72,29 +83,28 @@ export function ChatComposer({
               disabled={disabled}
               aria-label="Hỏi bằng giọng nói"
               title="Hỏi bằng giọng nói"
-              className="motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-full border-2 border-slate text-body enabled:hover:bg-canvas disabled:text-slate"
+              className="btn"
+              style={{ flex: 'none', paddingInline: 14 }}
             >
-              <MicrophoneIcon className="h-6 w-6" />
+              <MicrophoneIcon className="" />
             </button>
           )}
 
-          {!isEmpty && (
-            <button
-              type="submit"
-              disabled={disabled || isTooShort}
-              aria-label="Gửi câu hỏi"
-              title="Gửi câu hỏi"
-              className="motion-press flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-full bg-mint text-ink enabled:hover:bg-mint-press disabled:bg-canvas disabled:text-slate"
-            >
-              <SendIcon className="h-6 w-6" />
-            </button>
-          )}
+          <button
+            type="submit"
+            disabled={disabled || isTooShort}
+            className="btn pri"
+            style={{ flex: 'none' }}
+          >
+            <SendIcon className="" />
+            Gửi
+          </button>
         </div>
 
         {showHint && (
-          <p id={hintId} role="status" className="font-display mt-tight text-question text-slate">
-            Câu hỏi cần ít nhất {MIN_QUERY_LENGTH} ký tự để trợ lý biết bạn đang
-            hỏi điều gì.
+          <p id={hintId} role="status" className="lab" style={{ marginTop: 9 }}>
+            Câu hỏi cần ít nhất {MIN_QUERY_LENGTH} ký tự để trợ lý biết bạn đang hỏi
+            điều gì.
           </p>
         )}
       </div>

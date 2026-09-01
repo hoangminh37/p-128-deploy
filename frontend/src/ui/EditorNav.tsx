@@ -1,13 +1,25 @@
 /**
- * Ba mục điều hướng của khu vực biên tập, thay chỗ danh sách hội thoại.
+ * Bảy mục điều hướng của khu vực biên tập, thay chỗ danh sách hội thoại.
  *
- * Hai mục có số đi kèm, lấy từ chính query dashboard mà màn tổng quan dùng —
+ * Ba mục có số đi kèm, lấy từ chính query dashboard mà màn tổng quan dùng —
  * cùng một khóa cache, nên mở màn tổng quan xong quay ra thanh bên sẽ không có
  * thêm request nào, và duyệt một mục là cả hai chỗ cùng đổi số.
  *
  * Số chỉ hiện khi ĐÃ có dữ liệu. Hiện `0` trong lúc đang tải là nói dối: biên
  * tập viên nhìn thấy "Hàng đợi duyệt 0" rồi bỏ đi làm việc khác, trong khi thật
  * ra đang có mười hai mục chờ.
+ *
+ * DỰNG TỪ BẢN MẪU. Script dựng khung ở cuối `docs/design/eduhealth-ai.html`
+ * khai đúng bảy mục này, đúng thứ tự này, và đặt số đếm trong
+ * `<span class="n">` — ví dụ `['bth','Hàng đợi duyệt','07',…]`. Nhãn chữ lấy
+ * nguyên văn của bản mẫu; con số thì lấy từ dữ liệu thật.
+ *
+ * Bản mẫu đệm số về hai chữ số (`07`, `04`, `23`). Giữ nguyên cách đệm đó: nó
+ * làm cột số bên phải thẳng hàng khi quét dọc, và `tabular-nums` khai toàn cục
+ * lo phần bề ngang chữ số. Từ 100 trở lên thì số tự dài ra, không cắt.
+ *
+ * Mục đang mở đánh dấu bằng `aria-current="page"`; nét tím ở lề trái do
+ * `.side nav a[aria-current="page"]` trong `index.css` lo.
  */
 import { NavLink } from 'react-router-dom'
 
@@ -39,42 +51,19 @@ export function EditorNav({ onNavigate }: { onNavigate?: () => void }) {
   ]
 
   return (
-    // `min-h-0` là bắt buộc: thiếu nó thì flex item không co lại được và khối
-    // tài khoản ở đáy bị đẩy ra khỏi màn hình.
-    <nav
-      aria-label="Khu vực biên tập"
-      className="min-h-0 flex-1 overflow-y-auto px-tight pt-snug"
-    >
-      <ul className="space-y-hair">
-        {items.map((item) => (
-          <li key={item.to}>
-            <NavLink
-              to={item.to}
-              end={item.end}
-              onClick={onNavigate}
-              className={({ isActive }) =>
-                // Cùng ngôn ngữ hình với danh sách hội thoại: nền trắng mờ cộng
-                // chữ sáng lên. Xem ghi chú màu ở đầu `ConversationNav.tsx`.
-                `font-display flex min-h-touch items-center gap-tight rounded-icon px-snug py-tight text-question no-underline ${
-                  isActive
-                    ? 'bg-white/10 font-semibold text-white hover:bg-white/15'
-                    : 'text-mist hover:bg-white/10 hover:text-white'
-                }`
-              }
-            >
-              <span className="min-w-0 flex-1">{item.label}</span>
-
-              {/* Nền mint đặc chứ không phải nền mờ: con số này là thứ biên
-                  tập viên quét mắt tìm, và mint / ink đạt 7.95:1. */}
-              {item.count !== undefined && (
-                <span className="font-mono shrink-0 rounded-pill bg-mint px-snug text-question font-semibold text-ink">
-                  {item.count}
-                </span>
-              )}
-            </NavLink>
-          </li>
-        ))}
-      </ul>
+    <nav aria-label="Khu vực biên tập">
+      {items.map((item) => (
+        <NavLink key={item.to} to={item.to} end={item.end} onClick={onNavigate}>
+          <span>{item.label}</span>
+          {/* `.n` của bản mẫu: mono, cỡ `--t-mono-s`, `--xam`, chuyển tím khi
+              mục đang mở. Số chỉ hiện khi ĐÃ có dữ liệu — hiện `0` trong lúc
+              đang tải là nói dối: biên tập viên nhìn thấy "Hàng đợi duyệt 0"
+              rồi bỏ đi làm việc khác, trong khi thật ra đang có mười hai mục. */}
+          {item.count !== undefined && (
+            <span className="n">{String(item.count).padStart(2, '0')}</span>
+          )}
+        </NavLink>
+      ))}
     </nav>
   )
 }

@@ -27,7 +27,6 @@ import { usePatient } from '../patient/context'
 import { AnswerTurn, QuestionHeading, type Turn } from '../ui/AnswerTurn'
 import { ChatComposer } from '../ui/ChatComposer'
 import { ErrorNotice } from '../ui/ErrorNotice'
-import { LibraryIcon } from '../ui/icons'
 import { QuizPanel } from '../ui/QuizPanel'
 import { SuggestedQuestions } from '../ui/SuggestedQuestions'
 import { VoiceChatWidget, type VoiceSubmitResult } from '../ui/VoiceChatWidget'
@@ -136,14 +135,34 @@ function WaitingBlock({ step }: { step: StreamStepEvent | null }) {
     STREAMING_COPY.intent_router
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="max-w-answer rounded-card-lg border-2 border-line bg-surface p-cozy"
-    >
-      <p className="font-display text-note font-semibold text-slate">Trợ lý sức khỏe</p>
-      <p className="mt-hair text-input font-semibold text-body">{copy.title}</p>
-      <p className="font-display mt-tight text-question text-slate">{copy.detail}</p>
+    /* CHÉP TỪ `id="cho"`: một `.phieu` với `.phieu-top` ghi việc đang làm,
+       thân là các dòng `.buoc` — mỗi dòng một chấm vuông 9px và một câu — rồi
+       khung xương `.xuong` quét sáng chỗ câu trả lời sắp hiện ra.
+
+       `.buoc[data-tt="xong"]` chấm tô XANH, `[data-tt="dang"]` chấm viền TÍM
+       và nhấp nháy, không có `data-tt` thì chấm xám. Ba trạng thái, ba hình —
+       người không phân biệt được màu vẫn đọc ra bước nào đang chạy nhờ chữ
+       đậm lên ở bước hiện tại. */
+    <div className="phieu" role="status" aria-live="polite">
+      <div className="phieu-top">
+        <span>Đang tìm căn cứ</span>
+        <span className="mono">{copy.title}</span>
+      </div>
+
+      <div style={{ padding: '18px clamp(16px,2vw,24px) 0' }}>
+        <div className="buoc" data-tt="dang">
+          <span className="cham" />
+          <span>{copy.detail}</span>
+        </div>
+      </div>
+
+      <div style={{ padding: '18px clamp(16px,2vw,24px) 20px' }}>
+        <div className="xuong" style={{ width: '100%', marginBottom: 8 }} />
+        <div className="xuong" style={{ width: '88%', marginBottom: 8 }} />
+        <div className="xuong" style={{ width: '46%' }} />
+      </div>
+
+      <div className="rangcua" />
     </div>
   )
 }
@@ -153,17 +172,34 @@ function WaitingBlock({ step }: { step: StreamStepEvent | null }) {
  */
 function MissingProfileBand() {
   return (
-    <div className="mb-block flex max-w-answer flex-wrap items-center gap-snug rounded-card bg-sand p-cozy">
-      <p className="font-display min-w-0 flex-1 text-question text-sand-deep">
-        Bạn chưa khai hồ sơ, nên câu trả lời chưa đặt được vào bệnh và tuổi của
-        bạn. Khai hồ sơ rồi thì trợ lý tra đúng tài liệu cho bệnh của bạn hơn.
-      </p>
-      <Link
-        to="/profile"
-        className="font-display flex min-h-touch shrink-0 items-center rounded-pill bg-sand-deep px-cozy text-input font-bold text-sand no-underline"
+    // `.phieu` viền vàng với `.phieu-top` nền vàng: cùng nhịp với khối "chưa
+    // xong nhưng không hỏng" của bản mẫu. KHÔNG dùng đỏ — chưa khai hồ sơ
+    // không phải lỗi, và đỏ chỉ dành cho dấu hiệu nguy cấp.
+    <div className="phieu" style={{ marginBottom: 26, borderColor: 'var(--vang)' }}>
+      <div
+        className="phieu-top"
+        style={{ background: 'var(--vang)', color: 'var(--vang-muc)', borderBottomColor: 'var(--vang-ke)' }}
       >
-        Khai hồ sơ
-      </Link>
+        <span>Hồ sơ chưa khai</span>
+      </div>
+      <div
+        style={{
+          padding: '16px clamp(16px,2vw,24px)',
+          display: 'flex',
+          gap: 14,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
+        <p style={{ flex: 1, minWidth: 220, fontSize: 'var(--t-note)', lineHeight: 1.7 }}>
+          Bạn chưa khai hồ sơ, nên câu trả lời chưa đặt được vào bệnh và tuổi của bạn.
+          Khai hồ sơ rồi thì trợ lý tra đúng tài liệu cho bệnh của bạn hơn.
+        </p>
+        <Link to="/profile" className="btn sm">
+          Khai hồ sơ
+        </Link>
+      </div>
+      <div className="rangcua" />
     </div>
   )
 }
@@ -219,122 +255,133 @@ function DailyLessonBanner() {
   }
 
   return (
-    <div className="mb-block max-w-answer rounded-card-lg bg-surface p-cozy">
-      <div className="flex items-center gap-snug">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-icon bg-mint text-mint-deep">
-          <LibraryIcon className="h-7 w-7" />
-        </span>
-        <div className="min-w-0">
-          <p className="font-display text-note font-semibold text-slate">
-            Bài học ngày {data.day_number}
-          </p>
-          <h2 className="text-empty font-semibold text-body">{lesson.title}</h2>
+    /* CHÉP TỪ `id="hdt"`: bài học hôm nay là một `.phieu` với `.phieu-top` ghi
+       "Bài học ngày N" bên trái và "Chặng N" bên phải, thân là một hình vuông
+       72px nét tím cạnh tên bài và đoạn dẫn, rồi hai nút ở dưới. */
+    <div className="phieu" style={{ marginBottom: 26 }}>
+      <div className="phieu-top">
+        <span>Bài học ngày {data.day_number}</span>
+        <span>Chặng {data.day_number}</span>
+      </div>
+
+      <div
+        style={{
+          padding: '20px clamp(16px,2vw,24px)',
+          display: 'flex',
+          gap: 18,
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+        }}
+      >
+        {/* Hình tờ tài liệu có ba dòng kẻ, nét tím trên nền tím nhạt — chép
+            nguyên svg của bản mẫu. `aria-hidden`: nó không nói gì mà tên bài
+            bên cạnh chưa nói. */}
+        <svg width="72" height="72" viewBox="0 0 100 100" style={{ flex: 'none' }} aria-hidden="true">
+          <rect x="18" y="22" width="58" height="58" fill="var(--tim-wash)" stroke="var(--tim)" strokeWidth="2.5" />
+          <path d="M30 40h34M30 52h34M30 64h22" stroke="var(--tim)" strokeWidth="2.5" />
+        </svg>
+
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <h2 style={{ fontSize: 'var(--t-h3)' }}>{lesson.title}</h2>
+
+          {feedback !== null && quizData ? (
+            <DailyQuizFeedback
+              feedback={feedback}
+              options={quizData.options}
+              question={quizData.question}
+              yourAnswer={selectedOption ?? -1}
+            />
+          ) : !showQuiz ? (
+            <p
+              style={{
+                fontSize: 'var(--t-note)',
+                color: 'var(--xam)',
+                marginTop: 8,
+                maxWidth: '52ch',
+                lineHeight: 1.7,
+              }}
+            >
+              {lesson.content}
+            </p>
+          ) : (
+            quizData && (
+              <div style={{ marginTop: 14, borderTop: '1px solid var(--ke)', paddingTop: 14 }}>
+                <p style={{ fontWeight: 500 }}>{quizData.question}</p>
+
+                {/* `.chon` của bản mẫu: khung kẻ trên giấy nền, và ô đã chọn
+                    đổi sang nền tím nhạt kèm viền tím cộng một nét trong 1px.
+                    Ba tín hiệu cùng lúc — nền, viền, và ô vuông `.box` bị tô
+                    đặc — nên trạng thái chọn đọc ra được cả khi người dùng
+                    không phân biệt được màu. */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 12 }}>
+                  {quizData.options.map((opt, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className="chon"
+                      aria-pressed={selectedOption === idx}
+                      onClick={() => {
+                        setSelectedOption(idx)
+                        setErrorMsg(null)
+                      }}
+                    >
+                      <span className="box" aria-hidden="true" />
+                      <span>{opt}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {errorMsg !== null && (
+                  <p role="alert" className="lab" style={{ color: 'var(--do)', marginTop: 12 }}>
+                    {errorMsg}
+                  </p>
+                )}
+              </div>
+            )
+          )}
+
+          <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginTop: 16, alignItems: 'center' }}>
+            {feedback !== null ? (
+              feedback.is_correct ? (
+                <button type="button" onClick={() => setHidden(true)} className="btn pri sm">
+                  Xong rồi
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFeedback(null)
+                      setSelectedOption(null)
+                    }}
+                    className="btn pri sm"
+                  >
+                    Chọn lại
+                  </button>
+                  <Link to={`/learning/${lesson.id}`} className="btn sm gh">
+                    Đọc lại bài học
+                  </Link>
+                </>
+              )
+            ) : (
+              <button
+                type="button"
+                onClick={handleComplete}
+                disabled={completeMutation.isPending}
+                className="btn pri sm"
+              >
+                {completeMutation.isPending
+                  ? 'Đang gửi…'
+                  : showQuiz
+                    ? 'Trả lời và nhận điểm'
+                    : 'Làm bài trắc nghiệm (+10 điểm)'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {feedback !== null && quizData ? (
-        <DailyQuizFeedback
-          feedback={feedback}
-          options={quizData.options}
-          question={quizData.question}
-          yourAnswer={selectedOption ?? -1}
-        />
-      ) : !showQuiz ? (
-        <p className="mt-cozy text-answer text-body">{lesson.content}</p>
-      ) : (
-        quizData && (
-          <div className="mt-cozy border-t border-line pt-snug">
-            <p className="font-display text-input font-semibold text-body">
-              {quizData.question}
-            </p>
-
-            {/* Ô chọn là `bg-canvas`, ô đã chọn đổi sang `bg-mint`. Chữ giữ
-                nguyên `ink` ở cả hai: 14.22:1 trên canvas và 7.95:1 trên mint,
-                nên trạng thái chọn đọc được mà không phải đổi màu chữ. */}
-            <div className="mt-snug flex flex-col gap-tight">
-              {quizData.options.map((opt, idx) => (
-                <label
-                  key={idx}
-                  // Màu chữ đặt ở ĐÂY chứ không ở thẻ con: nền ô đổi từ
-                  // `canvas` sang `mint` khi được chọn, mà ở chế độ tối
-                  // `canvas` là navy đậm còn `mint` vẫn sáng — hai nền đó cần
-                  // hai màu chữ ngược nhau. Chỉ thẻ <label> mới biết ô đang
-                  // được chọn hay không (`has-[:checked]`), nên luật màu phải
-                  // sống ở đây rồi để thẻ con thừa kế.
-                  className="flex min-h-touch cursor-pointer items-center gap-snug rounded-card bg-canvas p-snug text-body has-[:checked]:bg-mint has-[:checked]:text-ink"
-                >
-                  <input
-                    type="radio"
-                    name="quiz"
-                    className="h-5 w-5 shrink-0 accent-ink"
-                    checked={selectedOption === idx}
-                    onChange={() => {
-                      setSelectedOption(idx)
-                      setErrorMsg(null)
-                    }}
-                  />
-                  <span className="font-display text-question">{opt}</span>
-                </label>
-              ))}
-            </div>
-
-            {errorMsg !== null && (
-              <p
-                role="alert"
-                className="font-display mt-snug text-question font-semibold text-alert"
-              >
-                {errorMsg}
-              </p>
-            )}
-          </div>
-        )
-      )}
-
-      <div className="mt-cozy flex flex-wrap items-center gap-snug">
-        {feedback !== null ? (
-          feedback.is_correct ? (
-            <button
-              type="button"
-              onClick={() => setHidden(true)}
-              className="motion-press font-display min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-ink"
-            >
-              Xong rồi
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setFeedback(null)
-                  setSelectedOption(null)
-                }}
-                className="motion-press font-display min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-ink"
-              >
-                Chọn lại
-              </button>
-              <Link
-                to={`/learning/${lesson.id}`}
-                className="font-display flex min-h-touch items-center text-input font-semibold text-body underline"
-              >
-                Đọc lại bài học
-              </Link>
-            </>
-          )
-        ) : (
-          <button
-            type="button"
-            onClick={handleComplete}
-            disabled={completeMutation.isPending}
-            className="motion-press font-display min-h-touch rounded-pill bg-mint px-cozy text-input font-bold text-ink disabled:bg-canvas disabled:font-normal disabled:text-slate"
-          >
-            {completeMutation.isPending
-              ? 'Đang gửi…'
-              : showQuiz
-                ? 'Trả lời và nhận điểm'
-                : 'Làm bài trắc nghiệm (+10 điểm)'}
-          </button>
-        )}
-      </div>
+      <div className="rangcua" />
     </div>
   )
 }
@@ -364,32 +411,37 @@ function DailyQuizFeedback({
   const { is_correct, correct_index, explanation, hp_earned } = feedback
 
   return (
-    <div className="mt-cozy border-t border-line pt-snug">
-      <p className="font-display text-input font-semibold text-body">{question}</p>
+    <div style={{ marginTop: 14, borderTop: '1px solid var(--ke)', paddingTop: 14 }}>
+      <p style={{ fontWeight: 500 }}>{question}</p>
 
-      <ul className="mt-snug flex flex-col gap-tight">
+      {/* `.chon` + `.abcd` của bản mẫu. MÀU KHÔNG PHẢI KÊNH DUY NHẤT: ô đúng
+          mang `aria-pressed` nên nó nhận nền tím nhạt và ô `.box` tô đặc, và
+          CẢ HAI ô đặc biệt còn kèm chữ ("đáp án đúng" / "bạn đã chọn"). Đây là
+          ứng dụng cho người 45–70 tuổi, trong đó tỉ lệ khó phân biệt màu là
+          đáng kể. */}
+      <ul style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
         {options.map((opt, idx) => {
           const dung = idx === correct_index
           const cuaBan = idx === yourAnswer
-          const tone = dung
-            ? 'bg-mint text-ink'
-            : cuaBan
-              ? 'border-2 border-alert bg-canvas text-body'
-              : 'bg-canvas text-body'
 
           return (
-            <li key={idx} className={`flex items-start gap-snug rounded-card p-snug ${tone}`}>
-              <span
-                className={`font-mono flex h-8 w-8 shrink-0 items-center justify-center rounded-icon text-question font-semibold ${
-                  dung ? 'bg-ink text-mint' : 'bg-surface text-slate'
-                }`}
-              >
-                {String.fromCharCode(65 + idx)}
-              </span>
-              <span className="font-display min-w-0 flex-1 text-question">
+            <li
+              key={idx}
+              className="chon"
+              aria-current={dung ? 'true' : undefined}
+              style={
+                dung
+                  ? { borderColor: 'var(--tim)', background: 'var(--tim-wash)' }
+                  : cuaBan
+                    ? { borderColor: 'var(--do)' }
+                    : undefined
+              }
+            >
+              <span className="abcd">{String.fromCharCode(65 + idx)}</span>
+              <span style={{ minWidth: 0, flex: 1 }}>
                 {opt}
-                {dung && <span className="font-semibold"> — đáp án đúng</span>}
-                {cuaBan && !dung && <span className="font-semibold"> — bạn đã chọn</span>}
+                {dung && <strong> — đáp án đúng</strong>}
+                {cuaBan && !dung && <strong> — bạn đã chọn</strong>}
               </span>
             </li>
           )
@@ -398,16 +450,23 @@ function DailyQuizFeedback({
 
       <p
         role="status"
-        className="font-display mt-snug rounded-card bg-canvas p-snug text-question text-body"
+        style={{
+          marginTop: 14,
+          border: '1px solid var(--ke)',
+          background: 'var(--page)',
+          padding: '11px 13px',
+          fontSize: 'var(--t-note)',
+          lineHeight: 1.7,
+        }}
       >
-        <span className={`font-semibold ${is_correct ? 'text-body' : 'text-alert'}`}>
+        <strong style={{ color: is_correct ? 'var(--ink)' : 'var(--do)' }}>
           {is_correct ? 'Đúng rồi. ' : 'Chưa đúng. '}
-        </span>
+        </strong>
         {explanation}
       </p>
 
       {is_correct && (
-        <p className="font-display mt-tight text-question font-semibold text-body">
+        <p style={{ marginTop: 9, fontSize: 'var(--t-note)', fontWeight: 500 }}>
           {hp_earned > 0
             ? `+${hp_earned} điểm đã cộng cho bạn.`
             : 'Hôm nay bạn đã nhận điểm rồi, nên lần này chỉ tính là hoàn thành bài.'}
@@ -706,129 +765,143 @@ export function ChatScreen({
     (lastTurn?.status === 'answered' || lastTurn?.status === 'partial')
 
   return (
+    /* CHÉP TỪ BA SECTION CỦA BẢN MẪU, chọn theo trạng thái:
+         `id="hdt"`  chưa có lượt nào — bài học hôm nay + gợi ý câu hỏi
+         `id="cho"`  đang chờ trả lời — `.phieu` các bước + khung xương
+         `id="hd"`   đã có câu trả lời — `.co` hai cột
+       Cả ba dùng chung một khung `.main`, nên ở đây chỉ đổi phần thân. */
     <>
-      <div className="flex flex-1 flex-col">
-      <div className="flex-1 pb-turn">
-        {!hasQuestionHeading && <h1 className="sr-only">Hỏi đáp sức khỏe</h1>}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <div style={{ flex: 1 }}>
+          {!hasQuestionHeading && <h1 className="sr-only">Hỏi đáp sức khỏe</h1>}
 
-        {profileState === 'absent' && <MissingProfileBand />}
-        
-        {/* Banner bài học hàng ngày */}
-        {profileState !== 'absent' && turns.length === 0 && <DailyLessonBanner />}
+          {profileState === 'absent' && <MissingProfileBand />}
 
-        {isEmpty && <SuggestedQuestions profile={profile} onPick={ask} />}
+          {profileState !== 'absent' && turns.length === 0 && <DailyLessonBanner />}
 
-        {isLoadingHistory && (
-          <p role="status" className="font-display max-w-answer text-question text-slate">
-            Đang mở lại hội thoại đã lưu…
+          {isEmpty && <SuggestedQuestions profile={profile} onPick={ask} />}
+
+          {isLoadingHistory && (
+            <p role="status" className="lab">
+              Đang mở lại hội thoại đã lưu…
+            </p>
+          )}
+
+          {historyQuery.isError && (
+            <div style={{ marginBottom: 26 }}>
+              <ErrorNotice
+                error={historyQuery.error}
+                retryLabel="Mở lại hội thoại"
+                onRetry={() => void historyQuery.refetch()}
+              />
+            </div>
+          )}
+
+          {historyTurns.map((turn) => (
+            <AnswerTurn
+              key={turn.key}
+              turn={turn}
+              onListen={() => void playAnswer(turn.key)}
+              isListening={speakingMessageId === turn.key}
+            />
+          ))}
+
+          {turns.map((turn) => (
+            <AnswerTurn
+              key={turn.key}
+              turn={turn}
+              onListen={() => void playAnswer(turn.key)}
+              isListening={speakingMessageId === turn.key}
+            />
+          ))}
+
+          {/* ── Đang chờ: câu hỏi đã có đề mục, thân là các bước hoặc chữ chảy ── */}
+          {isStreaming && pendingQuestion !== null && (
+            <div className="hien" style={{ marginBottom: 'clamp(40px,2.6vw,62px)' }}>
+              <QuestionHeading question={pendingQuestion} />
+
+              <div style={{ marginTop: 26 }}>
+                {streamedAnswer ? (
+                  /* Đúng cái `.phieu` mà câu trả lời hoàn chỉnh sẽ dùng, để
+                     lúc stream xong không có gì nhảy chỗ. `.caret` là con trỏ
+                     nhấp nháy của bản mẫu — một vạch tím 9px. */
+                  <div className="phieu">
+                    <div className="phieu-top">
+                      <span>Trả lời · đang soạn</span>
+                    </div>
+                    <div style={{ padding: '0 clamp(16px,2vw,24px)' }}>
+                      <div className="doc doc-khong-le">
+                        <div className="doc-body">
+                          <p style={{ whiteSpace: 'pre-wrap' }}>
+                            {streamedAnswer}
+                            <span className="caret" aria-hidden="true" />
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rangcua" />
+                  </div>
+                ) : (
+                  <WaitingBlock step={currentStep} />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Lỗi và cho phép thử lại ─────────────────────────────────── */}
+          {streamError !== null && (
+            <div style={{ marginBottom: 'clamp(40px,2.6vw,62px)' }}>
+              {pendingQuestion !== null && (
+                <div style={{ marginBottom: 26 }}>
+                  <QuestionHeading question={pendingQuestion} />
+                </div>
+              )}
+              <ErrorNotice
+                error={streamError}
+                retryLabel="Gửi lại câu hỏi"
+                onRetry={() => {
+                  if (pendingQuestion !== null) void ask(pendingQuestion)
+                }}
+              />
+            </div>
+          )}
+
+          {canOfferQuiz && conversationId !== null && (
+            <div style={{ marginBottom: 'clamp(40px,2.6vw,62px)' }}>
+              <QuizPanel
+                source="conversation"
+                conversationId={conversationId}
+                ctaLabel="Kiểm tra kiến thức vừa trao đổi"
+              />
+            </div>
+          )}
+
+          <div ref={endRef} />
+        </div>
+
+        {isAfterRedFlag ? (
+          <p
+            className="lab"
+            style={{ borderTop: '1px solid var(--ke)', paddingTop: 14, lineHeight: 1.6 }}
+          >
+            Việc cần làm bây giờ là đi khám. Khi nào bạn đã ổn và muốn hỏi tiếp, bạn hãy
+            bấm “Câu hỏi mới”.
+          </p>
+        ) : !isVoiceModeOpen ? (
+          <ChatComposer
+            value={draft}
+            onChange={setDraft}
+            onSubmit={() => void ask(draft)}
+            onStartVoice={patientId === null ? undefined : openVoiceMode}
+            disabled={isStreaming}
+          />
+        ) : null}
+
+        {voiceError !== null && (
+          <p role="alert" className="lab" style={{ color: 'var(--do)', marginTop: 9 }}>
+            {voiceError}
           </p>
         )}
-
-        {historyQuery.isError && (
-          <div className="mb-turn">
-            <ErrorNotice
-              error={historyQuery.error}
-              retryLabel="Mở lại hội thoại"
-              onRetry={() => void historyQuery.refetch()}
-            />
-          </div>
-        )}
-
-        {historyTurns.map((turn) => (
-          <AnswerTurn
-            key={turn.key}
-            turn={turn}
-            onListen={() => void playAnswer(turn.key)}
-            isListening={speakingMessageId === turn.key}
-          />
-        ))}
-
-        {turns.map((turn) => (
-          <AnswerTurn
-            key={turn.key}
-            turn={turn}
-            onListen={() => void playAnswer(turn.key)}
-            isListening={speakingMessageId === turn.key}
-          />
-        ))}
-
-        {/* ── Khối Streaming: lời cập nhật trước, rồi câu trả lời khi có ─── */}
-        {isStreaming && pendingQuestion !== null && (
-          <div className="mb-turn animate-answer-in">
-            <QuestionHeading question={pendingQuestion} />
-
-            {/* Hiển thị câu trả lời streaming realtime nếu đã có token */}
-            {streamedAnswer ? (
-              // Đúng thẻ trắng bo 18px mà câu trả lời hoàn chỉnh sẽ dùng, để
-              // lúc stream xong không có gì nhảy chỗ.
-              <div className="max-w-answer rounded-card-lg bg-surface p-cozy">
-                <p className="text-answer whitespace-pre-wrap text-body">
-                  {streamedAnswer}
-                  {/* Con trỏ nhấp nháy. `inline` cộng `border-l-4`, KHÔNG dùng
-                      `inline-block`: tên bậc khoảng cách `--spacing-block` làm
-                      Tailwind đọc class đó thành `inline-size: 32px`. Xem cảnh
-                      báo ở `--spacing-block` trong `index.css`. */}
-                  <span className="ml-hair inline border-l-4 border-mint align-middle" />
-                </p>
-              </div>
-            ) : (
-              <div className="mt-cozy">
-                <WaitingBlock step={currentStep} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Khối hiển thị lỗi và cho phép thử lại ──────────────────── */}
-        {streamError !== null && (
-          <div className="mb-turn">
-            {pendingQuestion !== null && (
-              <div className="mb-block">
-                <QuestionHeading question={pendingQuestion} />
-              </div>
-            )}
-            <ErrorNotice
-              error={streamError}
-              retryLabel="Gửi lại câu hỏi"
-              onRetry={() => {
-                if (pendingQuestion !== null) void ask(pendingQuestion)
-              }}
-            />
-          </div>
-        )}
-
-        {canOfferQuiz && conversationId !== null && (
-          <div className="mb-turn">
-            <QuizPanel
-              source="conversation"
-              conversationId={conversationId}
-              ctaLabel="Kiểm tra kiến thức vừa trao đổi"
-            />
-          </div>
-        )}
-
-        <div ref={endRef} />
-      </div>
-
-      {isAfterRedFlag ? (
-        <p className="font-display max-w-answer border-t border-line pt-snug text-question text-slate">
-          Việc cần làm bây giờ là đi khám. Khi nào bạn đã ổn và muốn hỏi tiếp,
-          bạn hãy bấm “Câu hỏi mới”.
-        </p>
-      ) : !isVoiceModeOpen ? (
-        <ChatComposer
-          value={draft}
-          onChange={setDraft}
-          onSubmit={() => void ask(draft)}
-          onStartVoice={patientId === null ? undefined : openVoiceMode}
-          disabled={isStreaming}
-        />
-      ) : null}
-      {voiceError !== null && (
-        <p role="alert" className="font-display mt-tight max-w-answer text-question text-alert">
-          {voiceError}
-        </p>
-      )}
       </div>
 
       {isVoiceModeOpen && patientId !== null && (

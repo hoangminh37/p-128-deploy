@@ -6,7 +6,7 @@
  * Bấm vào là gửi luôn, không đổ chữ vào ô rồi bắt bấm thêm nút Gửi.
  */
 import type { PatientProfileResponse, PrimaryCondition } from '../lib/schemas'
-import { Mascot } from './Mascot'
+import { Sen } from './Sen'
 
 // Đây chỉ là các gợi ý được biên soạn sẵn cho những bệnh đã có nội dung UX
 // riêng. `PrimaryCondition` bây giờ là mã động từ danh mục BTV, nên không thể
@@ -61,39 +61,58 @@ export function SuggestedQuestions({
   const questions = questionsFor(profile)
 
   return (
-    <section aria-labelledby="suggested-heading" className="max-w-answer">
-      {/* Màn hỏi đáp chưa có lượt nào CŨNG LÀ một trạng thái rỗng, nên linh vật
-          xuất hiện ở đây theo đúng luật ba chỗ ở `Mascot.tsx`. Không dùng
-          `EmptyState` vì khối này còn có một danh sách bấm được bên dưới, mà
-          `EmptyState` chỉ nhận đúng một hành động. */}
-      <Mascot variant="muted" size={80} />
+    /* CHÉP TỪ `id="hdt"`: nét sen mờ 80px bên trái, tiêu đề và câu dẫn bên
+       phải, rồi lưới `.auto` các nút `.btn` căn trái. `.auto` là
+       `repeat(auto-fit, minmax(min(210px,100%),1fr))` — nó tự gãy theo bề
+       ngang thật, không cần điểm ngắt nào. */
+    <section
+      aria-labelledby="suggested-heading"
+      style={{
+        marginTop: 30,
+        display: 'flex',
+        gap: 18,
+        alignItems: 'flex-start',
+        flexWrap: 'wrap',
+      }}
+    >
+      {/* Màn hỏi đáp chưa có lượt nào CŨNG LÀ một trạng thái rỗng, nên nét sen
+          xuất hiện ở đây theo đúng luật hai chỗ ở `Sen.tsx`. */}
+      <div style={{ flex: 'none', opacity: 0.6 }}>
+        <Sen size={80} />
+      </div>
 
-      <h2 id="suggested-heading" className="mt-cozy text-heading font-semibold text-body">
-        Bạn có thể hỏi gì?
-      </h2>
-      <p className="font-display mt-tight text-question text-slate">
-        Bấm vào một câu bên dưới để hỏi ngay, hoặc tự gõ câu hỏi của bạn ở ô cuối
-        màn hình.
-      </p>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <h2 id="suggested-heading" style={{ fontSize: 'var(--t-h3)' }}>
+          Bạn có thể hỏi gì?
+        </h2>
+        <p
+          style={{
+            fontSize: 'var(--t-note)',
+            color: 'var(--xam)',
+            marginTop: 6,
+            maxWidth: '52ch',
+            lineHeight: 1.7,
+          }}
+        >
+          Bấm vào một câu bên dưới để hỏi ngay, hoặc tự gõ câu hỏi của bạn ở ô cuối màn
+          hình.
+        </p>
 
-      {/* Hai cột từ 640px: đây là một danh sách ngắn, xếp dọc một cột thì nó
-          kéo màn hỏi đáp còn trống dài thêm mà không thêm thông tin nào. */}
-      <ul className="mt-cozy grid gap-snug sm:grid-cols-2">
-        {questions.map((question) => (
-          <li key={question}>
-            <button
-              type="button"
-              onClick={() => onPick(question)}
-              // Thẻ trắng trên nền canvas, không viền. Ranh giới của nút là
-              // chỗ nền đổi từ canvas sang trắng — đủ thấy ở mọi cỡ chữ, và
-              // không thêm một nét kẻ nữa vào một danh sách vốn đã nhiều nét.
-              className="motion-lift font-display min-h-touch w-full rounded-card bg-surface p-cozy text-left text-question text-body"
-            >
-              {question}
-            </button>
-          </li>
-        ))}
-      </ul>
+        <ul className="auto" style={{ listStyle: 'none', margin: '14px 0 0', padding: 0 }}>
+          {questions.map((question) => (
+            <li key={question} style={{ display: 'flex' }}>
+              <button
+                type="button"
+                onClick={() => onPick(question)}
+                className="btn"
+                style={{ textAlign: 'left', justifyContent: 'flex-start', width: '100%' }}
+              >
+                {question}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   )
 }

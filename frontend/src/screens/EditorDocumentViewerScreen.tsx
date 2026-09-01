@@ -27,7 +27,7 @@ function BackToLibrary() {
   return (
     <Link
       to="/editor/documents"
-      className="motion-press font-display inline-flex min-h-touch items-center rounded-pill border-2 border-slate bg-surface px-cozy text-input font-semibold text-body no-underline hover:bg-canvas"
+      className="motion-press font-display inline-flex min-h-touch items-center rounded-pill border border-slate bg-surface px-cozy text-input font-semibold text-body no-underline hover:bg-canvas"
     >
       Về thư viện tài liệu
     </Link>
@@ -59,7 +59,7 @@ function FileUnavailable({ sourceDocument }: { sourceDocument: EditorSourceDocum
     : 'File gốc có định dạng chưa có màn xem trực tiếp. Hiện hệ thống hỗ trợ xem toàn văn PDF và Markdown.'
 
   return (
-    <section className="mt-block rounded-card-lg bg-sand p-cozy text-sand-deep" aria-labelledby="file-unavailable-title">
+    <section className="mt-block rounded-card-lg border border-l-[3px] border-sand-deep bg-sand p-cozy text-sand-deep" aria-labelledby="file-unavailable-title">
       <h2 id="file-unavailable-title" className="font-display text-notice font-semibold">
         Chưa thể mở toàn văn tại đây
       </h2>
@@ -69,7 +69,7 @@ function FileUnavailable({ sourceDocument }: { sourceDocument: EditorSourceDocum
           href={sourceDocument.url}
           target="_blank"
           rel="noreferrer"
-          className="font-display mt-cozy inline-flex min-h-touch items-center rounded-pill border-2 border-sand-deep px-cozy text-input font-semibold text-sand-deep no-underline hover:bg-sand-lift"
+          className="font-display mt-cozy inline-flex min-h-touch items-center rounded-pill border border-sand-deep px-cozy text-input font-semibold text-sand-deep no-underline hover:bg-sand-lift"
         >
           Mở nguồn do nhà phát hành cung cấp
         </a>
@@ -170,9 +170,9 @@ export function EditorDocumentViewerScreen() {
     <div className="w-full max-w-page">
       <BackToLibrary />
 
-      <header className="mt-block rounded-card-lg bg-surface p-cozy">
+      <header className="mt-block rounded-card-lg border border-line bg-surface p-cozy">
         <p className="font-mono text-question text-slate">{sourceDocument.document_id}</p>
-        <h1 className="mt-hair text-ask font-semibold text-body">{sourceDocument.title}</h1>
+        <h1 className="mt-hair font-title text-ask text-body">{sourceDocument.title}</h1>
         <DocumentDetails sourceDocument={sourceDocument} />
         {sourceDocument.status_at !== null && (
           <p className="font-display mt-snug text-question text-slate">
@@ -204,7 +204,7 @@ export function EditorDocumentViewerScreen() {
           <iframe
             src={loadedDocument.objectUrl}
             title={`Toàn văn: ${sourceDocument.title}`}
-            className="h-[72dvh] min-h-[38rem] w-full rounded-card-lg border-2 border-line bg-surface"
+            className="h-[72dvh] min-h-[38rem] w-full rounded-card-lg border border-line bg-surface"
           />
           <a
             href={loadedDocument.objectUrl}
@@ -218,7 +218,7 @@ export function EditorDocumentViewerScreen() {
       )}
 
       {loadedDocument?.type === 'markdown' && (
-        <article className="source-markdown mt-block rounded-card-lg bg-surface p-cozy">
+        <article className="source-markdown mt-block rounded-card-lg border border-line bg-surface p-cozy">
           <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
             {loadedDocument.content}
           </ReactMarkdown>
