@@ -20,7 +20,9 @@ export type DemoAccount = {
 }
 
 export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
-  { label: 'Bệnh nhân', email: 'benhnhan@demo.vn', password: 'demo1234' },
-  { label: 'Biên tập viên', email: 'bientap@demo.vn', password: 'demo1234' },
-  { label: 'Bác sỹ', email: 'bacsi@demo.vn', password: 'demo1234' },
+  { label: 'Bệnh nhân (Trẻ tuổi)', email: 'benhnhan@demo.vn', password: 'demo1234' },
+  { label: 'Bệnh nhân (Cao tuổi)', email: 'nguoicaotuoi@demo.vn', password: 'demo1234' },
+  { label: 'Bác sỹ tư vấn', email: 'bacsi@demo.vn', password: 'demo1234' },
+  { label: 'Biên tập viên y khoa', email: 'bientap@demo.vn', password: 'demo1234' },
 ]
+
