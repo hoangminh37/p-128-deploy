@@ -96,10 +96,13 @@ cd frontend && npm run dev
 |---|---|---|
 | `benhnhan@demo.vn` | Bệnh nhân | 30 tuổi, tiểu đường típ 2 |
 | `nguoicaotuoi@demo.vn` | Bệnh nhân | **75 tuổi**, tiểu đường típ 2 **kèm cao huyết áp** |
-| `bientap@demo.vn` | Biên tập viên | — |
+| `bientap@demo.vn` | Biên tập viên | Quản lý tài liệu nguồn, duyệt nội dung và xem log |
+| `bacsi@demo.vn` | Bác sĩ | BS. Minh Anh (Chuyên khoa Nội tiết - Phòng khám EduHealth) |
 
 > Dùng `nguoicaotuoi@demo.vn` khi muốn thấy rõ phần cá nhân hoá: câu trả lời và
 > đề trắc nghiệm sẽ xưng "bác" và dùng câu chữ đơn giản hơn.
+> Dùng `bacsi@demo.vn` khi muốn kiểm thử tính năng tư vấn trực tuyến và video call.
+
 
 ---
 
@@ -173,20 +176,28 @@ sai ngữ cảnh.
 
 ---
 
-## Phần 3 — Kiểm tự động
+## Phần 3 — Kiểm thử tự động (Automated Testing)
 
 ```bash
-.venv/Scripts/python -m pytest -q          # 262 test
-.venv/Scripts/python -m ruff check src tests
-cd frontend && npx tsc -b --noEmit
+# 1. Chạy toàn bộ 320 unit/integration tests (Backend)
+.venv/bin/pytest -q
+
+# 2. Kiểm tra linting và code formatting (Ruff)
+.venv/bin/ruff format --check src/ tests/ eval/
+.venv/bin/ruff check src/ tests/ eval/
+
+# 3. Kiểm tra kiểu tĩnh và build (Frontend)
+cd frontend && npx tsc -b --noEmit && npm run lint
 ```
 
-Chất lượng đề trắc nghiệm — cần API key, mất ~10-15 phút:
+### Đánh giá AI / Benchmark toàn diện (RAGAS & Custom LLM Judge):
+Xem tài liệu chi tiết tại [`docs/TESTING.md`](TESTING.md) và [`eval/results/benchmark_report.md`](../eval/results/benchmark_report.md):
 
 ```bash
-python scripts/eval_quiz_models.py --models openai/gpt-oss-120b \
-    --openrouter openai/gpt-oss-120b deepseek/deepseek-v4-flash
+# Chạy bộ benchmark và xuất báo cáo tự động
+python eval/run_benchmark.py
 ```
+
 
 ---
 
